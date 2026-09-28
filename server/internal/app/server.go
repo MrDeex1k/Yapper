@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"net/http"
 	"sync/atomic"
 )
@@ -10,6 +11,7 @@ import (
 var Version = "0.1.0-dev"
 
 type Server struct {
+	DB              *pgxpool.Pool
 	ready           atomic.Bool
 	CheckDependency func(context.Context) error
 }

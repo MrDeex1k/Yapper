@@ -20,6 +20,21 @@ func run(ctx context.Context) error {
 		return err
 	}
 	s := app.NewServer()
+	if c.DatabaseURL != "" {
+		startupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		pool, err := app.OpenDatabase(startupCtx, c.DatabaseURL)
+		cancel()
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+		s.DB = pool
+		s.CheckDependency = func(ctx context.Context) error {
+			probe, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			return pool.Ping(probe)
+		}
+	}
 	handler := s.Handler()
 	srv := &http.Server{Addr: c.Address, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 16 << 10, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := rand.Text()
