@@ -240,3 +240,44 @@ func TestRealtimePermissionAndDelivery(t *testing.T) {
 		t.Fatal("revoked HTTP access", status)
 	}
 }
+
+func TestReconnectRecoversMissedMessage(t *testing.T) {
+	s := testServer(t)
+	admin := adminSession(t, s)
+	_, inv := request(t, s, "POST", "/api/v1/auth/invites", admin, nil)
+	_, member := request(t, s, "POST", "/api/v1/auth/register", "", map[string]string{"username": "reconnect", "password": "test-password-strong", "invite": inv["invite"].(string)})
+	token := member["token"].(string)
+	_, channels := request(t, s, "GET", "/api/v1/channels", token, nil)
+	id := channels["channels"].([]any)[0].(map[string]any)["id"].(string)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	connect := func() *websocket.Conn {
+		t.Helper()
+		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(ts.URL, "http")+"/api/v1/events", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := json.Marshal(map[string]string{"token": token, "channel_id": id})
+		if err = conn.Write(ctx, websocket.MessageText, data); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err = conn.Read(ctx); err != nil {
+			t.Fatal(err)
+		}
+		return conn
+	}
+	conn := connect()
+	conn.CloseNow()
+	code, _ := request(t, s, "POST", "/api/v1/channels/"+id+"/messages", admin, map[string]string{"content": "sent while offline", "client_id": "offline-1"})
+	if code != 201 {
+		t.Fatal(code)
+	}
+	again := connect()
+	defer again.CloseNow()
+	code, result := request(t, s, "GET", "/api/v1/channels/"+id+"/messages", token, nil)
+	if code != 200 || len(result["messages"].([]any)) != 1 {
+		t.Fatal("missed message not recovered", code, result)
+	}
+}
