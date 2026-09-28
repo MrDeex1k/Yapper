@@ -295,9 +295,9 @@ Odbiór: użytkownik świadomie steruje transmisją i odtwarzaniem; web nie obie
 
 ### F03-E04 — Odporność rozmowy
 
-- [ ] K01: Dodać stan reconnect i ponowne dołączenie po zmianie lub utracie sieci.
-- [ ] K02: Dodać reakcję na odłączenie mikrofonu/słuchawek oraz zmianę uprawnień urządzeń.
-- [ ] K03: Dodać ograniczone kolejki zdarzeń obecności i usuwanie nieaktualnych sesji.
+- [x] K01: Dodać stan reconnect i ponowne dołączenie po zmianie lub utracie sieci.
+- [x] K02: Dodać reakcję na odłączenie mikrofonu/słuchawek oraz zmianę uprawnień urządzeń.
+- [x] K03: Dodać ograniczone kolejki zdarzeń obecności i usuwanie nieaktualnych sesji.
 
 Odbiór: powrót sieci i wymiana urządzenia nie wymagają odświeżenia całej aplikacji; nie zostają fikcyjni uczestnicy.
 

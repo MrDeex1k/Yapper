@@ -26,3 +26,9 @@ Text chat remains usable if media is unavailable. Joining voice must report a cl
 `POST /api/v1/channels/{id}/voice` requires a current authorized application session and a voice channel. It returns a one-minute room-specific join token that initially permits only microphone publication. `GET .../participants` queries current SFU participants. `DELETE .../voice` revokes the user's grant and removes their participant.
 
 Membership removal and logout revoke grants and request immediate SFU removal. A bounded reconciliation loop checks active SFU participants against current database sessions and membership every five seconds, including after a restart. If SFU control is unavailable the API reports disconnect pending and the loop retries. This is bounded eventual revocation, not a claim of instantaneous enforcement during a network partition. A previously issued token can still be presented during its validity; the reconciler removes unauthorized rejoins. Self-hosted token refresh behavior must be included in WAN/security acceptance.
+
+## Browser lifecycle
+
+The room SDK handles transient reconnection; the UI distinguishes connecting, reconnecting and disconnected states. A final disconnect clears the participant/speaker list. Leaving or unmounting aborts pending admission and disconnects tracks; a delayed join is checked before and after enabling capture. Device-change events refresh input/output selectors; capture failures surface in the room instead of silently leaving an inactive microphone. Push-to-talk uses V only outside typing controls and releases on window blur.
+
+Slow text-notification subscribers are disconnected rather than growing an unbounded queue. Application sessions are cleaned in bounded batches after expiry; SFU reconciliation removes participants whose sessions have expired.

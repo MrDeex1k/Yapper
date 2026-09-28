@@ -57,7 +57,7 @@ func (s *Server) voiceLeave(w http.ResponseWriter, r *http.Request, u User) {
 	w.WriteHeader(204)
 }
 func (s *Server) ReconcileMedia(ctx context.Context) {
-	if s.Media == nil || s.DB == nil {
+	if s.DB == nil {
 		return
 	}
 	ticker := time.NewTicker(5 * time.Second)
@@ -68,6 +68,14 @@ func (s *Server) ReconcileMedia(ctx context.Context) {
 			return
 		case <-ticker.C:
 			cycle, cancel := context.WithTimeout(ctx, 10*time.Second)
+			_, cleanupErr := s.DB.Exec(cycle, "DELETE FROM sessions WHERE token_hash IN (SELECT token_hash FROM sessions WHERE expires_at<now() LIMIT 1000)")
+			if cleanupErr != nil && ctx.Err() == nil {
+				slog.Warn("session_cleanup_failed")
+			}
+			if s.Media == nil {
+				cancel()
+				continue
+			}
 			if err := s.reconcileMediaOnce(cycle); err != nil && ctx.Err() == nil {
 				slog.Warn("media_reconcile_failed")
 			}
