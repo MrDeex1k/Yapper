@@ -349,8 +349,8 @@ Odbiór: administrator przechodzi instrukcję instalacji, backupu, aktualizacji 
 ### F04-E05 — Wydanie MVP
 
 - [ ] K01: Przeprowadzić pilotaż na Windows i Linux; zapisać wyniki oraz naprawić blokery w osobnych krokach dodanych do etapu.
-- [ ] K02: Dodać desktopowe artefakty i sumy kontrolne do procesu publikacji; opisać status podpisywania paczek.
-- [ ] K03: Przygotować `0.4.0`, instrukcję dla użytkownika i landing opisujący faktycznie dostępną wersję.
+- [x] K02: Dodać desktopowe artefakty i sumy kontrolne do procesu publikacji; opisać status podpisywania paczek.
+- [x] K03: Przygotować `0.4.0`, instrukcję dla użytkownika i landing opisujący faktycznie dostępną wersję.
 
 Odbiór fazy: grupa samodzielnie instaluje klienty i serwer oraz używa czatu/głosu podczas pełnej sesji. To koniec MVP, nie koniec projektu.
 

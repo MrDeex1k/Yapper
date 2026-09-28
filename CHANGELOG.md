@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — prepared, not published
+
+- Sandboxed Windows/Linux Electron shell with typed IPC, tray and opt-in global PTT.
+- Saved server origins, roles, bans, private memberships and message removal.
+- Service/storage status, private instance backup and verified isolated restore.
+- Unsigned desktop artifact pipeline; physical platform pilot remains pending.
+
 ## 0.3.0 — prepared, not published
 
 - Self-hosted LiveKit profile, scoped microphone grants and permission reconciliation.
