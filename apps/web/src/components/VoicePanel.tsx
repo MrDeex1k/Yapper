@@ -1,3 +1,4 @@
+import { joinRoom } from '../lib/join-room';
 import { VoiceControls } from './VoiceControls';
 import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track, type RemoteTrack, type Participant } from 'livekit-client';
@@ -5,6 +6,7 @@ import { Client, errorMessage, type Channel } from '../lib/api';
 import { Button } from './ui/button';
 export default function VoicePanel({ client, channel }: { client: Client; channel: Channel }) {
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }));
+  const joining = useRef<AbortController | null>(null);
   const audio = useRef<HTMLDivElement>(null);
   const [speakers, setSpeakers] = useState<Set<string>>(() => new Set());
   const [status, setStatus] = useState('Disconnected');
@@ -31,13 +33,25 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     const disconnected = () => {
       setJoined(false);
       setStatus('Disconnected');
+      setParticipants([]);
+      setSpeakers(new Set());
     };
+    const reconnecting = () => setStatus('Reconnecting…');
+    const reconnected = () => {
+      setStatus('Connected');
+      update();
+    };
+    room.on(RoomEvent.Reconnecting, reconnecting);
+    room.on(RoomEvent.Reconnected, reconnected);
     room.on(RoomEvent.ParticipantConnected, update);
     room.on(RoomEvent.ParticipantDisconnected, update);
     room.on(RoomEvent.TrackSubscribed, attach);
     room.on(RoomEvent.TrackUnsubscribed, detach);
     room.on(RoomEvent.Disconnected, disconnected);
     return () => {
+      joining.current?.abort();
+      room.off(RoomEvent.Reconnecting, reconnecting);
+      room.off(RoomEvent.Reconnected, reconnected);
       room.off(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
       room.off(RoomEvent.ParticipantConnected, update);
       room.off(RoomEvent.ParticipantDisconnected, update);
@@ -54,18 +68,16 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     setBusy(true);
     setError('');
     setStatus('Connecting…');
+    const controller = new AbortController();
+    joining.current = controller;
     try {
-      const grant = await client.request<{ token: string; url: string }>(
-        `/channels/${channel.id}/voice`,
-        { method: 'POST' },
-      );
-      await room.connect(grant.url, grant.token);
-      await room.localParticipant.setMicrophoneEnabled(true);
+      await joinRoom(client, channel.id, room, controller.signal);
       setJoined(true);
       setStatus('Connected');
       setParticipants([room.localParticipant, ...room.remoteParticipants.values()]);
     } catch (e) {
       await room.disconnect();
+      if (controller.signal.aborted) return;
       setStatus('Disconnected');
       setError(errorMessage(e));
     } finally {
@@ -73,6 +85,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     }
   }
   async function leave() {
+    joining.current?.abort();
     await room.disconnect();
     setJoined(false);
     setStatus('Disconnected');
