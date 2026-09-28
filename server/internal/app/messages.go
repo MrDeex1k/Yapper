@@ -86,6 +86,7 @@ func (s *Server) sendMessage(w http.ResponseWriter, r *http.Request, u User) {
 		fail(w, 409, "idempotency_conflict", "This client ID was already used for another message.")
 		return
 	}
+	s.eventsHub.publish(id, "message.created")
 	m.Username = u.Username
 	JSON(w, 201, m)
 }

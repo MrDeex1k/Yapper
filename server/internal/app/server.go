@@ -11,6 +11,7 @@ import (
 var Version = "0.1.0-dev"
 
 type Server struct {
+	eventsHub       *hub
 	authLimit       authLimiter
 	BootstrapToken  string
 	DB              *pgxpool.Pool
@@ -18,8 +19,8 @@ type Server struct {
 	CheckDependency func(context.Context) error
 }
 
-func NewServer() *Server { s := &Server{}; s.ready.Store(true); return s }
-func (s *Server) Drain() { s.ready.Store(false) }
+func NewServer() *Server { s := &Server{eventsHub: newHub()}; s.ready.Store(true); return s }
+func (s *Server) Drain() { s.ready.Store(false); s.eventsHub.revoke("", "") }
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { JSON(w, 200, map[string]string{"status": "alive"}) })
@@ -40,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
+		mux.HandleFunc("GET /api/v1/events", s.events)
 		mux.HandleFunc("GET /api/v1/channels/{channel}/messages", s.authenticated(s.messages))
 		mux.HandleFunc("POST /api/v1/channels/{channel}/messages", s.authenticated(s.sendMessage))
 		mux.HandleFunc("GET /api/v1/channels", s.authenticated(s.channels))
