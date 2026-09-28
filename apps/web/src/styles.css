@@ -424,3 +424,33 @@ h1 span {
   display: block;
   margin: 18px 0;
 }
+.voice-controls {
+  margin-top: 24px;
+}
+.voice-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.device-selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  gap: 18px;
+  margin-top: 24px;
+}
+.device-selects label {
+  font-size: 12px;
+  color: #a6b09a;
+}
+.speaking .avatar {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+@media (max-width: 650px) {
+  .voice-body {
+    padding: 30px 18px;
+  }
+  .device-selects {
+    grid-template-columns: 1fr;
+  }
+}

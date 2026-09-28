@@ -1,3 +1,4 @@
+import { VoiceControls } from './VoiceControls';
 import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track, type RemoteTrack, type Participant } from 'livekit-client';
 import { Client, errorMessage, type Channel } from '../lib/api';
@@ -14,7 +15,11 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     const update = () =>
       setParticipants([room.localParticipant, ...room.remoteParticipants.values()]);
     const attach = (track: RemoteTrack) => {
-      if (track.kind === Track.Kind.Audio) audio.current?.append(track.attach());
+      if (track.kind === Track.Kind.Audio) {
+        const element = track.attach();
+        element.muted = audio.current?.dataset.deaf === 'true';
+        audio.current?.append(element);
+      }
     };
     const detach = (track: RemoteTrack) => {
       for (const element of track.detach()) element.remove();
@@ -94,6 +99,20 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
             {busy ? 'Connecting…' : 'Join voice'}
           </Button>
         )}
+        {joined ? (
+          <VoiceControls
+            room={room}
+            onDeafen={(value) => {
+              if (audio.current) {
+                audio.current.dataset.deaf = String(value);
+                audio.current.querySelectorAll('audio').forEach((element) => {
+                  element.muted = value;
+                });
+              }
+            }}
+            onError={setError}
+          />
+        ) : null}
         <ul className="participants">
           {participants.map((p) => (
             <li key={p.identity}>
