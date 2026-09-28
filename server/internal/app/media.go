@@ -54,12 +54,16 @@ func (s *Server) voiceJoin(w http.ResponseWriter, r *http.Request, u User) {
 		fail(w, 503, "database_unavailable", "Could not authorize voice.")
 		return
 	}
-	token, err := auth.NewAccessToken(s.Media.Key, s.Media.Secret).SetIdentity(u.ID).SetName(u.Username).SetValidFor(time.Minute).SetVideoGrant(&auth.VideoGrant{RoomJoin: true, Room: id, CanPublish: new(true), CanSubscribe: new(true), CanPublishData: new(false), CanUpdateOwnMetadata: new(false), CanPublishSources: []string{"microphone"}}).ToJWT()
+	sources := []string{"microphone"}
+	if s.AllowScreen {
+		sources = append(sources, "screen_share")
+	}
+	token, err := auth.NewAccessToken(s.Media.Key, s.Media.Secret).SetIdentity(u.ID).SetName(u.Username).SetValidFor(time.Minute).SetVideoGrant(&auth.VideoGrant{RoomJoin: true, Room: id, CanPublish: new(true), CanSubscribe: new(true), CanPublishData: new(false), CanUpdateOwnMetadata: new(false), CanPublishSources: sources}).ToJWT()
 	if err != nil {
 		fail(w, 500, "media_token_failed", "Could not authorize voice.")
 		return
 	}
-	JSON(w, 200, map[string]any{"token": token, "url": s.Media.PublicURL, "room": id, "expires_in": 60})
+	JSON(w, 200, map[string]any{"token": token, "url": s.Media.PublicURL, "room": id, "expires_in": 60, "allow_screen": s.AllowScreen})
 }
 func (s *Server) voiceParticipants(w http.ResponseWriter, r *http.Request, u User) {
 	id := r.PathValue("channel")

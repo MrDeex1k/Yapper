@@ -509,3 +509,36 @@ h1 span {
   border: 1px solid var(--border);
   color: inherit;
 }
+.media-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 20px 0;
+}
+.media-controls small {
+  color: var(--muted-foreground);
+}
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.video-tile {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #10120f;
+}
+.video-tile video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: contain;
+}
+.video-tile figcaption {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}

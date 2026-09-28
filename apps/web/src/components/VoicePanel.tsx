@@ -1,4 +1,6 @@
 import { joinRoom } from '../lib/join-room';
+import { ScreenShare } from './ScreenShare';
+import { VideoStage } from './VideoStage';
 import { VoiceControls } from './VoiceControls';
 import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track, type RemoteTrack, type Participant } from 'livekit-client';
@@ -13,6 +15,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
   const [joined, setJoined] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [allowScreen, setAllowScreen] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   useEffect(() => {
     const update = () =>
@@ -77,7 +80,8 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     const controller = new AbortController();
     joining.current = controller;
     try {
-      await joinRoom(client, channel.id, room, controller.signal);
+      const grant = await joinRoom(client, channel.id, room, controller.signal);
+      setAllowScreen(grant.allow_screen);
       setJoined(true);
       setStatus('Connected');
       setParticipants([room.localParticipant, ...room.remoteParticipants.values()]);
@@ -136,6 +140,12 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
             }}
             onError={setError}
           />
+        ) : null}
+        {joined ? (
+          <>
+            <ScreenShare room={room} allowed={allowScreen} onError={setError} />
+            <VideoStage room={room} />
+          </>
         ) : null}
         <ul className="participants">
           {participants.map((p) => (

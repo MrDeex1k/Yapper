@@ -62,3 +62,37 @@ func TestMediaGrantScopeAndRevocation(t *testing.T) {
 		t.Fatal("revoked session left in SFU")
 	}
 }
+
+func TestScreenGrantRespectsHostSetting(t *testing.T) {
+	s := testServer(t)
+	token := adminSession(t, s)
+	s.Media = &Media{Key: "testkey", Secret: "01234567890123456789012345678901", PublicURL: "ws://localhost:17880", Rooms: &fakeRooms{}}
+	_, channel := request(t, s, "POST", "/api/v1/channels", token, map[string]string{"name": "screens", "kind": "voice"})
+	for _, allow := range []bool{false, true} {
+		s.AllowScreen = allow
+		status, grant := request(t, s, "POST", "/api/v1/channels/"+channel["id"].(string)+"/voice", token, nil)
+		if status != 200 {
+			t.Fatal(status, grant)
+		}
+		parsed, err := auth.ParseAPIToken(grant["token"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, claims, err := parsed.Verify(s.Media.Secret)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, source := range claims.Video.CanPublishSources {
+			if source == "screen_share" {
+				found = true
+			}
+			if source == "camera" || source == "screen_share_audio" {
+				t.Fatal("unexpected source", source)
+			}
+		}
+		if found != allow {
+			t.Fatal("screen policy not applied")
+		}
+	}
+}
