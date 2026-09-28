@@ -43,7 +43,11 @@ export function VideoStage({ room }: { room: Room }) {
   const currentPage = Math.min(page, pages - 1);
   const offset = currentPage * 4;
   useEffect(() => {
-    const update = () => setEntries(publications(room));
+    let active = true;
+    const update = () =>
+      queueMicrotask(() => {
+        if (active) setEntries(publications(room));
+      });
     room.on(RoomEvent.TrackPublished, update);
     room.on(RoomEvent.TrackUnpublished, update);
     room.on(RoomEvent.TrackSubscribed, update);
@@ -54,6 +58,7 @@ export function VideoStage({ room }: { room: Room }) {
     room.on(RoomEvent.TrackUnmuted, update);
     room.on(RoomEvent.ParticipantDisconnected, update);
     return () => {
+      active = false;
       room.off(RoomEvent.TrackPublished, update);
       room.off(RoomEvent.TrackUnpublished, update);
       room.off(RoomEvent.TrackSubscribed, update);
@@ -121,7 +126,12 @@ export function VideoStage({ room }: { room: Room }) {
       </div>
       <div className="video-grid">
         {entries.slice(offset, offset + 4).map((entry) =>
-          entry.track && !entry.publication.isMuted ? (
+          entry.track &&
+          !entry.publication.isMuted &&
+          !(
+            entry.publication instanceof RemoteTrackPublication &&
+            (paused || !visible || !entry.publication.isSubscribed)
+          ) ? (
             <VideoTile key={entry.id} entry={{ ...entry, track: entry.track }} />
           ) : (
             <figure className="video-tile" key={entry.id}>
