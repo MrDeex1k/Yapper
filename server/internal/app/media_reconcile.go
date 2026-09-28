@@ -1,12 +1,14 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"github.com/livekit/protocol/livekit"
 	"github.com/twitchtv/twirp"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -106,11 +108,25 @@ func (s *Server) reconcileMediaOnce(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		slices.SortFunc(participants.Participants, func(a, b *livekit.ParticipantInfo) int {
+			if order := cmp.Compare(a.JoinedAt, b.JoinedAt); order != 0 {
+				return order
+			}
+			return cmp.Compare(a.Identity, b.Identity)
+		})
+		screens := 0
 		for _, p := range participants.Participants {
 			var allowed bool
 			err = s.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM media_grants g JOIN users u ON u.id=g.user_id JOIN sessions s ON s.token_hash=g.session_hash AND s.user_id=u.id JOIN channels c ON c.id=g.channel_id WHERE g.user_id=$1 AND g.channel_id=$2 AND NOT u.banned AND s.expires_at>now() AND (NOT c.private OR u.role='admin' OR EXISTS(SELECT 1 FROM channel_members cm WHERE cm.user_id=u.id AND cm.channel_id=c.id)))`, p.Identity, id).Scan(&allowed)
 			if err != nil {
 				return err
+			}
+			allowed = allowed && s.validMediaSources(p)
+			if allowed && hasScreen(p) {
+				screens++
+				if screens > s.MaxScreens {
+					allowed = false
+				}
 			}
 			if !allowed {
 				if err = s.removeMediaParticipant(ctx, id, p.Identity); err != nil {

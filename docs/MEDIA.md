@@ -32,3 +32,13 @@ Membership removal and logout revoke grants and request immediate SFU removal. A
 The room SDK handles transient reconnection; the UI distinguishes connecting, reconnecting and disconnected states. A final disconnect clears the participant/speaker list. Leaving or unmounting aborts pending admission and disconnects tracks; a delayed join is checked before and after enabling capture. Device-change events refresh input/output selectors; capture failures surface in the room instead of silently leaving an inactive microphone. Push-to-talk uses V only outside typing controls and releases on window blur.
 
 Slow text-notification subscribers are disconnected rather than growing an unbounded queue. Application sessions are cleaned in bounded batches after expiry; SFU reconciliation removes participants whose sessions have expired.
+
+## Screen sharing (F05-E03)
+
+Screen publication is explicit and can be disabled by the host with `ALLOW_SCREEN_SHARE=false`. Join grants whitelist microphone and, when enabled, screen video only. Screen/system audio is intentionally disabled in this candidate. Browser capture uses the browser's picker; Electron uses an available system picker or a native source-selection dialog (up to 12 enumerated sources), with Cancel as default. Denial/cancellation returns a visible error and does not start sharing.
+
+Client profiles request 480p/10 fps/500 kbps or 720p/15 fps/1.5 Mbps. These are capture/encoder preferences, not a server transcoding guarantee or protection against malicious senders. The bundled SFU limits a room to 16 participants and each subscriber to four video and 16 audio subscriptions; operators can edit the SFU configuration for measured hardware capacity.
+
+`MAX_SCREEN_SHARES` defaults to two per room. The five-second reconciliation cycle removes publishers exceeding the screen count, using join order with identity as tie-breaker, and rejects duplicate/unsupported track sources. This is eventual enforcement: simultaneous publications can briefly exceed the count and SFU outages delay enforcement. Exceeding policy disconnects the participant, including voice. Existing calls must reconnect after host policy changes. Real Windows/X11/Wayland screen selection remains part of platform acceptance.
+
+Local Chrome check (2026-09-28): a synthetic-microphone voice participant started sharing the Yapper browser tab; the UI showed a live local screen tile and Stop sharing. Stopping sharing and leaving voice were exercised. This is a local browser smoke, not remote video quality or Windows/Linux picker acceptance.

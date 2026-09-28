@@ -11,6 +11,7 @@ import (
 var Version = "0.4.0-dev"
 
 type Server struct {
+	MaxScreens      int
 	AllowScreen     bool
 	uploadSlots     chan struct{}
 	Files           *FileStore
@@ -24,7 +25,7 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	s := &Server{eventsHub: newHub(), uploadSlots: make(chan struct{}, 4)}
+	s := &Server{eventsHub: newHub(), uploadSlots: make(chan struct{}, 4), MaxScreens: 2}
 	s.ready.Store(true)
 	return s
 }

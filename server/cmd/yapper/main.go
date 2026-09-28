@@ -23,6 +23,7 @@ func run(ctx context.Context, cleanup, apply bool) error {
 	}
 	s := app.NewServer()
 	s.AllowScreen = c.AllowScreen
+	s.MaxScreens = c.MaxScreens
 	if c.FilesDir != "" {
 		store, err := app.NewFileStore(c.FilesDir, c.MaxFileBytes, c.FileQuotaBytes)
 		if err != nil {

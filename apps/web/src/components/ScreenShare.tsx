@@ -11,6 +11,7 @@ export function ScreenShare({
   allowed: boolean;
   onError: (message: string) => void;
 }) {
+  const [quality, setQuality] = useState('standard');
   const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
   const active = useRef(true);
@@ -32,10 +33,19 @@ export function ScreenShare({
         !room.localParticipant.isScreenShareEnabled,
         {
           audio: false,
-          resolution: { width: 1280, height: 720, frameRate: 15 },
+          resolution:
+            quality === 'economy'
+              ? { width: 854, height: 480, frameRate: 10 }
+              : { width: 1280, height: 720, frameRate: 15 },
           systemAudio: 'exclude',
         },
-        { videoCodec: 'vp8', screenShareEncoding: { maxBitrate: 1500000, maxFramerate: 15 } },
+        {
+          videoCodec: 'vp8',
+          screenShareEncoding:
+            quality === 'economy'
+              ? { maxBitrate: 500000, maxFramerate: 10 }
+              : { maxBitrate: 1500000, maxFramerate: 15 },
+        },
       );
       if (!active.current) {
         await room.localParticipant.setScreenShareEnabled(false);
@@ -50,6 +60,17 @@ export function ScreenShare({
   }
   return (
     <div className="media-controls">
+      <label>
+        Screen quality
+        <select
+          value={quality}
+          disabled={sharing || busy}
+          onChange={(e) => setQuality(e.target.value)}
+        >
+          <option value="economy">Economy · 480p / 10 fps</option>
+          <option value="standard">Standard · 720p / 15 fps</option>
+        </select>
+      </label>
       <Button variant="outline" disabled={!allowed || busy} aria-pressed={sharing} onClick={toggle}>
         {sharing ? 'Stop sharing' : 'Share screen'}
       </Button>

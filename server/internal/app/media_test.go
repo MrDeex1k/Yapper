@@ -96,3 +96,28 @@ func TestScreenGrantRespectsHostSetting(t *testing.T) {
 		}
 	}
 }
+
+func TestReconciliationLimitsSimultaneousScreens(t *testing.T) {
+	s := testServer(t)
+	admin := adminSession(t, s)
+	member := memberSession(t, s, admin)
+	s.AllowScreen = true
+	s.MaxScreens = 1
+	rooms := &fakeRooms{}
+	s.Media = &Media{Key: "testkey", Secret: "01234567890123456789012345678901", PublicURL: "ws://localhost:17880", Rooms: rooms}
+	_, channel := request(t, s, "POST", "/api/v1/channels", admin, map[string]string{"name": "screens", "kind": "voice"})
+	for i, token := range []string{admin, member} {
+		status, grant := request(t, s, "POST", "/api/v1/channels/"+channel["id"].(string)+"/voice", token, nil)
+		if status != 200 {
+			t.Fatal(status, grant)
+		}
+		_, user := request(t, s, "GET", "/api/v1/auth/me", token, nil)
+		rooms.participants = append(rooms.participants, &livekit.ParticipantInfo{Identity: user["id"].(string), JoinedAt: int64(i + 1), Tracks: []*livekit.TrackInfo{{Source: livekit.TrackSource_SCREEN_SHARE}}})
+	}
+	if err := s.reconcileMediaOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(rooms.removed) != 1 || rooms.removed[0] != rooms.participants[1].Identity {
+		t.Fatal("screen limit not enforced", rooms.removed)
+	}
+}

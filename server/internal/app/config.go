@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	MaxScreens      int
 	AllowScreen     bool
 	FilesDir        string
 	MaxFileBytes    int64
@@ -20,6 +21,14 @@ type Config struct {
 
 func LoadConfig() (Config, error) {
 	c := Config{Address: os.Getenv("HTTP_ADDR"), ShutdownTimeout: 10 * time.Second, DatabaseURL: os.Getenv("DATABASE_URL")}
+	c.MaxScreens = 2
+	if raw := os.Getenv("MAX_SCREEN_SHARES"); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil || v < 1 || v > 64 {
+			return c, fmt.Errorf("MAX_SCREEN_SHARES must be 1–64")
+		}
+		c.MaxScreens = v
+	}
 	c.AllowScreen = true
 	if raw := os.Getenv("ALLOW_SCREEN_SHARE"); raw != "" {
 		v, err := strconv.ParseBool(raw)

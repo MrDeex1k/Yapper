@@ -376,9 +376,9 @@ Odbiór: wyniki wyszukiwania nie ujawniają niedostępnych kanałów, a reconnec
 
 ### F05-E03 — Udostępnianie ekranu
 
-- [ ] K01: Dodać publikowanie i odbieranie ścieżki ekranu w webie z jawnym rozpoczęciem/zatrzymaniem.
-- [ ] K02: Dodać wybór źródła w Electronie i obsługę odmowy dostępu na wspieranych systemach.
-- [ ] K03: Dodać limity jakości/liczby transmisji i udokumentować dostępność udostępniania dźwięku systemowego.
+- [x] K01: Dodać publikowanie i odbieranie ścieżki ekranu w webie z jawnym rozpoczęciem/zatrzymaniem.
+- [x] K02: Dodać wybór źródła w Electronie i obsługę odmowy dostępu na wspieranych systemach.
+- [x] K03: Dodać limity jakości/liczby transmisji i udokumentować dostępność udostępniania dźwięku systemowego.
 
 Odbiór: użytkownik wybiera źródło, odbiorca widzi transmisję, a zakończenie udostępniania zwalnia zasoby. Audio systemowe nie jest obiecywane na nieweryfikowanych platformach.
 

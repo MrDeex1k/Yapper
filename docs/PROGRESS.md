@@ -47,3 +47,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F05-E01 | `feat/implement-attachments` | pending | PostgreSQL/race tests passed for permissions, quota, author binding and dry-run cleanup. Local upload/download matched bytes; full database/file backup restored successfully. React Doctor 100/100, lint and typecheck passed; Compose rebuilt successfully. |
 
 | F05-E02 | `feat/implement-message-state` | pending | PostgreSQL integration/race tests passed for search visibility, edit authorization, retry preservation and read state across sessions. Frontend lint/typecheck and React Doctor 100/100 passed. |
+
+| F05-E03 | `feat/implement-screen-sharing` | pending | Chrome local tab-share/start/stop smoke passed. PostgreSQL/race tests passed including signed source policy and excess-screen removal. React Doctor 100/100, TypeScript and Oxlint passed. Physical Windows/Linux capture and system audio remain unverified; system audio is disabled. |
