@@ -1,0 +1,51 @@
+{
+  "scenario": "voice",
+  "at": "2026-09-28T01:54:56.490062+00:00",
+  "elapsed_seconds": 21.48,
+  "container": "yapper-media-1",
+  "samples": [
+    {
+      "elapsed_seconds": 1.13,
+      "cpu_percent": "4.35%",
+      "memory": "88.64MiB / 11.73GiB",
+      "network_io": "3.27MB / 1.25MB"
+    },
+    {
+      "elapsed_seconds": 4.18,
+      "cpu_percent": "4.91%",
+      "memory": "88.64MiB / 11.73GiB",
+      "network_io": "3.35MB / 1.32MB"
+    },
+    {
+      "elapsed_seconds": 7.23,
+      "cpu_percent": "4.93%",
+      "memory": "88.64MiB / 11.73GiB",
+      "network_io": "3.43MB / 1.4MB"
+    },
+    {
+      "elapsed_seconds": 10.28,
+      "cpu_percent": "4.44%",
+      "memory": "88.41MiB / 11.73GiB",
+      "network_io": "3.52MB / 1.48MB"
+    },
+    {
+      "elapsed_seconds": 13.33,
+      "cpu_percent": "4.76%",
+      "memory": "88.41MiB / 11.73GiB",
+      "network_io": "3.6MB / 1.56MB"
+    },
+    {
+      "elapsed_seconds": 16.42,
+      "cpu_percent": "7.47%",
+      "memory": "67.41MiB / 11.73GiB",
+      "network_io": "3.68MB / 1.64MB"
+    },
+    {
+      "elapsed_seconds": 19.47,
+      "cpu_percent": "4.65%",
+      "memory": "67.41MiB / 11.73GiB",
+      "network_io": "3.76MB / 1.72MB"
+    }
+  ],
+  "note": "Container network counters are cumulative. Compare first/last samples; this is a local synthetic baseline, not a capacity benchmark."
+}
