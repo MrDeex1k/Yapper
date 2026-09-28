@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { Client, errorMessage, type Channel, type User } from '../lib/api';
 import { Button } from './ui/button';
+import { Search } from './Search';
 import { InstanceStatus } from './InstanceStatus';
 import { Moderation } from './Moderation';
 import { Conversation } from './Conversation';
@@ -84,6 +85,7 @@ export function Workspace({
           <strong>yapper.</strong>
           <span>{new URL(client.origin).host}</span>
         </header>
+        <Search client={client} channels={channels} onSelect={selectChannel} />
         <p className="eyebrow">Channels</p>
         <nav aria-label="Channels">
           {channels.map((c) => (
