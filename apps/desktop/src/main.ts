@@ -1,5 +1,6 @@
 import { app, BrowserWindow, net, protocol } from 'electron';
 import path from 'node:path';
+import { installScreenPicker } from './screen';
 import { installTray } from './tray';
 import { trayIcon } from './icon';
 import { installPTT } from './ptt';
@@ -48,6 +49,7 @@ app.whenReady().then(async () => {
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   secureWindow(window, app.getVersion());
   installPTT(window);
+  installScreenPicker(window);
   if (!smoke) installTray(window, trayIcon);
   await window.loadURL('yapper://app/');
   if (smoke) {
