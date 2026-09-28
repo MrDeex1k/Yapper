@@ -334,6 +334,7 @@ Odbiór: użytkownik rozumie, czy mikrofon nadal działa po zamknięciu okna; og
 - [x] K01: Dodać zapisaną listę serwerów i izolację sesji/danych między instancjami.
 - [x] K02: Dodać rolę moderatora, usuwanie wiadomości i blokowanie konta egzekwowane po stronie serwera.
 - [x] K03: Dodać interfejs zarządzania zaproszeniami, kanałami i podstawowymi rolami.
+- [x] K04: Naprawić wykryty w CI brak nagłówków X11 potrzebnych do natywnego PTT.
 
 Odbiór: przełączenie instancji nie wysyła jej tokenów do innego hosta, a ban kończy aktywny dostęp do czatu i głosu.
 

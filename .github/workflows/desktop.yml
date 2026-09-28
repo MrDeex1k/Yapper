@@ -24,6 +24,8 @@ jobs:
         run: xvfb-run -a pnpm --filter @yapper/desktop exec electron . --smoke --no-sandbox
       - if: runner.os == 'Windows'
         run: pnpm --filter @yapper/desktop smoke
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev libxinerama-dev libxkbcommon-dev libxkbcommon-x11-dev libxrandr-dev
       - run: pnpm --filter @yapper/desktop dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
