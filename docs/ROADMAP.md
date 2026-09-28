@@ -227,9 +227,9 @@ Cel: dwie osoby mogą dołączyć do instancji, pisać i odzyskać historię po 
 
 ### F02-E01 — Model danych i kontrakt
 
-- [ ] K01: Dodać mechanizm migracji oraz tabele użytkowników, kanałów i wiadomości.
-- [ ] K02: Opisać kontrakt HTTP, wspólny format błędów i stronicowanie historii kursorem.
-- [ ] K03: Zdefiniować wersjonowaną kopertę zdarzeń WebSocket z identyfikatorem zdarzenia i walidacją danych.
+- [x] K01: Dodać mechanizm migracji oraz tabele użytkowników, kanałów i wiadomości.
+- [x] K02: Opisać kontrakt HTTP, wspólny format błędów i stronicowanie historii kursorem.
+- [x] K03: Zdefiniować wersjonowaną kopertę zdarzeń WebSocket z identyfikatorem zdarzenia i walidacją danych.
 
 Odbiór: migracje działają na pustej bazie, a kontrakt ma przykłady poprawnych i odrzuconych żądań.
 

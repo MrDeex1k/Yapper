@@ -9,3 +9,5 @@ Planned route families are `/auth`, `/channels`, `/messages` and `/events`; thei
 ## Migration recovery
 
 Before upgrading, back up PostgreSQL. Migrations are additive where possible and have no automatic down path. If a new schema cannot run with the old binary, restore the pre-upgrade backup into a fresh database and run the previous image. Never edit an already applied migration or reuse a failed published version number.
+
+WebSocket notifications use `{ "protocol": 1, "id": "opaque", "type": "message.created", "channel_id": "opaque" }`. Clients ignore unknown event types and refetch on reconnect. Unsupported protocol versions require a client update. Events carry no message body: permission checks remain on the authoritative HTTP read. WebSocket authentication is the first frame, not a query parameter; transport implementation follows in F02-E04.
