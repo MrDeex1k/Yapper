@@ -21,6 +21,14 @@ func run(ctx context.Context) error {
 		return err
 	}
 	s := app.NewServer()
+	if c.FilesDir != "" {
+		store, err := app.NewFileStore(c.FilesDir, c.MaxFileBytes, c.FileQuotaBytes)
+		if err != nil {
+			return err
+		}
+		s.Files = store
+		defer store.Root.Close()
+	}
 	s.BootstrapToken = os.Getenv("BOOTSTRAP_TOKEN")
 	if c.DatabaseURL != "" {
 		startupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)

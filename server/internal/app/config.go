@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"time"
 )
 
 type Config struct {
+	FilesDir        string
+	MaxFileBytes    int64
+	FileQuotaBytes  int64
 	Address         string
 	ShutdownTimeout time.Duration
 	DatabaseURL     string
@@ -15,6 +19,21 @@ type Config struct {
 
 func LoadConfig() (Config, error) {
 	c := Config{Address: os.Getenv("HTTP_ADDR"), ShutdownTimeout: 10 * time.Second, DatabaseURL: os.Getenv("DATABASE_URL")}
+	c.FilesDir = os.Getenv("FILES_DIR")
+	c.MaxFileBytes = 16 << 20
+	c.FileQuotaBytes = 1 << 30
+	for key, target := range map[string]*int64{"MAX_FILE_BYTES": &c.MaxFileBytes, "FILE_QUOTA_BYTES": &c.FileQuotaBytes} {
+		if raw := os.Getenv(key); raw != "" {
+			v, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || v < 1 {
+				return c, fmt.Errorf("%s must be positive bytes", key)
+			}
+			*target = v
+		}
+	}
+	if c.MaxFileBytes > c.FileQuotaBytes || c.MaxFileBytes > 1<<40 {
+		return c, fmt.Errorf("file size exceeds quota or 1 TiB maximum")
+	}
 	if c.Address == "" {
 		c.Address = "127.0.0.1:8080"
 	}

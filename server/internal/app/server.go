@@ -11,6 +11,7 @@ import (
 var Version = "0.4.0-dev"
 
 type Server struct {
+	Files           *FileStore
 	Media           *Media
 	eventsHub       *hub
 	authLimit       authLimiter

@@ -24,8 +24,13 @@ services:
       LIVEKIT_INTERNAL_URL: http://media:7880
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://127.0.0.1:17880}
       BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-}
+      FILES_DIR: /data/files
+      MAX_FILE_BYTES: ${MAX_FILE_BYTES:-16777216}
+      FILE_QUOTA_BYTES: ${FILE_QUOTA_BYTES:-1073741824}
       HTTP_ADDR: 0.0.0.0:8080
       DATABASE_URL: postgres://yapper:${POSTGRES_PASSWORD}@database:5432/yapper?sslmode=disable
+    volumes:
+      - files:/data/files
     depends_on:
       database:
         condition: service_healthy
@@ -60,3 +65,4 @@ services:
     restart: unless-stopped
 volumes:
   database:
+  files:
