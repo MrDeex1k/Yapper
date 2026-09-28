@@ -215,9 +215,9 @@ Odbiór: czysty checkout można uruchomić według README, a restart kontenerów
 
 ### F01-E05 — Automatyzacja pierwszego wydania
 
-- [ ] K01: Dodać `VERSION`, changelog i workflow publikacji z tagu, z uprawnieniami ograniczonymi do potrzeb wydania.
-- [ ] K02: Dodać manifest artefaktów, sumy kontrolne, metadane commitów oraz kontrolę niepodmieniania wersji.
-- [ ] K03: Przygotować instrukcję instalacji `0.1.0` i scenariusz testu opublikowanych obrazów.
+- [x] K01: Dodać `VERSION`, changelog i workflow publikacji z tagu, z uprawnieniami ograniczonymi do potrzeb wydania.
+- [x] K02: Dodać manifest artefaktów, sumy kontrolne, metadane commitów oraz kontrolę niepodmieniania wersji.
+- [x] K03: Przygotować instrukcję instalacji `0.1.0` i scenariusz testu opublikowanych obrazów.
 
 Odbiór fazy: po merge i przejściu procedury wydania użytkownik pobiera Compose z GitHub Release i uruchamia obrazy z Docker Hub. Konto/namespace i poświadczenia publikacji są wymaganymi zależnościami tego etapu.
 

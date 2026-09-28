@@ -7,3 +7,13 @@ Database and application backend are private to the Compose network. Only the we
 `docker compose down` retains data. Never use `down -v` against an instance whose data must survive. Check `docker compose ps` and `docker compose logs server` for readiness and lifecycle signals. At F01 the database is deployed but application persistence starts in F02.
 
 These are source-build instructions, not a claim that Docker Hub releases already exist.
+
+## Prepared release workflow (not yet published)
+
+The owner must merge/review the stack first, configure the `release` environment, set repository variable `DOCKERHUB_NAMESPACE` and environment secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`. Protect release tags and enable immutable exact-version tags on Docker Hub. The workflow only creates a draft GitHub Release and does not move `latest`.
+
+A `vX.Y.Z` tag must match `VERSION`. Before tagging, run CI for that commit. The packaging script currently publishes Linux amd64 images; local OrbStack verification uses arm64 source builds and does not validate the amd64 distribution.
+
+Download `compose.yaml`, `env.example`, `INSTALL.md`, `manifest.json` and `SHA256SUMS` from the draft. Verify checksums, copy `env.example` to `.env`, set credentials and run `docker compose up -d --wait`. Run the `/health/live`, `/health/ready` and `/api/v1/info` probes, then connect through the UI. Only after testing the exact published digests should the owner publish the draft.
+
+Partial publication stops the script instead of overwriting a version. Compare the remote digest, commit label and manifest; recover the missing steps manually for that same commit. Any code correction gets a new version. Publication was not exercised during the unmerged implementation series because no release was authorized.
