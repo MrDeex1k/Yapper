@@ -9,6 +9,7 @@ import (
 )
 
 type Message struct {
+	FileID    string    `json:"file_id"`
 	ID        string    `json:"id"`
 	ChannelID string    `json:"channel_id"`
 	UserID    string    `json:"user_id"`
@@ -33,7 +34,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request, u User) {
 		}
 		cursor = n
 	}
-	rows, err := s.DB.Query(r.Context(), `SELECT m.id::text,m.channel_id,m.user_id,u.username,m.content,m.client_id,m.created_at FROM messages m JOIN users u ON u.id=m.user_id WHERE m.channel_id=$1 AND m.id<$2 ORDER BY m.id DESC LIMIT 50`, id, cursor)
+	rows, err := s.DB.Query(r.Context(), `SELECT m.id::text,m.channel_id,m.user_id,u.username,m.content,m.client_id,m.created_at,COALESCE(m.file_id,'') FROM messages m JOIN users u ON u.id=m.user_id WHERE m.channel_id=$1 AND m.id<$2 ORDER BY m.id DESC LIMIT 50`, id, cursor)
 	if err != nil {
 		fail(w, 503, "database_unavailable", "Could not load history.")
 		return
@@ -42,7 +43,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request, u User) {
 	messages := []Message{}
 	for rows.Next() {
 		var m Message
-		if err = rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Username, &m.Content, &m.ClientID, &m.CreatedAt); err != nil {
+		if err = rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Username, &m.Content, &m.ClientID, &m.CreatedAt, &m.FileID); err != nil {
 			fail(w, 500, "read_failed", "Could not load history.")
 			return
 		}
@@ -65,6 +66,7 @@ func (s *Server) sendMessage(w http.ResponseWriter, r *http.Request, u User) {
 		return
 	}
 	var body struct {
+		FileID   string `json:"file_id"`
 		Content  string `json:"content"`
 		ClientID string `json:"client_id"`
 	}
@@ -76,13 +78,21 @@ func (s *Server) sendMessage(w http.ResponseWriter, r *http.Request, u User) {
 		fail(w, 400, "message_invalid", "Message must contain 1–4000 characters and a client ID.")
 		return
 	}
+	if body.FileID != "" {
+		var allowed bool
+		err := s.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM attachments WHERE id=$1 AND channel_id=$2 AND user_id=$3)", body.FileID, id, u.ID).Scan(&allowed)
+		if err != nil || !allowed {
+			fail(w, 400, "attachment_invalid", "Upload your own file to this channel first.")
+			return
+		}
+	}
 	var m Message
-	err := s.DB.QueryRow(r.Context(), `INSERT INTO messages(channel_id,user_id,content,client_id) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,channel_id,client_id) DO UPDATE SET client_id=EXCLUDED.client_id RETURNING id::text,channel_id,user_id,content,client_id,created_at`, id, u.ID, body.Content, body.ClientID).Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &m.ClientID, &m.CreatedAt)
+	err := s.DB.QueryRow(r.Context(), `INSERT INTO messages(channel_id,user_id,content,client_id,file_id) VALUES($1,$2,$3,$4,NULLIF($5,'')) ON CONFLICT(user_id,channel_id,client_id) DO UPDATE SET client_id=EXCLUDED.client_id RETURNING id::text,channel_id,user_id,content,client_id,created_at,COALESCE(file_id,'')`, id, u.ID, body.Content, body.ClientID, body.FileID).Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &m.ClientID, &m.CreatedAt, &m.FileID)
 	if err != nil {
 		fail(w, 503, "database_unavailable", "Could not save message. Retry with the same client ID.")
 		return
 	}
-	if m.Content != body.Content {
+	if m.Content != body.Content || m.FileID != body.FileID {
 		fail(w, 409, "idempotency_conflict", "This client ID was already used for another message.")
 		return
 	}

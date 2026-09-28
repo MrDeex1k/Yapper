@@ -11,6 +11,7 @@ import (
 var Version = "0.4.0-dev"
 
 type Server struct {
+	uploadSlots     chan struct{}
 	Files           *FileStore
 	Media           *Media
 	eventsHub       *hub
@@ -21,7 +22,11 @@ type Server struct {
 	CheckDependency func(context.Context) error
 }
 
-func NewServer() *Server { s := &Server{eventsHub: newHub()}; s.ready.Store(true); return s }
+func NewServer() *Server {
+	s := &Server{eventsHub: newHub(), uploadSlots: make(chan struct{}, 4)}
+	s.ready.Store(true)
+	return s
+}
 func (s *Server) Drain() { s.ready.Store(false); s.eventsHub.revoke("", "") }
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -43,6 +48,9 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
+		mux.HandleFunc("POST /api/v1/channels/{channel}/files", s.authenticated(s.upload))
+		mux.HandleFunc("GET /api/v1/files/{file}/info", s.authenticated(s.download))
+		mux.HandleFunc("GET /api/v1/files/{file}", s.authenticated(s.download))
 		mux.HandleFunc("GET /api/v1/admin/status", s.authenticated(s.status))
 		mux.HandleFunc("GET /api/v1/admin/users", s.authenticated(s.users))
 		mux.HandleFunc("PATCH /api/v1/admin/users/{user}", s.authenticated(s.updateUser))
