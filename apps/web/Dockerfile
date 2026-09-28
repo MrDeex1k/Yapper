@@ -6,6 +6,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/landing/package.json apps/landing/package.json
 RUN pnpm install --frozen-lockfile --filter @yapper/web...
 COPY apps/web/ apps/web/
+COPY apps/desktop/src/bridge.ts apps/desktop/src/bridge.ts
 RUN pnpm --filter @yapper/web build
 FROM nginxinc/nginx-unprivileged:1.28-alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf

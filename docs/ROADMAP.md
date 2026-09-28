@@ -360,9 +360,9 @@ Cel: wygodniejszy czat i współdzielenie treści.
 
 ### F05-E01 — Załączniki
 
-- [ ] K01: Dodać lokalny magazyn plików z konfigurowalnym limitem rozmiaru i zajętości.
-- [ ] K02: Dodać upload oraz autoryzowane pobieranie, z walidacją i bez wykonywania aktywnej treści w kontekście aplikacji.
-- [ ] K03: Dodać załączniki w web/desktop i uwzględnić pliki w backupie oraz sprzątaniu osieroconych danych.
+- [x] K01: Dodać lokalny magazyn plików z konfigurowalnym limitem rozmiaru i zajętości.
+- [x] K02: Dodać upload oraz autoryzowane pobieranie, z walidacją i bez wykonywania aktywnej treści w kontekście aplikacji.
+- [x] K03: Dodać załączniki w web/desktop i uwzględnić pliki w backupie oraz sprzątaniu osieroconych danych.
 
 Odbiór: plik z prywatnego kanału nie jest publiczny przez odgadnięcie adresu; restore odtwarza powiązania i pliki.
 

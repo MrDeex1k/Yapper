@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,7 +16,7 @@ import (
 	"github.com/MrDeex1k/Yapper/server/internal/app"
 )
 
-func run(ctx context.Context) error {
+func run(ctx context.Context, cleanup, apply bool) error {
 	c, err := app.LoadConfig()
 	if err != nil {
 		return err
@@ -44,6 +45,9 @@ func run(ctx context.Context) error {
 			defer cancel()
 			return pool.Ping(probe)
 		}
+	}
+	if cleanup {
+		return s.CleanupFiles(ctx, apply)
 	}
 	if os.Getenv("LIVEKIT_API_SECRET") != "" {
 		media, err := app.NewMedia(os.Getenv("LIVEKIT_API_KEY"), os.Getenv("LIVEKIT_API_SECRET"), os.Getenv("LIVEKIT_INTERNAL_URL"), os.Getenv("LIVEKIT_PUBLIC_URL"))
@@ -90,10 +94,13 @@ func run(ctx context.Context) error {
 	}
 }
 func main() {
+	cleanup := flag.Bool("files-gc", false, "inspect unreferenced files older than 24 hours (stop writers first)")
+	apply := flag.Bool("apply", false, "apply maintenance changes")
+	flag.Parse()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx); err != nil {
+	if err := run(ctx, *cleanup, *apply); err != nil {
 		slog.Error("server_failed", "error", err)
 		os.Exit(1)
 	}

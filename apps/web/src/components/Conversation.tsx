@@ -1,6 +1,14 @@
 import { subscribe } from '../lib/realtime';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Client, errorMessage, type Channel, type Message, type User } from '../lib/api';
+import {
+  Client,
+  uploadAttachment,
+  downloadAttachment,
+  errorMessage,
+  type Channel,
+  type Message,
+  type User,
+} from '../lib/api';
 import { Button } from './ui/button';
 export function Conversation({
   client,
@@ -17,7 +25,13 @@ export function Conversation({
   const [error, setError] = useState('');
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
-  const pending = useRef({ content: '', id: '' });
+  const [file, setFile] = useState<File | null>(null);
+  const pending = useRef<{ content: string; id: string; file: File | null; fileID: string }>({
+    content: '',
+    id: '',
+    file: null,
+    fileID: '',
+  });
   useEffect(() => {
     const controller = new AbortController();
     let running = false;
@@ -65,22 +79,32 @@ export function Conversation({
       setError(errorMessage(e));
     }
   }
-  async function send(event: FormEvent) {
+  async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!content.trim() || sending) return;
+    const form = event.currentTarget;
+    if ((!content.trim() && !file) || sending) return;
     setSending(true);
     setError('');
-    if (pending.current.content !== content) pending.current = { content, id: crypto.randomUUID() };
+    if (pending.current.content !== content || pending.current.file !== file)
+      pending.current = { content, id: crypto.randomUUID(), file, fileID: '' };
     try {
+      if (file && !pending.current.fileID)
+        pending.current.fileID = (await uploadAttachment(client, channel.id, file)).id;
       const message = await client.request<Message>(`/channels/${channel.id}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ content, client_id: pending.current.id }),
+        body: JSON.stringify({
+          content: content.trim() || file?.name || '',
+          client_id: pending.current.id,
+          file_id: pending.current.fileID,
+        }),
       });
       setMessages((current) =>
         current.some((m) => m.id === message.id) ? current : [...current, message],
       );
       setContent('');
-      pending.current = { content: '', id: '' };
+      pending.current = { content: '', id: '', file: null, fileID: '' };
+      setFile(null);
+      form.reset();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -131,6 +155,19 @@ export function Conversation({
                 </time>
               </header>
               <p>{message.content}</p>
+              {message.file_id ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void downloadAttachment(client, message.file_id).catch((e) =>
+                      setError(errorMessage(e)),
+                    )
+                  }
+                >
+                  Download attachment
+                </Button>
+              ) : null}
               {message.user_id === user.id || user.role !== 'member' ? (
                 <Button size="sm" variant="ghost" onClick={() => void remove(message)}>
                   Delete message
@@ -152,7 +189,15 @@ export function Conversation({
           placeholder={`Message #${channel.name}`}
           disabled={sending}
         />
-        <Button type="submit" disabled={sending || !content.trim()}>
+        <label className="file-picker">
+          Attach
+          <input
+            type="file"
+            disabled={sending}
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          />
+        </label>
+        <Button type="submit" disabled={sending || (!content.trim() && !file)}>
           {sending ? 'Sending…' : 'Send'}
         </Button>
       </form>

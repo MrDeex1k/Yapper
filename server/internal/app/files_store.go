@@ -5,7 +5,10 @@ import (
 	"errors"
 	"io"
 	"os"
+	"regexp"
 )
+
+var fileIDPattern = regexp.MustCompile(`^[A-Z2-7]{26}$`)
 
 var ErrFileLimit = errors.New("file exceeds configured limit")
 

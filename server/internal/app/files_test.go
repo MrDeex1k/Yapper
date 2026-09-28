@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func uploadFile(t *testing.T, s *Server, token, channel, content string) (int, map[string]any) {
@@ -85,5 +86,42 @@ func TestFilesEnforceAccessQuotaAndAttachmentBinding(t *testing.T) {
 	}
 	if w = get(""); w.Code != 401 {
 		t.Fatal("anonymous download", w.Code)
+	}
+}
+
+func TestFileGCRequiresApplyAndPreservesFreshObjects(t *testing.T) {
+	s := testServer(t)
+	store, err := NewFileStore(t.TempDir(), 16, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Files = store
+	t.Cleanup(func() { store.Root.Close() })
+	old, _, err := store.Write(strings.NewReader("orphan"), 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, _, err := store.Write(strings.NewReader("fresh"), 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-48 * time.Hour)
+	if err = store.Root.Chtimes(old, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.CleanupFiles(t.Context(), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Root.Stat(old); err != nil {
+		t.Fatal("dry run removed object", err)
+	}
+	if err = s.CleanupFiles(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Root.Stat(old); err == nil {
+		t.Fatal("orphan retained")
+	}
+	if _, err = store.Root.Stat(fresh); err != nil {
+		t.Fatal("fresh upload removed", err)
 	}
 }

@@ -43,3 +43,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F04-E04 | `feat/implement-instance-operations` | pending | Local backup and isolated PostgreSQL restore passed checksum and row-count verification. React Doctor 100/100, lint and typecheck passed. Production image upgrade acceptance remains pending. |
 
 | F04-E05 | `test/prepare-desktop-release` | pending | Local Electron and native-module load smoke passed; frontend lint/typecheck/build and React Doctor passed in preceding stages. Backup recovery passed. Windows/Linux packaged CI is being verified; physical group pilot remains pending. |
+
+| F05-E01 | `feat/implement-attachments` | pending | PostgreSQL/race tests passed for permissions, quota, author binding and dry-run cleanup. Local upload/download matched bytes; full database/file backup restored successfully. React Doctor 100/100, lint and typecheck passed; Compose rebuilt successfully. |
