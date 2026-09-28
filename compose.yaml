@@ -1,0 +1,44 @@
+name: yapper
+services:
+  database:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: yapper
+      POSTGRES_USER: yapper
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U yapper -d yapper]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      HTTP_ADDR: 0.0.0.0:8080
+      DATABASE_URL: postgres://yapper:${POSTGRES_PASSWORD}@database:5432/yapper?sslmode=disable
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/health/ready]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '127.0.0.1:${WEB_PORT:-8088}:8080'
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  database:
