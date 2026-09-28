@@ -12,3 +12,6 @@ release/
 .DS_Store
 
 *.tsbuildinfo
+
+.playwright-cli/
+output/playwright/
