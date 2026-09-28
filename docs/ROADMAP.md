@@ -340,9 +340,9 @@ Odbiór: przełączenie instancji nie wysyła jej tokenów do innego hosta, a ba
 
 ### F04-E04 — Codzienna obsługa instancji
 
-- [ ] K01: Dodać prosty panel stanu usług, wersji i wykorzystania miejsca na dane.
-- [ ] K02: Dodać komendę/procedurę backupu i odtworzenia całego ówczesnego stanu instancji.
-- [ ] K03: Dodać procedurę aktualizacji z oknem przerwy i odzyskania poprzedniego stanu z backupu, gdy migracja uniemożliwia downgrade.
+- [x] K01: Dodać prosty panel stanu usług, wersji i wykorzystania miejsca na dane.
+- [x] K02: Dodać komendę/procedurę backupu i odtworzenia całego ówczesnego stanu instancji.
+- [x] K03: Dodać procedurę aktualizacji z oknem przerwy i odzyskania poprzedniego stanu z backupu, gdy migracja uniemożliwia downgrade.
 
 Odbiór: administrator przechodzi instrukcję instalacji, backupu, aktualizacji i odtworzenia bez ręcznego poprawiania bazy.
 
