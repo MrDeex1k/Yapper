@@ -4,3 +4,5 @@ allowBuilds:
   esbuild: true
   sharp: true
   electron: true
+minimumReleaseAge: 180
+minimumReleaseAgeStrict: true

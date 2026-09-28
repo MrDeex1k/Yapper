@@ -15,6 +15,6 @@ Implementation is in progress. See [roadmap](docs/ROADMAP.md) and [delivery ledg
 
 ## Development
 
-Use Node 24, pnpm 12 and Go 1.26. Docker Compose runs integration dependencies. Run `pnpm install`, `pnpm build`, `pnpm typecheck`; server checks run with `cd server && go test ./...`. Commands become available as the corresponding stage lands.
+Use Node 24, pnpm 12 and Go 1.27.1. Docker Compose runs integration dependencies. Run `pnpm install`, `pnpm build`, `pnpm typecheck`; server checks run with `cd server && go test ./...`. Commands become available as the corresponding stage lands.
 
 Do not commit credentials or local data. Local settings belong in ignored `.env` files.
