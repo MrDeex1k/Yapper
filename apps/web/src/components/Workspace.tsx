@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { Client, errorMessage, type Channel, type User } from '../lib/api';
 import { Button } from './ui/button';
 import { Conversation } from './Conversation';
+const VoicePanel = lazy(() => import('./VoicePanel'));
 export function Workspace({
   client,
   user,
@@ -71,7 +72,7 @@ export function Workspace({
           <strong>yapper.</strong>
           <span>{new URL(client.origin).host}</span>
         </header>
-        <p className="eyebrow">Text channels</p>
+        <p className="eyebrow">Channels</p>
         <nav aria-label="Channels">
           {channels.map((c) => (
             <button
@@ -79,7 +80,7 @@ export function Workspace({
               key={c.id}
               onClick={() => setSelected(c.id)}
             >
-              <span aria-hidden="true">#</span>
+              <span aria-hidden="true">{c.kind === 'voice' ? '◉' : '#'}</span>
               {c.name}
             </button>
           ))}
@@ -91,6 +92,13 @@ export function Workspace({
               <label>
                 New channel
                 <input name="name" maxLength={64} required />
+              </label>
+              <label>
+                Type
+                <select name="kind">
+                  <option value="text">Text</option>
+                  <option value="voice">Voice</option>
+                </select>
               </label>
               <Button type="submit" variant="outline">
                 Create channel
@@ -119,7 +127,13 @@ export function Workspace({
         </footer>
       </aside>
       {channel ? (
-        <Conversation key={channel.id} client={client} channel={channel} />
+        channel.kind === 'voice' ? (
+          <Suspense fallback={<p className="empty">Loading voice…</p>}>
+            <VoicePanel key={channel.id} client={client} channel={channel} />
+          </Suspense>
+        ) : (
+          <Conversation key={channel.id} client={client} channel={channel} />
+        )
       ) : (
         <section className="empty">
           <h2>No channels yet.</h2>

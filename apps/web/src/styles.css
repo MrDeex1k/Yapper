@@ -389,3 +389,38 @@ h1 span {
     padding: 0 10px;
   }
 }
+.voice-panel {
+  min-width: 0;
+  overflow: auto;
+}
+.voice-body {
+  padding: 60px 40px;
+}
+.voice-body h3 {
+  font-size: 36px;
+  letter-spacing: -0.05em;
+  margin: 20px 0;
+}
+.voice-body > p:not(.eyebrow) {
+  color: #a6b09a;
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+.participants {
+  list-style: none;
+  margin: 32px 0;
+  padding: 0;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.participants li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.voice-body > output {
+  display: block;
+  margin: 18px 0;
+}
