@@ -18,8 +18,12 @@ func LoadConfig() (Config, error) {
 	if c.Address == "" {
 		c.Address = "127.0.0.1:8080"
 	}
-	if _, _, err := net.SplitHostPort(c.Address); err != nil {
+	_, port, err := net.SplitHostPort(c.Address)
+	if err != nil {
 		return c, fmt.Errorf("HTTP_ADDR must be host:port: %w", err)
+	}
+	if port == "" {
+		return c, fmt.Errorf("HTTP_ADDR must include a port")
 	}
 	if raw := os.Getenv("SHUTDOWN_TIMEOUT"); raw != "" {
 		d, err := time.ParseDuration(raw)

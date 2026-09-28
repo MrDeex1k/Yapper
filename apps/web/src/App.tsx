@@ -1,16 +1,19 @@
-import { useState, type FormEvent } from 'react';
-import { serverOrigin } from './lib/server';
+import { useRef, useState, type FormEvent } from 'react';
+import { serverInfo, serverOrigin } from './lib/server';
 import { Button } from './components/ui/button';
 export function App() {
+  const requestId = useRef(0);
   const [origin, setOrigin] = useState(window.location.origin);
-  const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [connection, setConnection] = useState<{
+    phase: 'idle' | 'connecting' | 'connected' | 'failed';
+    message: string;
+  }>({ phase: 'idle', message: '' });
+  const busy = connection.phase === 'connecting';
+  const failed = connection.phase === 'failed';
   async function connect(event: FormEvent) {
     event.preventDefault();
-    setBusy(true);
-    setFailed(false);
-    setStatus('Connecting…');
+    const currentRequestId = ++requestId.current;
+    setConnection({ phase: 'connecting', message: 'Connecting…' });
     try {
       const url = serverOrigin(origin);
       const response = await fetch(`${url}/api/v1/info`, {
@@ -18,14 +21,20 @@ export function App() {
         redirect: 'error',
       });
       if (!response.ok) throw new Error('Server is not available.');
-      const info = (await response.json()) as { name: string; version: string; protocol: number };
-      if (info.protocol !== 1) throw new Error('This server uses an unsupported protocol.');
-      setStatus(`Connected to ${info.name} · ${info.version}`);
+      const info = serverInfo(await response.json());
+      if (currentRequestId === requestId.current) {
+        setConnection({
+          phase: 'connected',
+          message: `Connected to ${info.name} · ${info.version}`,
+        });
+      }
     } catch (error) {
-      setFailed(true);
-      setStatus(error instanceof Error ? error.message : 'Could not connect.');
-    } finally {
-      setBusy(false);
+      if (currentRequestId === requestId.current) {
+        setConnection({
+          phase: 'failed',
+          message: error instanceof Error ? error.message : 'Could not connect.',
+        });
+      }
     }
   }
   return (
@@ -42,7 +51,11 @@ export function App() {
             id="server"
             type="url"
             value={origin}
-            onChange={(event) => setOrigin(event.target.value)}
+            onChange={(event) => {
+              requestId.current += 1;
+              setOrigin(event.target.value);
+              setConnection({ phase: 'idle', message: '' });
+            }}
             required
             placeholder="https://chat.example.com"
           />
@@ -50,7 +63,7 @@ export function App() {
         <Button type="submit" disabled={busy}>
           {busy ? 'Connecting…' : 'Connect to server'} <span aria-hidden="true">↗</span>
         </Button>
-        <output className={failed ? 'status error' : 'status'}>{status}</output>
+        <output className={failed ? 'status error' : 'status'}>{connection.message}</output>
       </form>
       <p className="footnote">
         An independent home for your community.

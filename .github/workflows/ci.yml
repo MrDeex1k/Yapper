@@ -21,6 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm format:check
+      - run: pnpm --filter @yapper/web test
       - run: pnpm typecheck
       - run: pnpm build
       - run: cd server && go test -race ./... && go vet ./...
