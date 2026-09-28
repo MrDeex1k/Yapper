@@ -323,8 +323,8 @@ Odbiór: oba systemy uruchamiają aplikację, a renderer nie ma nieograniczonego
 
 ### F04-E02 — Integracja desktopowa z głosem
 
-- [ ] K01: Dodać konfigurowalny globalny push-to-talk z wykrywaniem niedostępności i konfliktu skrótu.
-- [ ] K02: Dodać tray oraz jawne zachowanie zamknięcia okna podczas rozmowy.
+- [x] K01: Dodać konfigurowalny globalny push-to-talk z wykrywaniem niedostępności i konfliktu skrótu.
+- [x] K02: Dodać tray oraz jawne zachowanie zamknięcia okna podczas rozmowy.
 - [ ] K03: Sprawdzić Windows oraz zadeklarowane środowiska Linux, w tym różnice X11/Wayland, i wdrożyć czytelny fallback.
 
 Odbiór: użytkownik rozumie, czy mikrofon nadal działa po zamknięciu okna; ograniczenia globalnych skrótów są widoczne w aplikacji.

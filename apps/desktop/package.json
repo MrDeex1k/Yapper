@@ -57,6 +57,8 @@
       ],
       "identity": null
     },
-    "publish": null
+    "publish": null,
+    "executableName": "yapper",
+    "artifactName": "Yapper-${version}-${os}-${arch}.${ext}"
   }
 }

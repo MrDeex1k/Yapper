@@ -35,3 +35,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F03-E05 | `test/prepare-voice-release` | pending | Go RTP test: 30 seconds and forced SFU removal passed. Chrome synthetic microphone join/mute/leave passed. Frontend lint/typecheck/build passed; React Doctor 100/100. WAN, TURN and long group acceptance remain pending. |
 
 | F04-E01 | `feat/implement-desktop-shell` | pending | Local macOS Electron renderer smoke passed; renderer has no Node process. TypeScript and Oxlint passed. Windows/Linux CI is configured; physical platform acceptance is pending. |
+
+| F04-E02 | `feat/integrate-desktop-voice` | pending | TypeScript, Oxlint and React Doctor 100/100 passed. Local Electron startup passed. Fixed Linux executable naming discovered by CI. Physical Windows/X11/Wayland keyboard and tray acceptance remains pending. |
