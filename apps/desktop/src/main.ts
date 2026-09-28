@@ -51,6 +51,8 @@ app.whenReady().then(async () => {
   if (!smoke) installTray(window, trayIcon);
   await window.loadURL('yapper://app/');
   if (smoke) {
+    const native = await import('uiohook-napi');
+    if (typeof native.uIOhook.start !== 'function') throw new Error('Native PTT module missing');
     const result = await window.webContents.executeJavaScript(
       `({ title: document.title, node: typeof process, heading: document.querySelector('h1')?.textContent })`,
     );
