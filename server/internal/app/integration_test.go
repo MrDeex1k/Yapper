@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func testServer(t *testing.T) *Server {
+func testDatabase(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
@@ -49,10 +49,15 @@ func testServer(t *testing.T) *Server {
 		_, _ = admin.Exec(ctx, "DROP SCHEMA "+schema+" CASCADE")
 		admin.Close()
 	})
-	if err = Migrate(t.Context(), pool); err != nil {
+	return pool
+}
+func testServer(t *testing.T) *Server {
+	t.Helper()
+	pool := testDatabase(t)
+	if err := Migrate(t.Context(), pool); err != nil {
 		t.Fatal(err)
 	}
-	if err = Migrate(t.Context(), pool); err != nil {
+	if err := Migrate(t.Context(), pool); err != nil {
 		t.Fatal("migration was not idempotent", err)
 	}
 	s := NewServer()
