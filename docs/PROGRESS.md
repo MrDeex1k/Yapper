@@ -27,3 +27,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F03-E01 | `feat/implement-media-service` | pending | Local SFU started and two Go participants exchanged Opus RTP. Go builds/tests passed. SDK protocol pinned to its compatible version after detecting an upstream mismatch. WAN audio, acoustic quality and relay-only TURN remain explicitly pending. |
 
 | F03-E02 | `feat/authorize-voice-rooms` | pending | Go/PostgreSQL race suite passed. Signed grant tests verify room scope, microphone-only publication and no data publishing. A fake SFU verifies allowed sessions remain and revoked sessions are removed; actual SFU local RTP was verified in the previous stage. Network-partition revocation is explicitly eventual. |
+
+| F03-E03 | `feat/implement-voice-client` | pending | Frontend build/lint/typecheck passed. React Doctor: 100/100 after cleanup and state fixes. LiveKit is isolated in a lazy voice chunk. Real microphone, Bluetooth and cross-browser acoustic checks remain platform acceptance; local RTP transport is verified. |

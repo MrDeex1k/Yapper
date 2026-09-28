@@ -1,3 +1,4 @@
+import { PushToTalk } from './PushToTalk';
 import { useEffect, useState } from 'react';
 import { Room, RoomEvent } from 'livekit-client';
 import { errorMessage } from '../lib/api';
@@ -58,6 +59,7 @@ export function VoiceControls({
   }
   return (
     <div className="voice-controls">
+      <PushToTalk room={room} onError={onError} />
       <div className="voice-actions">
         <Button variant="outline" aria-pressed={muted} onClick={toggleMute}>
           {muted ? 'Unmute' : 'Mute'}

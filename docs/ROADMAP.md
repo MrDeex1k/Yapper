@@ -287,9 +287,9 @@ Odbiór: klient nie może sam nadać sobie dostępu do pokoju ani pozostać w ni
 
 ### F03-E03 — Rozmowa w aplikacji webowej
 
-- [ ] K01: Dodać wejście/wyjście z kanału oraz obsługę zgody na mikrofon.
-- [ ] K02: Dodać mute/deafen, wybór dostępnych urządzeń i czytelne błędy ograniczeń przeglądarki.
-- [ ] K03: Dodać wskaźnik mówienia i push-to-talk działający przy aktywnej aplikacji webowej.
+- [x] K01: Dodać wejście/wyjście z kanału oraz obsługę zgody na mikrofon.
+- [x] K02: Dodać mute/deafen, wybór dostępnych urządzeń i czytelne błędy ograniczeń przeglądarki.
+- [x] K03: Dodać wskaźnik mówienia i push-to-talk działający przy aktywnej aplikacji webowej.
 
 Odbiór: użytkownik świadomie steruje transmisją i odtwarzaniem; web nie obiecuje globalnego skrótu poza aktywną aplikacją.
 

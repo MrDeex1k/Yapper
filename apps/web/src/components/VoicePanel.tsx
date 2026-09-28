@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 export default function VoicePanel({ client, channel }: { client: Client; channel: Channel }) {
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }));
   const audio = useRef<HTMLDivElement>(null);
+  const [speakers, setSpeakers] = useState<Set<string>>(() => new Set());
   const [status, setStatus] = useState('Disconnected');
   const [joined, setJoined] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -24,6 +25,9 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     const detach = (track: RemoteTrack) => {
       for (const element of track.detach()) element.remove();
     };
+    const activeSpeakers = (participants: Participant[]) =>
+      setSpeakers(new Set(participants.map((p) => p.identity)));
+    room.on(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
     const disconnected = () => {
       setJoined(false);
       setStatus('Disconnected');
@@ -34,6 +38,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     room.on(RoomEvent.TrackUnsubscribed, detach);
     room.on(RoomEvent.Disconnected, disconnected);
     return () => {
+      room.off(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
       room.off(RoomEvent.ParticipantConnected, update);
       room.off(RoomEvent.ParticipantDisconnected, update);
       room.off(RoomEvent.TrackSubscribed, attach);
@@ -115,7 +120,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
         ) : null}
         <ul className="participants">
           {participants.map((p) => (
-            <li key={p.identity}>
+            <li key={p.identity} className={speakers.has(p.identity) ? 'speaking' : ''}>
               <span className="avatar" aria-hidden="true">
                 {(p.name || p.identity).slice(0, 1).toUpperCase()}
               </span>

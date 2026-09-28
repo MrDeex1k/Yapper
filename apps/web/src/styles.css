@@ -454,3 +454,15 @@ h1 span {
     grid-template-columns: 1fr;
   }
 }
+.ptt {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ptt small {
+  max-width: 270px;
+  font-size: 11px;
+  color: #9da88f;
+}
