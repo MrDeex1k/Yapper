@@ -4,10 +4,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -34,7 +36,15 @@ func run() error {
 		return err
 	}
 	defer receiver.Disconnect()
-	sender, err := lksdk.ConnectToRoom(url, lksdk.ConnectInfo{APIKey: key, APISecret: secret, RoomName: roomName, ParticipantIdentity: "sender"}, nil)
+	disconnected := make(chan struct{}, 1)
+	senderCallback := lksdk.NewRoomCallback()
+	senderCallback.OnDisconnected = func() {
+		select {
+		case disconnected <- struct{}{}:
+		default:
+		}
+	}
+	sender, err := lksdk.ConnectToRoom(url, lksdk.ConnectInfo{APIKey: key, APISecret: secret, RoomName: roomName, ParticipantIdentity: "sender"}, senderCallback)
 	if err != nil {
 		return err
 	}
@@ -47,15 +57,34 @@ func run() error {
 	if _, err = sender.LocalParticipant.PublishTrack(track, &lksdk.TrackPublicationOptions{Name: "smoke-opus"}); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	seconds, _ := strconv.Atoi(os.Getenv("MEDIA_SMOKE_SECONDS"))
+	seconds = max(1, min(seconds, 60))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds+20)*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
+	verified := false
+	end := time.NewTimer(time.Duration(seconds) * time.Second)
+	defer end.Stop()
 	for {
 		select {
 		case <-received:
-			fmt.Println("PASS: two LiveKit participants connected and Opus RTP reached the receiver")
-			return nil
+			verified = true
+		case <-end.C:
+			if !verified {
+				return fmt.Errorf("no Opus RTP received")
+			}
+			service := lksdk.NewRoomServiceClient(url, key, secret)
+			if _, err := service.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: roomName, Identity: "sender"}); err != nil {
+				return err
+			}
+			select {
+			case <-disconnected:
+				fmt.Printf("PASS: Opus RTP delivered during %ds local session; SFU removal disconnected sender\n", seconds)
+				return nil
+			case <-ctx.Done():
+				return fmt.Errorf("SFU removal did not disconnect participant")
+			}
 		case <-ctx.Done():
 			return fmt.Errorf("no RTP received within 20 seconds")
 		case <-ticker.C:
