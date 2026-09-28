@@ -55,6 +55,9 @@ func (s *Server) voiceJoin(w http.ResponseWriter, r *http.Request, u User) {
 		return
 	}
 	sources := []string{"microphone"}
+	if s.AllowCamera {
+		sources = append(sources, "camera")
+	}
 	if s.AllowScreen {
 		sources = append(sources, "screen_share")
 	}
@@ -63,7 +66,7 @@ func (s *Server) voiceJoin(w http.ResponseWriter, r *http.Request, u User) {
 		fail(w, 500, "media_token_failed", "Could not authorize voice.")
 		return
 	}
-	JSON(w, 200, map[string]any{"token": token, "url": s.Media.PublicURL, "room": id, "expires_in": 60, "allow_screen": s.AllowScreen})
+	JSON(w, 200, map[string]any{"token": token, "url": s.Media.PublicURL, "room": id, "expires_in": 60, "allow_screen": s.AllowScreen, "allow_camera": s.AllowCamera})
 }
 func (s *Server) voiceParticipants(w http.ResponseWriter, r *http.Request, u User) {
 	id := r.PathValue("channel")

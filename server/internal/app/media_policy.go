@@ -11,6 +11,10 @@ func (s *Server) validMediaSources(p *livekit.ParticipantInfo) bool {
 		}
 		switch track.Source {
 		case livekit.TrackSource_MICROPHONE:
+		case livekit.TrackSource_CAMERA:
+			if !s.AllowCamera {
+				return false
+			}
 		case livekit.TrackSource_SCREEN_SHARE:
 			if !s.AllowScreen {
 				return false

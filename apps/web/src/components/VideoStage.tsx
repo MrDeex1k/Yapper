@@ -12,13 +12,14 @@ function tracks(room: Room): Entry[] {
   for (const participant of [room.localParticipant, ...room.remoteParticipants.values()]) {
     for (const publication of participant.videoTrackPublications.values()) {
       if (
-        publication.source === Track.Source.ScreenShare &&
+        (publication.source === Track.Source.ScreenShare ||
+          publication.source === Track.Source.Camera) &&
         publication.track &&
         !publication.isMuted
       )
         result.push({
           id: publication.trackSid,
-          label: `${participant.name || participant.identity} · screen`,
+          label: `${participant.name || participant.identity} · ${publication.source === Track.Source.ScreenShare ? 'screen' : 'camera'}`,
           track: publication.track as LocalVideoTrack | RemoteVideoTrack,
         });
     }

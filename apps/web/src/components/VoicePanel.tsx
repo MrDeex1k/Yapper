@@ -1,4 +1,5 @@
 import { joinRoom } from '../lib/join-room';
+import { Camera } from './Camera';
 import { ScreenShare } from './ScreenShare';
 import { VideoStage } from './VideoStage';
 import { VoiceControls } from './VoiceControls';
@@ -16,6 +17,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [allowScreen, setAllowScreen] = useState(false);
+  const [allowCamera, setAllowCamera] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   useEffect(() => {
     const update = () =>
@@ -82,6 +84,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     try {
       const grant = await joinRoom(client, channel.id, room, controller.signal);
       setAllowScreen(grant.allow_screen);
+      setAllowCamera(grant.allow_camera);
       setJoined(true);
       setStatus('Connected');
       setParticipants([room.localParticipant, ...room.remoteParticipants.values()]);
@@ -143,6 +146,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
         ) : null}
         {joined ? (
           <>
+            <Camera room={room} allowed={allowCamera} onError={setError} />
             <ScreenShare room={room} allowed={allowScreen} onError={setError} />
             <VideoStage room={room} />
           </>

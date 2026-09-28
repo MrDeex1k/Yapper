@@ -22,6 +22,7 @@ func run(ctx context.Context, cleanup, apply bool) error {
 		return err
 	}
 	s := app.NewServer()
+	s.AllowCamera = c.AllowCamera
 	s.AllowScreen = c.AllowScreen
 	s.MaxScreens = c.MaxScreens
 	if c.FilesDir != "" {

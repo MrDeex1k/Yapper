@@ -11,6 +11,7 @@ import (
 var Version = "0.4.0-dev"
 
 type Server struct {
+	AllowCamera     bool
 	MaxScreens      int
 	AllowScreen     bool
 	uploadSlots     chan struct{}

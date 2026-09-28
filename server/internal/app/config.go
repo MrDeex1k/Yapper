@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	AllowCamera     bool
 	MaxScreens      int
 	AllowScreen     bool
 	FilesDir        string
@@ -21,6 +22,14 @@ type Config struct {
 
 func LoadConfig() (Config, error) {
 	c := Config{Address: os.Getenv("HTTP_ADDR"), ShutdownTimeout: 10 * time.Second, DatabaseURL: os.Getenv("DATABASE_URL")}
+	c.AllowCamera = true
+	if raw := os.Getenv("ALLOW_CAMERA"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return c, fmt.Errorf("ALLOW_CAMERA must be boolean")
+		}
+		c.AllowCamera = v
+	}
 	c.MaxScreens = 2
 	if raw := os.Getenv("MAX_SCREEN_SHARES"); raw != "" {
 		v, err := strconv.Atoi(raw)
