@@ -6,11 +6,11 @@ Oxlint includes @shadcn/lint for Tailwind v4. Arbitrary class values and restyli
 
 Oxfmt 0.70 does not format `.astro` files in this configuration. `astro check` validates the landing; `.astro` formatting is manual until a supported integration is selected. Do not report skipped files as formatted. Build products and the roadmap checklist are excluded from automatic formatting.
 
-React Doctor is run through `npx react-doctor@latest --verbose --scope changed` on staged/committed React changes. The initial client scored 100/100. Type checking remains separate. Go auth continues to use Go tests, vet and race checks.
+React Doctor is run through `pnpm dlx react-doctor@0.9.14 --verbose --scope changed` on staged/committed React changes. The initial client scored 100/100. Type checking remains separate. Go auth continues to use Go tests, vet and race checks.
 
 ## Dependency updates and publication delay
 
-Use pnpm 12.6.0 from the root `packageManager` field. `pnpm-workspace.yaml` sets `minimumReleaseAge: 180` (minutes) and `minimumReleaseAgeStrict: true`. Registry releases must be at least three hours old before pnpm accepts them, including transitive dependencies and locked versions. No package is exempted. Use `pnpm install --frozen-lockfile` in CI; npm/yarn do not enforce this pnpm policy. The delay is a risk reduction measure, not a security certification. See [pnpm dependency resolution settings](https://pnpm.io/settings/dependency-resolution#minimumreleaseage).
+Use pnpm 12.6.0 from the root `packageManager` field. `pnpm-workspace.yaml` sets `minimumReleaseAge: 180` (minutes) and `minimumReleaseAgeStrict: true`. Registry releases must be at least three hours old before pnpm accepts them, including transitive dependencies and locked versions. `minimumReleaseAgeIgnoreMissingTime: false` rejects packages whose publication time is missing from registry metadata. No package is exempted. Use `pnpm install --frozen-lockfile` in CI; npm/yarn do not enforce this pnpm policy. The delay is a risk reduction measure, not a security certification. See [pnpm dependency resolution settings](https://pnpm.io/settings/dependency-resolution#minimumreleaseage).
 
 Update every workspace with `pnpm -r update --latest` and root tools with `pnpm -w update --latest`, then run the checks above and `pnpm peers check`. Transitive packages must remain within the ranges required by their parents; do not force incompatible majors through global overrides.
 

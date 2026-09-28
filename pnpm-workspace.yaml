@@ -6,3 +6,4 @@ allowBuilds:
   electron: true
 minimumReleaseAge: 180
 minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false

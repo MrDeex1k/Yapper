@@ -8,3 +8,23 @@ export function serverOrigin(value: string): string {
   }
   return url.origin;
 }
+
+export function serverInfo(value: unknown): { name: string; version: string; protocol: 1 } {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    !('name' in value) ||
+    typeof value.name !== 'string' ||
+    !value.name.trim() ||
+    !('version' in value) ||
+    typeof value.version !== 'string' ||
+    !value.version.trim()
+  ) {
+    throw new Error('The server returned invalid connection information.');
+  }
+  if (!('protocol' in value) || value.protocol !== 1) {
+    throw new Error('This server uses an unsupported protocol.');
+  }
+  return { name: value.name, version: value.version, protocol: 1 };
+}
