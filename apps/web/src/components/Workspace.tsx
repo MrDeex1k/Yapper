@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { Client, errorMessage, type Channel, type User } from '../lib/api';
 import { Button } from './ui/button';
+import { Moderation } from './Moderation';
 import { Conversation } from './Conversation';
 const VoicePanel = lazy(() => import('./VoicePanel'));
 export function Workspace({
@@ -52,6 +53,7 @@ export function Workspace({
         body: JSON.stringify({
           name: new FormData(form).get('name'),
           kind: new FormData(form).get('kind'),
+          private: new FormData(form).get('private') === 'on',
         }),
       });
       setChannels((current) => [...current, channel]);
@@ -109,6 +111,9 @@ export function Workspace({
                   <option value="voice">Voice</option>
                 </select>
               </label>
+              <label>
+                <input type="checkbox" name="private" /> Private channel
+              </label>
               <Button type="submit" variant="outline">
                 Create channel
               </Button>
@@ -122,6 +127,9 @@ export function Workspace({
               </output>
             ) : null}
           </details>
+        ) : null}
+        {user.role !== 'member' ? (
+          <Moderation client={client} user={user} channels={channels} />
         ) : null}
         <output className="error">{error}</output>
         {voiceChannel && channel?.kind !== 'voice' ? (
@@ -141,7 +149,7 @@ export function Workspace({
         </footer>
       </aside>
       {channel?.kind === 'text' ? (
-        <Conversation key={channel.id} client={client} channel={channel} />
+        <Conversation key={channel.id} client={client} channel={channel} user={user} />
       ) : null}
       {voiceChannel ? (
         <div hidden={channel?.kind !== 'voice'} className="voice-container">

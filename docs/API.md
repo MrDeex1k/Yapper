@@ -33,3 +33,9 @@ Passwords require 12–72 bytes and are hashed with bcrypt cost 10. Usernames us
 `GET /events` upgrades to WebSocket. Within five seconds send `{token,channel_id}`. The server verifies the current session and membership, sends `sync`, then channel notifications. Queues hold at most 32 events; slow clients disconnect and resynchronize. Limits are 2048 connections per process and eight per user. Every delivered event rechecks access; a 15-second heartbeat also rechecks idle connections. The initial auth frame is limited to 4 KiB. Origin must match the web host.
 
 Administrator-only `PUT /channels/{channel}/members/{user}` grants membership; `DELETE` revokes it and disconnects the user's channel subscriptions immediately. Subsequent HTTP reads and WebSocket authentication also reject that access. The client reconnects with bounded exponential backoff and refreshes the latest page; older history remains accessible by cursor.
+
+## Moderation and desktop (F04)
+
+`GET /admin/users` lists up to 500 users for administrators/moderators. `PATCH /admin/users/{id}` accepts `{role?,banned?}`. Only administrators change roles or manage privileged accounts; moderators can ban/unban members. The last active administrator cannot be demoted/banned, and self-ban is forbidden. Mutations revoke all target sessions, cancel WebSockets and remove media access (SFU failures return `disconnect_pending` for reconciliation). `DELETE /channels/{channel}/messages/{id}` allows the author or a moderator/admin with channel access, then emits `message.deleted`.
+
+The packaged desktop origin `yapper://app` is explicitly accepted for CORS/WebSocket; other browser origins retain the same-origin restriction. Saved servers contain only validated origins. Bearer tokens live in memory and are never reused when selecting a different instance.

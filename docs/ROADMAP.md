@@ -331,9 +331,9 @@ Odbiór: użytkownik rozumie, czy mikrofon nadal działa po zamknięciu okna; og
 
 ### F04-E03 — Wiele serwerów i moderacja
 
-- [ ] K01: Dodać zapisaną listę serwerów i izolację sesji/danych między instancjami.
-- [ ] K02: Dodać rolę moderatora, usuwanie wiadomości i blokowanie konta egzekwowane po stronie serwera.
-- [ ] K03: Dodać interfejs zarządzania zaproszeniami, kanałami i podstawowymi rolami.
+- [x] K01: Dodać zapisaną listę serwerów i izolację sesji/danych między instancjami.
+- [x] K02: Dodać rolę moderatora, usuwanie wiadomości i blokowanie konta egzekwowane po stronie serwera.
+- [x] K03: Dodać interfejs zarządzania zaproszeniami, kanałami i podstawowymi rolami.
 
 Odbiór: przełączenie instancji nie wysyła jej tokenów do innego hosta, a ban kończy aktywny dostęp do czatu i głosu.
 

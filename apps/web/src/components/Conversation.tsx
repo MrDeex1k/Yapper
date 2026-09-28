@@ -1,8 +1,16 @@
 import { subscribe } from '../lib/realtime';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Client, errorMessage, type Channel, type Message } from '../lib/api';
+import { Client, errorMessage, type Channel, type Message, type User } from '../lib/api';
 import { Button } from './ui/button';
-export function Conversation({ client, channel }: { client: Client; channel: Channel }) {
+export function Conversation({
+  client,
+  channel,
+  user,
+}: {
+  client: Client;
+  channel: Channel;
+  user: User;
+}) {
   const [connection, setConnection] = useState('Connecting…');
   const [messages, setMessages] = useState<Message[]>([]);
   const [cursor, setCursor] = useState('');
@@ -79,6 +87,14 @@ export function Conversation({ client, channel }: { client: Client; channel: Cha
       setSending(false);
     }
   }
+  async function remove(message: Message) {
+    try {
+      await client.request(`/channels/${channel.id}/messages/${message.id}`, { method: 'DELETE' });
+      setMessages((current) => current.filter((m) => m.id !== message.id));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
   return (
     <section className="conversation" aria-label={channel.name}>
       <header className="conversation-header">
@@ -115,6 +131,11 @@ export function Conversation({ client, channel }: { client: Client; channel: Cha
                 </time>
               </header>
               <p>{message.content}</p>
+              {message.user_id === user.id || user.role !== 'member' ? (
+                <Button size="sm" variant="ghost" onClick={() => void remove(message)}>
+                  Delete message
+                </Button>
+              ) : null}
             </div>
           </article>
         ))}
