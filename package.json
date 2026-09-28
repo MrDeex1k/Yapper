@@ -2,5 +2,13 @@
   "name": "yapper",
   "private": true,
   "packageManager": "pnpm@12.6.0",
-  "scripts": {"build": "pnpm -r --if-present build", "typecheck": "pnpm -r --if-present typecheck"}
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@shadcn/lint": "^0.2.0",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0"
+  }
 }

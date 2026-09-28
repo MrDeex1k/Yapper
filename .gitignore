@@ -10,3 +10,5 @@ coverage/
 release/
 *.log
 .DS_Store
+
+*.tsbuildinfo
