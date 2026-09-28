@@ -179,9 +179,9 @@ Cel: świeża instalacja uruchamia szkielet serwera i webu, a proces publikacji 
 
 ### F01-E01 — Repozytorium i decyzje techniczne
 
-- [ ] K01: Zapisać krótkie decyzje architektoniczne: niezależne instancje, modularny monolit, granica aplikacja/media i zakres MVP.
-- [ ] K02: Utworzyć strukturę `apps/web`, `apps/desktop`, `apps/landing`, `server`, `deploy`, `docs` oraz komendy developerskie dla istniejących komponentów.
-- [ ] K03: Dodać szablon PR, zasady branchy/commitów i rejestr etapów powiązany z tym planem.
+- [x] K01: Zapisać krótkie decyzje architektoniczne: niezależne instancje, modularny monolit, granica aplikacja/media i zakres MVP.
+- [x] K02: Utworzyć strukturę `apps/web`, `apps/desktop`, `apps/landing`, `server`, `deploy`, `docs` oraz komendy developerskie dla istniejących komponentów.
+- [x] K03: Dodać szablon PR, zasady branchy/commitów i rejestr etapów powiązany z tym planem.
 
 Odbiór: nowy developer potrafi znaleźć komponenty i uruchomić udokumentowane komendy. Puste przyszłe klienty nie dostają pozornej implementacji.
 
