@@ -195,12 +195,12 @@ Odbiór: proces startuje z poprawną konfiguracją, raportuje wersję i zamyka s
 
 ### F01-E03 — Web i landing page
 
-- [ ] K01: Uruchomić aplikację React/TypeScript z Tailwind i shadcn/ui opartym o Base UI.
-- [ ] K02: Dodać ekran połączenia ze wskazaną instancją oraz odczyt jej wersji i stanu.
-- [ ] K03: Utworzyć landing Astro z opisem projektu i odnośnikiem do instrukcji self-hostingu.
-- [ ] K04: Dodać Oxlint, wspólną konfigurację i skrypty `lint`/`lint:fix` dla istniejącego kodu JS/TS.
-- [ ] K05: Dodać Oxfmt, wspólną konfigurację i skrypty `format`/`format:check`, dokumentując zakres obsługi Astro.
-- [ ] K06: Podłączyć `@shadcn/lint` do Oxlint i skonfigurować reguły komponentów oraz tokenów design systemu dla UI z Tailwind v4.
+- [x] K01: Uruchomić aplikację React/TypeScript z Tailwind i shadcn/ui opartym o Base UI.
+- [x] K02: Dodać ekran połączenia ze wskazaną instancją oraz odczyt jej wersji i stanu.
+- [x] K03: Utworzyć landing Astro z opisem projektu i odnośnikiem do instrukcji self-hostingu.
+- [x] K04: Dodać Oxlint, wspólną konfigurację i skrypty `lint`/`lint:fix` dla istniejącego kodu JS/TS.
+- [x] K05: Dodać Oxfmt, wspólną konfigurację i skrypty `format`/`format:check`, dokumentując zakres obsługi Astro.
+- [x] K06: Podłączyć `@shadcn/lint` do Oxlint i skonfigurować reguły komponentów oraz tokenów design systemu dla UI z Tailwind v4.
 
 Odbiór: web pokazuje rzeczywisty stan serwera, błąd połączenia jest czytelny, a landing buduje się niezależnie. Skrypty lintowania, formatowania i sprawdzania typów działają lokalnie; kontrolowana próba naruszenia reguły UI potwierdza, że plugin jest aktywny.
 

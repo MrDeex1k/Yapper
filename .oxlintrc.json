@@ -1,0 +1,19 @@
+{
+  "plugins": ["typescript", "react", "jsx-a11y"],
+  "jsPlugins": ["@shadcn/lint"],
+  "categories": { "correctness": "error" },
+  "settings": {
+    "shadcn": {
+      "componentImports": ["components/ui/"],
+      "note": "Use variants from apps/web/src/components/ui and shared theme tokens."
+    }
+  },
+  "rules": {
+    "shadcn/no-arbitrary-values": "error",
+    "shadcn/no-restyle": ["error", { "allow": ["layout"] }]
+  },
+  "overrides": [
+    { "files": ["apps/web/src/components/ui/**"], "rules": { "shadcn/no-restyle": "off" } }
+  ],
+  "ignorePatterns": ["node_modules", "dist", ".astro", ".tmp", ".tools"]
+}
