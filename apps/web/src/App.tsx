@@ -1,3 +1,4 @@
+import { savedServers, rememberServer } from './lib/servers';
 import { AuthPanel } from './components/AuthPanel';
 import { Workspace } from './components/Workspace';
 import { Client, type User } from './lib/api';
@@ -28,6 +29,7 @@ export function App() {
       const info = (await response.json()) as { name: string; version: string; protocol: number };
       if (info.protocol !== 1) throw new Error('This server uses an unsupported protocol.');
       setStatus(`Connected to ${info.name} · ${info.version}`);
+      rememberServer(url);
       setConnected(url);
     } catch (error) {
       setFailed(true);
@@ -60,6 +62,7 @@ export function App() {
           Server address
           <input
             id="server"
+            list="saved-servers"
             type="url"
             value={origin}
             onChange={(event) => setOrigin(event.target.value)}
@@ -67,6 +70,13 @@ export function App() {
             placeholder="https://chat.example.com"
           />
         </label>
+        <datalist id="saved-servers">
+          {savedServers().map((server) => (
+            <option key={server} value={server}>
+              {server}
+            </option>
+          ))}
+        </datalist>
         <Button type="submit" disabled={busy}>
           {busy ? 'Connecting…' : 'Connect to server'} <span aria-hidden="true">↗</span>
         </Button>
