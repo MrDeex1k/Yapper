@@ -13,6 +13,9 @@
     "dist": "pnpm --filter @yapper/web build && pnpm build && electron-builder",
     "smoke": "electron . --smoke"
   },
+  "dependencies": {
+    "uiohook-napi": "1.5.5"
+  },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "electron": "44.4.5",
@@ -51,7 +54,8 @@
     "mac": {
       "target": [
         "dir"
-      ]
+      ],
+      "identity": null
     },
     "publish": null
   }

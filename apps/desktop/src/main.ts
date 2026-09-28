@@ -1,5 +1,6 @@
 import { app, BrowserWindow, net, protocol } from 'electron';
 import path from 'node:path';
+import { installPTT } from './ptt';
 import { secureWindow } from './security';
 import { pathToFileURL } from 'node:url';
 
@@ -44,6 +45,7 @@ app.whenReady().then(async () => {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   secureWindow(window, app.getVersion());
+  installPTT(window);
   await window.loadURL('yapper://app/');
   if (smoke) {
     const result = await window.webContents.executeJavaScript(

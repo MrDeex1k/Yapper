@@ -1,16 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { Room } from 'livekit-client';
 import { errorMessage } from '../lib/api';
 import { Button } from './ui/button';
-export function PushToTalk({ room, onError }: { room: Room; onError: (message: string) => void }) {
+export function PushToTalk({
+  room,
+  onError,
+  blocked,
+}: {
+  room: Room;
+  onError: (message: string) => void;
+  blocked: boolean;
+}) {
   const [enabled, setEnabled] = useState(false);
   const queue = useRef<Promise<void> | null>(null);
+  const canTalk = useEffectEvent((value: boolean) => value && !blocked);
   useEffect(() => {
     if (!enabled) return;
     const transmit = (value: boolean) => {
       queue.current = (queue.current ?? Promise.resolve())
         .then(async () => {
-          if (room.state === 'connected') await room.localParticipant.setMicrophoneEnabled(value);
+          if (room.state === 'connected')
+            await room.localParticipant.setMicrophoneEnabled(canTalk(value));
         })
         .catch((e) => onError(errorMessage(e)));
     };
@@ -18,6 +28,7 @@ export function PushToTalk({ room, onError }: { room: Room; onError: (message: s
       if (
         event.code !== 'KeyV' ||
         event.repeat ||
+        (event.target instanceof HTMLElement && event.target.isContentEditable) ||
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement

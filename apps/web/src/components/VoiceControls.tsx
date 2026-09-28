@@ -1,3 +1,4 @@
+import { DesktopPTT } from './DesktopPTT';
 import { PushToTalk } from './PushToTalk';
 import { useEffect, useState } from 'react';
 import { Room, RoomEvent } from 'livekit-client';
@@ -70,9 +71,10 @@ export function VoiceControls({
   }
   return (
     <div className="voice-controls">
-      <PushToTalk room={room} onError={onError} />
+      <PushToTalk room={room} onError={onError} blocked={deaf} />
+      {window.yapperDesktop ? <DesktopPTT room={room} onError={onError} blocked={deaf} /> : null}
       <div className="voice-actions">
-        <Button variant="outline" aria-pressed={muted} onClick={toggleMute}>
+        <Button variant="outline" aria-pressed={muted} disabled={deaf} onClick={toggleMute}>
           {muted ? 'Unmute' : 'Mute'}
         </Button>
         <Button
