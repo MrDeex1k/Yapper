@@ -1,3 +1,4 @@
+import { subscribeAudio } from './media-subscriptions';
 import type { Room } from 'livekit-client';
 import type { Client } from './api';
 export async function joinRoom(client: Client, channel: string, room: Room, signal: AbortSignal) {
@@ -11,7 +12,8 @@ export async function joinRoom(client: Client, channel: string, room: Room, sign
     signal,
   });
   signal.throwIfAborted();
-  await room.connect(grant.url, grant.token);
+  await room.connect(grant.url, grant.token, { autoSubscribe: false });
+  subscribeAudio(room);
   signal.throwIfAborted();
   await room.localParticipant.setMicrophoneEnabled(true);
   signal.throwIfAborted();

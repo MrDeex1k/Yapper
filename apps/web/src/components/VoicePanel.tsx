@@ -1,4 +1,5 @@
 import { joinRoom } from '../lib/join-room';
+import { subscribeAudio } from '../lib/media-subscriptions';
 import { Camera } from './Camera';
 import { ScreenShare } from './ScreenShare';
 import { VideoStage } from './VideoStage';
@@ -34,6 +35,8 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     };
     const activeSpeakers = (participants: Participant[]) =>
       setSpeakers(new Set(participants.map((p) => p.identity)));
+    const subscribe = () => subscribeAudio(room);
+    room.on(RoomEvent.TrackPublished, subscribe);
     room.on(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
     const disconnected = () => {
       setJoined(false);
@@ -55,6 +58,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
     room.on(RoomEvent.Disconnected, disconnected);
     return () => {
       joining.current?.abort();
+      room.off(RoomEvent.TrackPublished, subscribe);
       room.off(RoomEvent.Reconnecting, reconnecting);
       room.off(RoomEvent.Reconnected, reconnected);
       room.off(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
