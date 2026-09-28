@@ -303,9 +303,9 @@ Odbiór: powrót sieci i wymiana urządzenia nie wymagają odświeżenia całej 
 
 ### F03-E05 — Wydanie głosowe
 
-- [ ] K01: Dodać powtarzalny scenariusz testów głosu: różne sieci, TURN, reconnect i odebranie dostępu.
-- [ ] K02: Zapisać bazowy pomiar CPU, RAM i transferu dla rozmów na kilku kanałach wraz z konfiguracją sprzętu.
-- [ ] K03: Przygotować `0.3.0`, instrukcję aktualizacji i opis sprawdzonych przeglądarek.
+- [x] K01: Dodać powtarzalny scenariusz testów głosu: różne sieci, TURN, reconnect i odebranie dostępu.
+- [x] K02: Zapisać bazowy pomiar CPU, RAM i transferu dla rozmów na kilku kanałach wraz z konfiguracją sprzętu.
+- [x] K03: Przygotować `0.3.0`, instrukcję aktualizacji i opis sprawdzonych przeglądarek.
 
 Odbiór fazy: mała grupa prowadzi dłuższą rozmowę, a wynik testu, czas trwania i zaobserwowane ograniczenia są zapisane w raporcie wydania.
 

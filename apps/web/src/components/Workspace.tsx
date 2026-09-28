@@ -43,7 +43,10 @@ export function Workspace({
     try {
       const channel = await client.request<Channel>('/channels', {
         method: 'POST',
-        body: JSON.stringify({ name: new FormData(form).get('name'), kind: 'text' }),
+        body: JSON.stringify({
+          name: new FormData(form).get('name'),
+          kind: new FormData(form).get('kind'),
+        }),
       });
       setChannels((current) => [...current, channel]);
       setSelected(channel.id);

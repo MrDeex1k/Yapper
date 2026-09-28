@@ -31,3 +31,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F03-E03 | `feat/implement-voice-client` | pending | Frontend build/lint/typecheck passed. React Doctor: 100/100 after cleanup and state fixes. LiveKit is isolated in a lazy voice chunk. Real microphone, Bluetooth and cross-browser acoustic checks remain platform acceptance; local RTP transport is verified. |
 
 | F03-E04 | `fix/recover-voice-sessions` | pending | Frontend lint/typecheck and React Doctor passed at 100/100. PostgreSQL/race tests and bounded-queue tests passed. Physical device hot-unplug, Bluetooth and WAN transition tests remain explicit platform acceptance. |
+
+| F03-E05 | `test/prepare-voice-release` | pending | Go RTP test: 30 seconds and forced SFU removal passed. Chrome synthetic microphone join/mute/leave passed. Frontend lint/typecheck/build passed; React Doctor 100/100. WAN, TURN and long group acceptance remain pending. |

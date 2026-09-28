@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — prepared, not published
+
+- Self-hosted LiveKit profile, scoped microphone grants and permission reconciliation.
+- Voice rooms, device selection, mute/deafen, focused push-to-talk and reconnect.
+- Synthetic RTP and forced disconnection checks; external-network group acceptance remains pending.
+
 ## 0.2.0 — prepared, not published
 
 - Local accounts, one-time invitations and revocable sessions.

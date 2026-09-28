@@ -9,4 +9,5 @@ for component in ('server', 'web'):
     if text.count(build) != 1:
         raise SystemExit(f'Expected one build definition for {component}')
     text = text.replace(build, '    image: ' + manifest['images'][component])
+text = text.replace('./deploy/livekit.local.yaml', './livekit.local.yaml')
 print(text, end='')

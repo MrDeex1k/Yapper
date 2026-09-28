@@ -25,5 +25,6 @@ done
 printf '}}\n' >> release/manifest.json
 cp .env.example release/env.example
 cp docs/SELF_HOSTING.md release/INSTALL.md
+cp deploy/livekit.local.yaml release/livekit.local.yaml
 python3 scripts/release-compose.py > release/compose.yaml
-(cd release && sha256sum manifest.json compose.yaml env.example INSTALL.md > SHA256SUMS)
+(cd release && sha256sum manifest.json compose.yaml env.example INSTALL.md livekit.local.yaml > SHA256SUMS)
