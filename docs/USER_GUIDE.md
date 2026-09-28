@@ -8,4 +8,10 @@ Administrators create text/voice channels, private memberships and invitations i
 
 Exit revokes the current session. Changing server requires leaving the authenticated workspace, so its token is never sent to the newly selected host. Sessions are held in memory; restarting the client requires signing in again.
 
-This is candidate 0.4.0 in unmerged PRs. Desktop packages are unsigned, and physical Windows/Linux group acceptance remains pending. There is no public stable download or automatic updater yet.
+This is candidate 0.5.0 in unmerged PRs. Desktop packages are unsigned, and physical Windows/Linux group acceptance remains pending. There is no public stable download or automatic updater yet.
+
+Attach a file before sending a message; downloads require current channel access. Search history returns only accessible channels. Edit your own messages inline; moderators can edit within their authorized channels. A visible history ending advances your read marker across sessions.
+
+Camera and Share screen are explicit controls inside a joined voice room. Select a camera or screen quality before publishing. The browser or desktop asks for a capture source; system audio is disabled. Pause incoming video leaves voice connected. Hidden video is unsubscribed, and each page receives at most four video publications. Stop sharing or Turn camera off ends that publication.
+
+See [feature matrix](FEATURE_MATRIX.md) and [F05 verification](verification/F05.md) for tested scope.

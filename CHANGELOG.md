@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — prepared, not published
+
+- Authenticated attachments, storage quotas, offline cleanup and database/file recovery.
+- Permission-filtered search, message editing, unread counters and synchronized read state.
+- Opt-in camera and screen publishing, bounded video subscriptions and incoming-video pause.
+- Two-client synthetic media acceptance and separate SFU resource measurements.
+- Upgrade test from the 0.4 schema; physical device and WAN acceptance remain pending.
+
 ## 0.4.0 — prepared, not published
 
 - Sandboxed Windows/Linux Electron shell with typed IPC, tray and opt-in global PTT.

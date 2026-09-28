@@ -392,9 +392,9 @@ Odbiór: kamera i ekran działają razem z głosem, a administrator może ograni
 
 ### F05-E05 — Wydanie multimedialne
 
-- [ ] K01: Sprawdzić uprawnienia do załączników/wyszukiwania i aktualizację z `0.4.x`.
-- [ ] K02: Zmierzyć transfer i obciążenie dla głosu, kamery i ekranu; opisać scenariusze oddzielnie.
-- [ ] K03: Przygotować `0.5.0`, rozszerzony backup i macierz możliwości web/desktop.
+- [x] K01: Sprawdzić uprawnienia do załączników/wyszukiwania i aktualizację z `0.4.x`.
+- [x] K02: Zmierzyć transfer i obciążenie dla głosu, kamery i ekranu; opisać scenariusze oddzielnie.
+- [x] K03: Przygotować `0.5.0`, rozszerzony backup i macierz możliwości web/desktop.
 
 Odbiór fazy: wdrożenie przechodzi cały scenariusz czat → plik → wyszukiwanie → rozmowa → ekran/kamera.
 
@@ -620,19 +620,9 @@ Odbiór fazy: GitHub Release, obrazy Docker i wymagane klienty są dostępne, in
 
 ## 5. Rejestr postępu
 
-Statusy etapów: **Planowany → W realizacji → Gotowy do review → Zmergowany**. Statusy faz: **Planowana → W realizacji → Gotowa do wydania → Wydana**. **Zablokowany** wymaga opisu konkretnej zależności i warunku odblokowania.
+Bieżący rejestr branchy, PR-ów i wyników znajduje się w [PROGRESS.md](PROGRESS.md). F01–F05 zostały przygotowane jako stos otwartych PR-ów; brak merge, tagów oraz opublikowanych wydań. Zaznaczenie kroku oznacza wykonaną implementację lub opisany test, a nie pełny odbiór fazy. Jawnie oczekujące testy fizyczne pozostają niezaznaczone.
 
-Rejestr uzupełniamy wraz z realizacją. W GitHub faza odpowiada milestone; etap może mieć issue z checklistą kroków oraz powiązany PR. Issue etapu zamykamy przez merge, milestone przez ukończoną publikację.
-
-| Etap | Branch | PR | SHA commita po Squash & Merge | Status |
-| --- | --- | --- | --- | --- |
-| F01-E01 | `chore/setup-repository` | — | — | Planowany |
-
-| Faza | Tag | GitHub Release | Manifest/digests Docker | Data wydania |
-| --- | --- | --- | --- | --- |
-| F01 | `v0.1.0` — planowany | — | — | — |
-
-Przy każdym rozpoczynanym etapie dopisujemy wiersz; nie traktujemy planowanych branchy/tagów jako istniejących zasobów. Lista kroków jest źródłem statusu implementacji, rejestr PR-ów — statusu integracji, a rejestr wydań — statusu dystrybucji.
+Statusy etapów: **Planowany → W realizacji → Gotowy do review → Zmergowany**. Statusy faz: **Planowana → W realizacji → Gotowa do wydania → Wydana**. Żadna faza nie ma statusu Wydana. Numer `0.5.0` jest przygotowaną metadanymi wersją kandydata. Kryteria WAN, TURN i pilotażu grupowego wymagają dalszego odbioru przed wydaniem.
 
 ## 6. Źródła zasad wydawania i narzędzi jakości
 
@@ -643,4 +633,4 @@ Przy każdym rozpoczynanym etapie dopisujemy wiersz; nie traktujemy planowanych 
 - [Oxfmt: Quickstart](https://oxc.rs/docs/guide/usage/formatter/quickstart) — konfiguracja i uruchamianie formattera.
 - [shadcn-ui/lint](https://github.com/shadcn-ui/lint) — pakiet `@shadcn/lint`, integracja z Oxlint i reguły design systemu Tailwind.
 
-Ten dokument jest planem. Nie tworzy branchy, PR-ów, milestone'ów ani wydań i nie oznacza żadnego kroku implementacyjnego jako wykonanego.
+Plan zawiera również postęp implementacji. Stan integracji i dowody weryfikacji należy czytać razem z rejestrem PR-ów.

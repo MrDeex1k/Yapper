@@ -4,50 +4,54 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 
 | Stage | Branch | PR | Validation / remaining evidence |
 | --- | --- | --- | --- |
-| F01-E01 | `chore/setup-repository` | pending | Workspace and architecture reviewed; documentation only. |
+| F01-E01 | `chore/setup-repository` | [#1](https://github.com/MrDeex1k/Yapper/pull/1) | Workspace and architecture reviewed; documentation only. |
 
-| F01-E02 | `feat/implement-server-lifecycle` | pending | Go tests with race detector and go vet passed. Dependency failure remains distinct from liveness; readiness rejects draining. PostgreSQL is connected in F02. |
+| F01-E02 | `feat/implement-server-lifecycle` | [#2](https://github.com/MrDeex1k/Yapper/pull/2) | Go tests with race detector and go vet passed. Dependency failure remains distinct from liveness; readiness rejects draining. PostgreSQL is connected in F02. |
 
-| F01-E03 | `feat/implement-web-foundation` | pending | pnpm build, typecheck, lint and format:check passed. React Doctor: 100/100. A deliberately invalid Tailwind value was rejected by shadcn/lint. Astro formatting is explicitly not covered by Oxfmt. |
+| F01-E03 | `feat/implement-web-foundation` | [#3](https://github.com/MrDeex1k/Yapper/pull/3) | pnpm build, typecheck, lint and format:check passed. React Doctor: 100/100. A deliberately invalid Tailwind value was rejected by shadcn/lint. Astro formatting is explicitly not covered by Oxfmt. |
 
-| F01-E04 | `feat/implement-compose-deployment` | pending | Docker images built on OrbStack (arm64). Startup and PostgreSQL restart smoke tests passed on localhost:18088. Port 8088 belongs to another project and was left untouched. CI workflow prepared; public TLS remains operator configuration. |
+| F01-E04 | `feat/implement-compose-deployment` | [#4](https://github.com/MrDeex1k/Yapper/pull/4) | Docker images built on OrbStack (arm64). Startup and PostgreSQL restart smoke tests passed on localhost:18088. Port 8088 belongs to another project and was left untouched. CI workflow prepared; public TLS remains operator configuration. |
 
-| F01-E05 | `ci/prepare-release-pipeline` | pending | Shell syntax and generated release Compose validation passed. Local browser connection to the Compose server succeeded. Docker Hub credentials, amd64 release smoke and public publication remain unverified and are not claimed complete. |
+| F01-E05 | `ci/prepare-release-pipeline` | [#5](https://github.com/MrDeex1k/Yapper/pull/5) | Shell syntax and generated release Compose validation passed. Local browser connection to the Compose server succeeded. Docker Hub credentials, amd64 release smoke and public publication remain unverified and are not claimed complete. |
 
-| F02-E01 | `feat/implement-storage-contract` | pending | Go race tests passed, including duplicate/unknown/trailing/oversized JSON rejection. Compose applied 001_initial.sql on real PostgreSQL and health smoke passed. Migrations preserve applied checksums. |
+| F02-E01 | `feat/implement-storage-contract` | [#6](https://github.com/MrDeex1k/Yapper/pull/6) | Go race tests passed, including duplicate/unknown/trailing/oversized JSON rejection. Compose applied 001_initial.sql on real PostgreSQL and health smoke passed. Migrations preserve applied checksums. |
 
-| F02-E02 | `feat/implement-auth` | pending | Real PostgreSQL integration tests and Go race checks passed: repeated bootstrap, invitation reuse, member invite denial, logout and expired session rejection. Backend auth remains Go; client forms follow in the chat stage. |
+| F02-E02 | `feat/implement-auth` | [#7](https://github.com/MrDeex1k/Yapper/pull/7) | Real PostgreSQL integration tests and Go race checks passed: repeated bootstrap, invitation reuse, member invite denial, logout and expired session rejection. Backend auth remains Go; client forms follow in the chat stage. |
 
-| F02-E03 | `feat/implement-persistent-chat` | pending | Real PostgreSQL tests verify deduplicated retries, conflicting retry rejection and persistence across server objects. Frontend lint/typecheck/build passed. React Doctor returned to 100/100 after simplifying AUTH control flow. Live server bootstrap was verified; realtime arrives in F02-E04. |
+| F02-E03 | `feat/implement-persistent-chat` | [#8](https://github.com/MrDeex1k/Yapper/pull/8) | Real PostgreSQL tests verify deduplicated retries, conflicting retry rejection and persistence across server objects. Frontend lint/typecheck/build passed. React Doctor returned to 100/100 after simplifying AUTH control flow. Live server bootstrap was verified; realtime arrives in F02-E04. |
 
-| F02-E04 | `feat/implement-realtime` | pending | Go race tests against PostgreSQL and real WebSocket connections passed, including initial sync, event delivery, unauthorized subscription and live revocation. Frontend lint/typecheck and React Doctor passed (100/100). Browser login exposed and corrected an HTML pattern compatibility issue. |
+| F02-E04 | `feat/implement-realtime` | [#9](https://github.com/MrDeex1k/Yapper/pull/9) | Go race tests against PostgreSQL and real WebSocket connections passed, including initial sync, event delivery, unauthorized subscription and live revocation. Frontend lint/typecheck and React Doctor passed (100/100). Browser login exposed and corrected an HTML pattern compatibility issue. |
 
-| F02-E05 | `test/prepare-chat-release` | pending | Real PostgreSQL/race integration suite passed. Browser sign-in and message send passed. Backup restored one local account and one message into a NEW database without modifying the live instance. Published release upgrade remains pending; no version was published. |
+| F02-E05 | `test/prepare-chat-release` | [#10](https://github.com/MrDeex1k/Yapper/pull/10) | Real PostgreSQL/race integration suite passed. Browser sign-in and message send passed. Backup restored one local account and one message into a NEW database without modifying the live instance. Published release upgrade remains pending; no version was published. |
 
-| F03-E01 | `feat/implement-media-service` | pending | Local SFU started and two Go participants exchanged Opus RTP. Go builds/tests passed. SDK protocol pinned to its compatible version after detecting an upstream mismatch. WAN audio, acoustic quality and relay-only TURN remain explicitly pending. |
+| F03-E01 | `feat/implement-media-service` | [#11](https://github.com/MrDeex1k/Yapper/pull/11) | Local SFU started and two Go participants exchanged Opus RTP. Go builds/tests passed. SDK protocol pinned to its compatible version after detecting an upstream mismatch. WAN audio, acoustic quality and relay-only TURN remain explicitly pending. |
 
-| F03-E02 | `feat/authorize-voice-rooms` | pending | Go/PostgreSQL race suite passed. Signed grant tests verify room scope, microphone-only publication and no data publishing. A fake SFU verifies allowed sessions remain and revoked sessions are removed; actual SFU local RTP was verified in the previous stage. Network-partition revocation is explicitly eventual. |
+| F03-E02 | `feat/authorize-voice-rooms` | [#12](https://github.com/MrDeex1k/Yapper/pull/12) | Go/PostgreSQL race suite passed. Signed grant tests verify room scope, microphone-only publication and no data publishing. A fake SFU verifies allowed sessions remain and revoked sessions are removed; actual SFU local RTP was verified in the previous stage. Network-partition revocation is explicitly eventual. |
 
-| F03-E03 | `feat/implement-voice-client` | pending | Frontend build/lint/typecheck passed. React Doctor: 100/100 after cleanup and state fixes. LiveKit is isolated in a lazy voice chunk. Real microphone, Bluetooth and cross-browser acoustic checks remain platform acceptance; local RTP transport is verified. |
+| F03-E03 | `feat/implement-voice-client` | [#13](https://github.com/MrDeex1k/Yapper/pull/13) | Frontend build/lint/typecheck passed. React Doctor: 100/100 after cleanup and state fixes. LiveKit is isolated in a lazy voice chunk. Real microphone, Bluetooth and cross-browser acoustic checks remain platform acceptance; local RTP transport is verified. |
 
-| F03-E04 | `fix/recover-voice-sessions` | pending | Frontend lint/typecheck and React Doctor passed at 100/100. PostgreSQL/race tests and bounded-queue tests passed. Physical device hot-unplug, Bluetooth and WAN transition tests remain explicit platform acceptance. |
+| F03-E04 | `fix/recover-voice-sessions` | [#14](https://github.com/MrDeex1k/Yapper/pull/14) | Frontend lint/typecheck and React Doctor passed at 100/100. PostgreSQL/race tests and bounded-queue tests passed. Physical device hot-unplug, Bluetooth and WAN transition tests remain explicit platform acceptance. |
 
-| F03-E05 | `test/prepare-voice-release` | pending | Go RTP test: 30 seconds and forced SFU removal passed. Chrome synthetic microphone join/mute/leave passed. Frontend lint/typecheck/build passed; React Doctor 100/100. WAN, TURN and long group acceptance remain pending. |
+| F03-E05 | `test/prepare-voice-release` | [#15](https://github.com/MrDeex1k/Yapper/pull/15) | Go RTP test: 30 seconds and forced SFU removal passed. Chrome synthetic microphone join/mute/leave passed. Frontend lint/typecheck/build passed; React Doctor 100/100. WAN, TURN and long group acceptance remain pending. |
 
-| F04-E01 | `feat/implement-desktop-shell` | pending | Local macOS Electron renderer smoke passed; renderer has no Node process. TypeScript and Oxlint passed. Windows/Linux CI is configured; physical platform acceptance is pending. |
+| F04-E01 | `feat/implement-desktop-shell` | [#16](https://github.com/MrDeex1k/Yapper/pull/16) | Local macOS Electron renderer smoke passed; renderer has no Node process. TypeScript and Oxlint passed. Windows/Linux CI is configured; physical platform acceptance is pending. |
 
-| F04-E02 | `feat/integrate-desktop-voice` | pending | TypeScript, Oxlint and React Doctor 100/100 passed. Local Electron startup passed. Fixed Linux executable naming discovered by CI. Physical Windows/X11/Wayland keyboard and tray acceptance remains pending. |
+| F04-E02 | `feat/integrate-desktop-voice` | [#17](https://github.com/MrDeex1k/Yapper/pull/17) | TypeScript, Oxlint and React Doctor 100/100 passed. Local Electron startup passed. Fixed Linux executable naming discovered by CI. Physical Windows/X11/Wayland keyboard and tray acceptance remains pending. |
 
-| F04-E03 | `feat/implement-server-moderation` | pending | PostgreSQL integration with race detector passed, including last-admin protection and banned-session rejection. Frontend typecheck, lint and React Doctor 100/100 passed. |
+| F04-E03 | `feat/implement-server-moderation` | [#18](https://github.com/MrDeex1k/Yapper/pull/18) | PostgreSQL integration with race detector passed, including last-admin protection and banned-session rejection. Frontend typecheck, lint and React Doctor 100/100 passed. |
 
-| F04-E04 | `feat/implement-instance-operations` | pending | Local backup and isolated PostgreSQL restore passed checksum and row-count verification. React Doctor 100/100, lint and typecheck passed. Production image upgrade acceptance remains pending. |
+| F04-E04 | `feat/implement-instance-operations` | [#19](https://github.com/MrDeex1k/Yapper/pull/19) | Local backup and isolated PostgreSQL restore passed checksum and row-count verification. React Doctor 100/100, lint and typecheck passed. Production image upgrade acceptance remains pending. |
 
-| F04-E05 | `test/prepare-desktop-release` | pending | Local Electron and native-module load smoke passed; frontend lint/typecheck/build and React Doctor passed in preceding stages. Backup recovery passed. Windows/Linux packaged CI is being verified; physical group pilot remains pending. |
+| F04-E05 | `test/prepare-desktop-release` | [#20](https://github.com/MrDeex1k/Yapper/pull/20) | Local Electron and native-module load smoke passed; frontend lint/typecheck/build and React Doctor passed in preceding stages. Backup recovery passed. Windows/Linux packaged CI is being verified; physical group pilot remains pending. |
 
-| F05-E01 | `feat/implement-attachments` | pending | PostgreSQL/race tests passed for permissions, quota, author binding and dry-run cleanup. Local upload/download matched bytes; full database/file backup restored successfully. React Doctor 100/100, lint and typecheck passed; Compose rebuilt successfully. |
+| F05-E01 | `feat/implement-attachments` | [#21](https://github.com/MrDeex1k/Yapper/pull/21) | PostgreSQL/race tests passed for permissions, quota, author binding and dry-run cleanup. Local upload/download matched bytes; full database/file backup restored successfully. React Doctor 100/100, lint and typecheck passed; Compose rebuilt successfully. |
 
-| F05-E02 | `feat/implement-message-state` | pending | PostgreSQL integration/race tests passed for search visibility, edit authorization, retry preservation and read state across sessions. Frontend lint/typecheck and React Doctor 100/100 passed. |
+| F05-E02 | `feat/implement-message-state` | [#22](https://github.com/MrDeex1k/Yapper/pull/22) | PostgreSQL integration/race tests passed for search visibility, edit authorization, retry preservation and read state across sessions. Frontend lint/typecheck and React Doctor 100/100 passed. |
 
-| F05-E03 | `feat/implement-screen-sharing` | pending | Chrome local tab-share/start/stop smoke passed. PostgreSQL/race tests passed including signed source policy and excess-screen removal. React Doctor 100/100, TypeScript and Oxlint passed. Physical Windows/Linux capture and system audio remain unverified; system audio is disabled. |
+| F05-E03 | `feat/implement-screen-sharing` | [#23](https://github.com/MrDeex1k/Yapper/pull/23) | Chrome synthetic screen-source start/stop smoke passed; physical tab/window capture remains pending. PostgreSQL/race tests passed including signed source policy and excess-screen removal. React Doctor 100/100, TypeScript and Oxlint passed. Physical Windows/Linux capture and system audio remain unverified; system audio is disabled. |
 
-| F05-E04 | `feat/implement-video-controls` | pending | PostgreSQL integration/race suite passed, including camera/source restrictions. Frontend lint/typecheck and React Doctor 100/100 passed. Two-client synthetic media acceptance is scheduled in F05-E05; physical platform camera tests remain pending. |
+| F05-E04 | `feat/implement-video-controls` | [#24](https://github.com/MrDeex1k/Yapper/pull/24) | PostgreSQL integration/race suite passed, including camera/source restrictions. Frontend lint/typecheck and React Doctor 100/100 passed. Two-client synthetic media acceptance is scheduled in F05-E05; physical platform camera tests remain pending. |
+
+Latest verified CI before F05-E05: PR #24 passed general verification and both Windows/Linux packaged startup jobs. Some earlier PR heads retain historical CI failures fixed by later stages; merging the stack will require reviewing and refreshing each next base. No PR was merged.
+
+| F05-E05 | `test/prepare-multimedia-release` | pending | PostgreSQL integration/race tests and go vet passed. Oxlint, Oxfmt, TypeScript, Astro check and workspace builds passed; React Doctor 100/100. Two Chrome clients passed attachment byte comparison, search, camera/screen decode and video pause/resume. Three simultaneous RTP rooms passed. Complete backup restored into an isolated database with attachment checksums/inventory verified. Physical devices, WAN/TURN and group pilot remain pending; no release published. |
