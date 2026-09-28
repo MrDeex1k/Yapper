@@ -271,9 +271,9 @@ Cel: działające rozmowy grupowe przez Internet oraz odzyskiwanie połączenia 
 
 ### F03-E01 — Weryfikacja i wdrożenie serwera mediów
 
-- [ ] K01: Wykonać minimalny spike dwóch klientów WebRTC i zapisać wybór SFU, warunki licencji oraz ograniczenia SDK dla planowanych platform, w tym Rust.
-- [ ] K02: Dodać wybrany serwer mediów do Compose z przypiętą wersją i konfiguracją sekretów.
-- [ ] K03: Dodać instrukcję publicznych adresów, TLS, UDP i TURN oraz scenariusz połączenia przez relay.
+- [x] K01: Wykonać minimalny spike dwóch klientów WebRTC i zapisać wybór SFU, warunki licencji oraz ograniczenia SDK dla planowanych platform, w tym Rust.
+- [x] K02: Dodać wybrany serwer mediów do Compose z przypiętą wersją i konfiguracją sekretów.
+- [x] K03: Dodać instrukcję publicznych adresów, TLS, UDP i TURN oraz scenariusz połączenia przez relay.
 
 Odbiór: dwie osoby w różnych sieciach słyszą się, a wymuszona ścieżka TURN jest sprawdzona. Dokument wskazuje zależności potrzebne do późniejszych klientów natywnych.
 

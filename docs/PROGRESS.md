@@ -23,3 +23,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F02-E04 | `feat/implement-realtime` | pending | Go race tests against PostgreSQL and real WebSocket connections passed, including initial sync, event delivery, unauthorized subscription and live revocation. Frontend lint/typecheck and React Doctor passed (100/100). Browser login exposed and corrected an HTML pattern compatibility issue. |
 
 | F02-E05 | `test/prepare-chat-release` | pending | Real PostgreSQL/race integration suite passed. Browser sign-in and message send passed. Backup restored one local account and one message into a NEW database without modifying the live instance. Published release upgrade remains pending; no version was published. |
+
+| F03-E01 | `feat/implement-media-service` | pending | Local SFU started and two Go participants exchanged Opus RTP. Go builds/tests passed. SDK protocol pinned to its compatible version after detecting an upstream mismatch. WAN audio, acoustic quality and relay-only TURN remain explicitly pending. |
