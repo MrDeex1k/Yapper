@@ -11,6 +11,7 @@ import (
 var Version = "0.2.0-dev"
 
 type Server struct {
+	Media           *Media
 	eventsHub       *hub
 	authLimit       authLimiter
 	BootstrapToken  string
@@ -41,6 +42,8 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
+		mux.HandleFunc("POST /api/v1/channels/{channel}/voice", s.authenticated(s.voiceJoin))
+		mux.HandleFunc("GET /api/v1/channels/{channel}/participants", s.authenticated(s.voiceParticipants))
 		mux.HandleFunc("PUT /api/v1/channels/{channel}/members/{user}", s.authenticated(s.membership))
 		mux.HandleFunc("DELETE /api/v1/channels/{channel}/members/{user}", s.authenticated(s.membership))
 		mux.HandleFunc("GET /api/v1/events", s.events)

@@ -36,6 +36,13 @@ func run(ctx context.Context) error {
 			return pool.Ping(probe)
 		}
 	}
+	if os.Getenv("LIVEKIT_API_SECRET") != "" {
+		media, err := app.NewMedia(os.Getenv("LIVEKIT_API_KEY"), os.Getenv("LIVEKIT_API_SECRET"), os.Getenv("LIVEKIT_INTERNAL_URL"), os.Getenv("LIVEKIT_PUBLIC_URL"))
+		if err != nil {
+			return err
+		}
+		s.Media = media
+	}
 	handler := s.Handler()
 	srv := &http.Server{Addr: c.Address, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 16 << 10, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := rand.Text()
