@@ -6,8 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/coder/websocket"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,5 +168,75 @@ func TestMessageIdempotencyAndPersistence(t *testing.T) {
 	code, _ = request(t, s, "GET", path+"?before=invalid", token, nil)
 	if code != 400 {
 		t.Fatal("invalid cursor", code)
+	}
+}
+
+func TestRealtimePermissionAndDelivery(t *testing.T) {
+	s := testServer(t)
+	admin := adminSession(t, s)
+	_, inv := request(t, s, "POST", "/api/v1/auth/invites", admin, nil)
+	_, member := request(t, s, "POST", "/api/v1/auth/register", "", map[string]string{"username": "reader", "password": "test-password-strong", "invite": inv["invite"].(string)})
+	token := member["token"].(string)
+	userID := member["user"].(map[string]any)["id"].(string)
+	status, channel := request(t, s, "POST", "/api/v1/channels", admin, map[string]any{"name": "private", "private": true})
+	if status != 201 {
+		t.Fatal(status, channel)
+	}
+	id := channel["id"].(string)
+	path := "/api/v1/channels/" + id
+	status, _ = request(t, s, "GET", path+"/messages", token, nil)
+	if status != 403 {
+		t.Fatal("private HTTP access", status)
+	}
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	connect := func() *websocket.Conn {
+		t.Helper()
+		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(ts.URL, "http")+"/api/v1/events", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := json.Marshal(map[string]string{"token": token, "channel_id": id})
+		if err = conn.Write(ctx, websocket.MessageText, data); err != nil {
+			t.Fatal(err)
+		}
+		return conn
+	}
+	denied := connect()
+	_, _, err := denied.Read(ctx)
+	denied.CloseNow()
+	if websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+		t.Fatal("private WS access", err)
+	}
+	status, _ = request(t, s, "PUT", path+"/members/"+userID, admin, nil)
+	if status != 204 {
+		t.Fatal(status)
+	}
+	conn := connect()
+	defer conn.CloseNow()
+	_, data, err := conn.Read(ctx)
+	if err != nil || !bytes.Contains(data, []byte(`"sync"`)) {
+		t.Fatal("no initial sync", err, string(data))
+	}
+	status, _ = request(t, s, "POST", path+"/messages", admin, map[string]string{"content": "visible", "client_id": "ws-1"})
+	if status != 201 {
+		t.Fatal(status)
+	}
+	_, data, err = conn.Read(ctx)
+	if err != nil || !bytes.Contains(data, []byte(`"message.created"`)) {
+		t.Fatal("no event", err, string(data))
+	}
+	status, _ = request(t, s, "DELETE", path+"/members/"+userID, admin, nil)
+	if status != 204 {
+		t.Fatal(status)
+	}
+	if _, _, err = conn.Read(ctx); err == nil {
+		t.Fatal("revoked subscription survived")
+	}
+	status, _ = request(t, s, "GET", path+"/messages", token, nil)
+	if status != 403 {
+		t.Fatal("revoked HTTP access", status)
 	}
 }

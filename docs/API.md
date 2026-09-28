@@ -27,3 +27,9 @@ Passwords require 12–72 bytes and are hashed with bcrypt cost 10. Usernames us
 `GET /channels` returns `{channels}` filtered by access. Administrators create channels with `POST /channels` and `{name,kind:"text",private}`. Private channels require membership except for administrators.
 
 `GET /channels/{id}/messages?before={cursor}` returns `{messages,next_cursor}` (newest first, max 50). `POST` to the same path accepts `{content,client_id}` and returns the saved message. Retry an uncertain send with the same client ID and content. Reusing an ID for different content returns 409. IDs are strings. Message content is displayed as text, not injected HTML.
+
+## Realtime and membership (F02-E04)
+
+`GET /events` upgrades to WebSocket. Within five seconds send `{token,channel_id}`. The server verifies the current session and membership, sends `sync`, then channel notifications. Queues hold at most 32 events; slow clients disconnect and resynchronize. Limits are 2048 connections per process and eight per user. Every delivered event rechecks access; a 15-second heartbeat also rechecks idle connections. The initial auth frame is limited to 4 KiB. Origin must match the web host.
+
+Administrator-only `PUT /channels/{channel}/members/{user}` grants membership; `DELETE` revokes it and disconnects the user's channel subscriptions immediately. Subsequent HTTP reads and WebSocket authentication also reject that access. The client reconnects with bounded exponential backoff and refreshes the latest page; older history remains accessible by cursor.

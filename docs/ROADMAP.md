@@ -251,9 +251,9 @@ Odbiór: ponowiona wysyłka nie duplikuje wiadomości, a historia pozostaje po r
 
 ### F02-E04 — Realtime i podstawowe uprawnienia
 
-- [ ] K01: Dodać autoryzowane subskrypcje kanałów i dostarczanie nowych wiadomości przez WebSocket.
-- [ ] K02: Dodać reconnect z ponowną synchronizacją przez historię i eliminacją duplikatów.
-- [ ] K03: Dodać role administrator/członek, ograniczenie dostępu do kanałów i testy odmowy dostępu po HTTP oraz WebSocket.
+- [x] K01: Dodać autoryzowane subskrypcje kanałów i dostarczanie nowych wiadomości przez WebSocket.
+- [x] K02: Dodać reconnect z ponowną synchronizacją przez historię i eliminacją duplikatów.
+- [x] K03: Dodać role administrator/członek, ograniczenie dostępu do kanałów i testy odmowy dostępu po HTTP oraz WebSocket.
 
 Odbiór: utrata sieci nie gubi historii, a użytkownik bez dostępu nie może ani pobrać, ani subskrybować chronionego kanału.
 

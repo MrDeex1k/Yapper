@@ -77,7 +77,7 @@ export function AuthPanel({
       <form className="connection-form" onSubmit={submit}>
         <label>
           Username
-          <input name="username" autoComplete="username" pattern="[a-z0-9_-]{3,32}" required />
+          <input name="username" autoComplete="username" pattern="(?:[a-z0-9_]|-){3,32}" required />
         </label>
         <label>
           Password

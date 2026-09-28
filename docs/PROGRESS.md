@@ -19,3 +19,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F02-E02 | `feat/implement-auth` | pending | Real PostgreSQL integration tests and Go race checks passed: repeated bootstrap, invitation reuse, member invite denial, logout and expired session rejection. Backend auth remains Go; client forms follow in the chat stage. |
 
 | F02-E03 | `feat/implement-persistent-chat` | pending | Real PostgreSQL tests verify deduplicated retries, conflicting retry rejection and persistence across server objects. Frontend lint/typecheck/build passed. React Doctor returned to 100/100 after simplifying AUTH control flow. Live server bootstrap was verified; realtime arrives in F02-E04. |
+
+| F02-E04 | `feat/implement-realtime` | pending | Go race tests against PostgreSQL and real WebSocket connections passed, including initial sync, event delivery, unauthorized subscription and live revocation. Frontend lint/typecheck and React Doctor passed (100/100). Browser login exposed and corrected an HTML pattern compatibility issue. |

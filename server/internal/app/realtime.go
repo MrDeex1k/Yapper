@@ -63,6 +63,10 @@ func (h *hub) revoke(user, channel string) {
 	}
 }
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+	if !s.ready.Load() {
+		fail(w, 503, "draining", "Server is shutting down.")
+		return
+	}
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		return

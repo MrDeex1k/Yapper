@@ -71,3 +71,34 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, user User
 	}
 	JSON(w, 201, c)
 }
+
+func (s *Server) membership(w http.ResponseWriter, r *http.Request, u User) {
+	if u.Role != "admin" {
+		fail(w, 403, "forbidden", "Administrator access required.")
+		return
+	}
+	channel, user := r.PathValue("channel"), r.PathValue("user")
+	if !s.canAccess(r, u, channel) {
+		fail(w, 404, "not_found", "Channel not found.")
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if _, err := s.DB.Exec(r.Context(), "DELETE FROM channel_members WHERE channel_id=$1 AND user_id=$2", channel, user); err != nil {
+			fail(w, 503, "database_unavailable", "Could not revoke access.")
+			return
+		}
+		s.eventsHub.revoke(user, channel)
+		w.WriteHeader(204)
+		return
+	}
+	tag, err := s.DB.Exec(r.Context(), "INSERT INTO channel_members(channel_id,user_id) SELECT $1,id FROM users WHERE id=$2 AND NOT banned ON CONFLICT DO NOTHING", channel, user)
+	if err != nil {
+		fail(w, 503, "database_unavailable", "Could not add member.")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		fail(w, 409, "member_conflict", "Member already exists or user is unavailable.")
+		return
+	}
+	w.WriteHeader(204)
+}
