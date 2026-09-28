@@ -133,3 +133,38 @@ func TestAuthLifecycle(t *testing.T) {
 		t.Fatalf("expired session: %d", status)
 	}
 }
+
+func TestMessageIdempotencyAndPersistence(t *testing.T) {
+	s := testServer(t)
+	token := adminSession(t, s)
+	code, channels := request(t, s, "GET", "/api/v1/channels", token, nil)
+	if code != 200 {
+		t.Fatal(code)
+	}
+	id := channels["channels"].([]any)[0].(map[string]any)["id"].(string)
+	path := "/api/v1/channels/" + id + "/messages"
+	body := map[string]string{"content": "hello", "client_id": "test-1"}
+	code, first := request(t, s, "POST", path, token, body)
+	if code != 201 {
+		t.Fatal(code, first)
+	}
+	code, second := request(t, s, "POST", path, token, body)
+	if code != 201 || first["id"] != second["id"] {
+		t.Fatal("retry duplicated message")
+	}
+	body["content"] = "different"
+	code, _ = request(t, s, "POST", path, token, body)
+	if code != 409 {
+		t.Fatal("accepted conflicting retry", code)
+	}
+	restarted := NewServer()
+	restarted.DB = s.DB
+	code, result := request(t, restarted, "GET", path, token, nil)
+	if code != 200 || len(result["messages"].([]any)) != 1 {
+		t.Fatal("history not durable", code, result)
+	}
+	code, _ = request(t, s, "GET", path+"?before=invalid", token, nil)
+	if code != 400 {
+		t.Fatal("invalid cursor", code)
+	}
+}

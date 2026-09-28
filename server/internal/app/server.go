@@ -40,6 +40,8 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
+		mux.HandleFunc("GET /api/v1/channels/{channel}/messages", s.authenticated(s.messages))
+		mux.HandleFunc("POST /api/v1/channels/{channel}/messages", s.authenticated(s.sendMessage))
 		mux.HandleFunc("GET /api/v1/channels", s.authenticated(s.channels))
 		mux.HandleFunc("POST /api/v1/channels", s.authenticated(s.createChannel))
 		mux.HandleFunc("POST /api/v1/auth/bootstrap", s.authLimit.wrap(s.bootstrap))
