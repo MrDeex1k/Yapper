@@ -60,8 +60,8 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, user User
 	if body.Kind == "" {
 		body.Kind = "text"
 	}
-	if body.Name == "" || utf8.RuneCountInString(body.Name) > 64 || body.Kind != "text" {
-		fail(w, 400, "channel_invalid", "Use a name of 1–64 characters and a text channel.")
+	if body.Name == "" || utf8.RuneCountInString(body.Name) > 64 || (body.Kind != "text" && body.Kind != "voice") {
+		fail(w, 400, "channel_invalid", "Use a name of 1–64 characters and a text or voice channel.")
 		return
 	}
 	c := Channel{rand.Text(), body.Name, body.Kind, body.Private}
