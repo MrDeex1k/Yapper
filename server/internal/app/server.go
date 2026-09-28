@@ -42,6 +42,7 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
+		mux.HandleFunc("GET /api/v1/admin/status", s.authenticated(s.status))
 		mux.HandleFunc("GET /api/v1/admin/users", s.authenticated(s.users))
 		mux.HandleFunc("PATCH /api/v1/admin/users/{user}", s.authenticated(s.updateUser))
 		mux.HandleFunc("DELETE /api/v1/channels/{channel}/messages/{message}", s.authenticated(s.deleteMessage))

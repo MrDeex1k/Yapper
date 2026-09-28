@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { Client, errorMessage, type Channel, type User } from '../lib/api';
 import { Button } from './ui/button';
+import { InstanceStatus } from './InstanceStatus';
 import { Moderation } from './Moderation';
 import { Conversation } from './Conversation';
 const VoicePanel = lazy(() => import('./VoicePanel'));
@@ -128,6 +129,7 @@ export function Workspace({
             ) : null}
           </details>
         ) : null}
+        {user.role === 'admin' ? <InstanceStatus client={client} /> : null}
         {user.role !== 'member' ? (
           <Moderation client={client} user={user} channels={channels} />
         ) : null}
