@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+.astro/
+coverage/
+.tools/
+.tmp/
+release/
+*.log
+.DS_Store
