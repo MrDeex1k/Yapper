@@ -17,17 +17,28 @@ export function VoiceControls({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   useEffect(() => {
     let active = true;
-    Room.getLocalDevices()
-      .then((value) => {
-        if (active) setDevices(value);
-      })
-      .catch((e) => onError(errorMessage(e)));
+    const refreshDevices = () => {
+      Room.getLocalDevices(undefined, false)
+        .then((value) => {
+          if (active) setDevices(value);
+        })
+        .catch((error) => {
+          if (active) onError(errorMessage(error));
+        });
+    };
+    refreshDevices();
+    navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
+    const deviceError = (error: Error) =>
+      onError(`Audio device unavailable: ${errorMessage(error)}`);
+    room.on(RoomEvent.MediaDevicesError, deviceError);
     const update = () => setMuted(!room.localParticipant.isMicrophoneEnabled);
     room.on(RoomEvent.TrackMuted, update);
     room.on(RoomEvent.TrackUnmuted, update);
     room.on(RoomEvent.LocalTrackPublished, update);
     return () => {
       active = false;
+      navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
+      room.off(RoomEvent.MediaDevicesError, deviceError);
       room.off(RoomEvent.TrackMuted, update);
       room.off(RoomEvent.TrackUnmuted, update);
       room.off(RoomEvent.LocalTrackPublished, update);
