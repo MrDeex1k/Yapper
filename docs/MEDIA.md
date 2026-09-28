@@ -42,3 +42,11 @@ Client profiles request 480p/10 fps/500 kbps or 720p/15 fps/1.5 Mbps. These are 
 `MAX_SCREEN_SHARES` defaults to two per room. The five-second reconciliation cycle removes publishers exceeding the screen count, using join order with identity as tie-breaker, and rejects duplicate/unsupported track sources. This is eventual enforcement: simultaneous publications can briefly exceed the count and SFU outages delay enforcement. Exceeding policy disconnects the participant, including voice. Existing calls must reconnect after host policy changes. Real Windows/X11/Wayland screen selection remains part of platform acceptance.
 
 Local Chrome check (2026-09-28): a synthetic-microphone voice participant started sharing the Yapper browser tab; the UI showed a live local screen tile and Stop sharing. Stopping sharing and leaving voice were exercised. This is a local browser smoke, not remote video quality or Windows/Linux picker acceptance.
+
+## Camera and subscriptions (F05-E04)
+
+Camera capture starts only after Turn camera on; device changes are explicit. The default publisher requests 720p/24 fps, VP8 simulcast and 1.2 Mbps encoding. `ALLOW_CAMERA=false` removes camera permission from signed grants; reconciliation also disconnects an existing publisher using disabled/duplicate sources. At most one microphone, one camera and one screen track per participant are accepted by the application policy. The server does not transcode or guarantee client-side quality preferences.
+
+The client joins with automatic subscription disabled, subscribes to audio independently, and subscribes to at most four video publications on the current page. Hidden tabs, hidden/off-screen video panels and Pause incoming video unsubscribe video; audio continues. The SFU also enforces its configured subscriber limits. Adaptive streaming and SFU congestion control remain active. A poor/lost local connection displays guidance to pause video or stop outgoing camera/screen publication.
+
+The administrator status panel shows the configured source policy and tracked attachment payload. Policy changes require server restart and participants may be disconnected by reconciliation; this is not an in-call instant policy mutation API. Real-device camera and cross-platform capture acceptance remain pending until recorded in the release report.

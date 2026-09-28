@@ -1,5 +1,6 @@
 import { joinRoom } from '../lib/join-room';
 import { subscribeAudio } from '../lib/media-subscriptions';
+import { ConnectionQualityNotice } from './ConnectionQualityNotice';
 import { Camera } from './Camera';
 import { ScreenShare } from './ScreenShare';
 import { VideoStage } from './VideoStage';
@@ -150,6 +151,7 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
         ) : null}
         {joined ? (
           <>
+            <ConnectionQualityNotice room={room} />
             <Camera room={room} allowed={allowCamera} onError={setError} />
             <ScreenShare room={room} allowed={allowScreen} onError={setError} />
             <VideoStage room={room} />

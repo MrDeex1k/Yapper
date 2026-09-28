@@ -384,9 +384,9 @@ Odbiór: użytkownik wybiera źródło, odbiorca widzi transmisję, a zakończen
 
 ### F05-E04 — Kamera i sterowanie mediami
 
-- [ ] K01: Dodać dobrowolne włączenie/wyłączenie kamery i wybór urządzenia.
-- [ ] K02: Dodać układ uczestników i subskrybowanie widocznych transmisji zgodnie z możliwościami SFU.
-- [ ] K03: Dodać serwerowe ograniczenia publikowania mediów i reakcję UI na słabe połączenie.
+- [x] K01: Dodać dobrowolne włączenie/wyłączenie kamery i wybór urządzenia.
+- [x] K02: Dodać układ uczestników i subskrybowanie widocznych transmisji zgodnie z możliwościami SFU.
+- [x] K03: Dodać serwerowe ograniczenia publikowania mediów i reakcję UI na słabe połączenie.
 
 Odbiór: kamera i ekran działają razem z głosem, a administrator może ograniczyć zużycie zasobów.
 

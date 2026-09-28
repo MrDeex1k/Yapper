@@ -10,6 +10,8 @@ type Status = {
   channels: number;
   messages: number;
   media: string;
+  attachment_bytes: number;
+  media_policy: { camera: boolean; screen: boolean; max_screens: number };
 };
 export function InstanceStatus({ client }: { client: Client }) {
   const [status, setStatus] = useState<Status | null>(null);
@@ -40,6 +42,14 @@ export function InstanceStatus({ client }: { client: Client }) {
           </dd>
           <dt>Database size</dt>
           <dd>{(status.database_bytes / 1024 / 1024).toFixed(1)} MiB</dd>
+          <dt>Attachment payload</dt>
+          <dd>{(status.attachment_bytes / 1024 / 1024).toFixed(1)} MiB</dd>
+          <dt>Media policy</dt>
+          <dd>
+            Camera {status.media_policy.camera ? 'on' : 'off'} · Screen{' '}
+            {status.media_policy.screen ? 'on' : 'off'} · Max screens{' '}
+            {status.media_policy.max_screens}
+          </dd>
           <dt>Users / channels / messages</dt>
           <dd>
             {status.users} / {status.channels} / {status.messages}

@@ -121,3 +121,23 @@ func TestReconciliationLimitsSimultaneousScreens(t *testing.T) {
 		t.Fatal("screen limit not enforced", rooms.removed)
 	}
 }
+
+func TestMediaSourcesRejectDisabledCameraAndDuplicateTracks(t *testing.T) {
+	s := NewServer()
+	p := &livekit.ParticipantInfo{Tracks: []*livekit.TrackInfo{{Source: livekit.TrackSource_CAMERA}}}
+	if s.validMediaSources(p) {
+		t.Fatal("disabled camera accepted")
+	}
+	s.AllowCamera = true
+	if !s.validMediaSources(p) {
+		t.Fatal("enabled camera rejected")
+	}
+	p.Tracks = append(p.Tracks, &livekit.TrackInfo{Source: livekit.TrackSource_CAMERA})
+	if s.validMediaSources(p) {
+		t.Fatal("duplicate camera accepted")
+	}
+	p.Tracks = []*livekit.TrackInfo{{Source: livekit.TrackSource_SCREEN_SHARE_AUDIO}}
+	if s.validMediaSources(p) {
+		t.Fatal("system audio unexpectedly allowed")
+	}
+}

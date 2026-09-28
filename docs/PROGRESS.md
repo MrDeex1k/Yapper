@@ -49,3 +49,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F05-E02 | `feat/implement-message-state` | pending | PostgreSQL integration/race tests passed for search visibility, edit authorization, retry preservation and read state across sessions. Frontend lint/typecheck and React Doctor 100/100 passed. |
 
 | F05-E03 | `feat/implement-screen-sharing` | pending | Chrome local tab-share/start/stop smoke passed. PostgreSQL/race tests passed including signed source policy and excess-screen removal. React Doctor 100/100, TypeScript and Oxlint passed. Physical Windows/Linux capture and system audio remain unverified; system audio is disabled. |
+
+| F05-E04 | `feat/implement-video-controls` | pending | PostgreSQL integration/race suite passed, including camera/source restrictions. Frontend lint/typecheck and React Doctor 100/100 passed. Two-client synthetic media acceptance is scheduled in F05-E05; physical platform camera tests remain pending. |
