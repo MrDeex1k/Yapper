@@ -117,3 +117,275 @@ h1 span {
     scroll-behavior: auto !important;
   }
 }
+.auth h1 {
+  font-size: 70px;
+}
+.auth-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: 72px 245px minmax(0, 1fr);
+  height: 100dvh;
+}
+.server-rail {
+  background: #11130f;
+  padding: 20px 12px;
+  border-right: 1px solid #292d25;
+}
+.server-mark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 28px;
+  font-weight: 800;
+  border-radius: 15px;
+}
+.rail-line {
+  display: block;
+  width: 25px;
+  border-top: 1px solid var(--border);
+  margin: 20px auto;
+}
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: #1c1f19;
+  border-right: 1px solid #2d3129;
+  padding: 0 14px;
+  min-height: 0;
+  overflow: auto;
+}
+.instance {
+  padding: 25px 8px;
+  border-bottom: 1px solid #30362a;
+  margin-bottom: 24px;
+  display: grid;
+  gap: 4px;
+}
+.instance strong {
+  font-size: 24px;
+  letter-spacing: -0.06em;
+}
+.instance span {
+  font-size: 11px;
+  color: #a5ae9a;
+  overflow-wrap: anywhere;
+}
+.sidebar > .eyebrow {
+  padding-left: 8px;
+}
+.channel {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #b1baa5;
+  padding: 11px 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  margin: 3px 0;
+  font-size: 14px;
+}
+.channel > span {
+  font-size: 20px;
+  color: #727e62;
+}
+.channel:hover {
+  background: #282e22;
+}
+.channel.active {
+  background: #32372a;
+  color: #f1f1e8;
+}
+.channel.active > span {
+  color: var(--primary);
+}
+.user-bar {
+  margin-top: auto;
+  padding: 18px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.user-bar small {
+  display: block;
+  color: #9da88f;
+}
+.user-bar > button {
+  margin-left: auto;
+}
+.avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: #333c28;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #dfc79d;
+  font-size: 13px;
+}
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.conversation-header {
+  height: 82px;
+  padding: 0 30px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #30362a;
+}
+.conversation-header h2 {
+  font-size: 16px;
+  margin: 0;
+}
+.hash {
+  font-size: 25px;
+  color: #829170;
+}
+.channel-description {
+  font-size: 12px;
+  color: #919c84;
+  border-left: 1px solid #38432e;
+  padding-left: 18px;
+  margin-left: 8px;
+}
+.history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 30px;
+}
+.empty {
+  padding: 40px 0;
+  color: #a6b09a;
+}
+.empty > span {
+  font-size: 50px;
+  color: #d7b77d;
+}
+.empty h3 {
+  font-size: 28px;
+  color: #e7ecdf;
+  letter-spacing: -0.04em;
+}
+.empty p {
+  font-size: 14px;
+}
+.message {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.message header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.message time {
+  font-size: 11px;
+  color: #89947d;
+}
+.message p {
+  margin: 5px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #cfd6c6;
+}
+.composer {
+  display: flex;
+  gap: 12px;
+  margin: 0 28px;
+  padding: 8px;
+  background: #252b20;
+  border: 1px solid #38432e;
+  border-radius: 9px;
+}
+.composer input {
+  border: 0;
+  background: transparent;
+  min-width: 0;
+  padding: 8px;
+}
+.composer-error {
+  padding: 8px 28px;
+  font-size: 12px;
+  min-height: 36px;
+}
+.admin-tools {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #bbc7ae;
+}
+.admin-tools form {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.admin-tools > button {
+  margin: 12px 0;
+}
+.invite {
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.invite code {
+  display: block;
+  margin: 8px 0;
+  color: var(--primary);
+}
+@media (max-width: 760px) {
+  .workspace {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+  .server-rail {
+    display: none;
+  }
+  .channel-description {
+    display: none;
+  }
+  .sidebar {
+    padding: 0 8px;
+  }
+  .history {
+    padding: 16px;
+  }
+  .conversation-header {
+    padding: 0 16px;
+  }
+  .composer {
+    margin: 0 10px;
+  }
+  .user-bar {
+    flex-wrap: wrap;
+  }
+  .instance {
+    padding: 20px 0;
+  }
+  .message {
+    gap: 8px;
+  }
+  .message time {
+    display: none;
+  }
+  .composer button {
+    padding: 0 10px;
+  }
+}

@@ -1,7 +1,12 @@
+import { AuthPanel } from './components/AuthPanel';
+import { Workspace } from './components/Workspace';
+import { Client, type User } from './lib/api';
 import { useState, type FormEvent } from 'react';
 import { serverOrigin } from './lib/server';
 import { Button } from './components/ui/button';
 export function App() {
+  const [connected, setConnected] = useState('');
+  const [session, setSession] = useState<{ client: Client; user: User } | null>(null);
   const [origin, setOrigin] = useState(window.location.origin);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -21,6 +26,7 @@ export function App() {
       const info = (await response.json()) as { name: string; version: string; protocol: number };
       if (info.protocol !== 1) throw new Error('This server uses an unsupported protocol.');
       setStatus(`Connected to ${info.name} · ${info.version}`);
+      setConnected(url);
     } catch (error) {
       setFailed(true);
       setStatus(error instanceof Error ? error.message : 'Could not connect.');
@@ -28,6 +34,18 @@ export function App() {
       setBusy(false);
     }
   }
+  if (session)
+    return (
+      <Workspace client={session.client} user={session.user} onLogout={() => setSession(null)} />
+    );
+  if (connected)
+    return (
+      <AuthPanel
+        origin={connected}
+        onBack={() => setConnected('')}
+        onSession={(token, user) => setSession({ client: new Client(connected, token), user })}
+      />
+    );
   return (
     <main className="connect">
       <p className="eyebrow">A place for your people</p>

@@ -243,9 +243,9 @@ Odbiór: wygasła sesja i zużyte zaproszenie są odrzucane; sekrety nie trafiaj
 
 ### F02-E03 — Kanały i wiadomości
 
-- [ ] K01: Dodać tworzenie i listowanie kanałów tekstowych w API.
-- [ ] K02: Dodać zapis i stronicowany odczyt wiadomości z kluczem idempotencji dla ponawiania wysyłki.
-- [ ] K03: Dodać widok kanału, historii oraz stan wysyłania/błędu wiadomości w webie.
+- [x] K01: Dodać tworzenie i listowanie kanałów tekstowych w API.
+- [x] K02: Dodać zapis i stronicowany odczyt wiadomości z kluczem idempotencji dla ponawiania wysyłki.
+- [x] K03: Dodać widok kanału, historii oraz stan wysyłania/błędu wiadomości w webie.
 
 Odbiór: ponowiona wysyłka nie duplikuje wiadomości, a historia pozostaje po restarcie serwera.
 

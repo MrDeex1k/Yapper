@@ -21,3 +21,9 @@ WebSocket notifications use `{ "protocol": 1, "id": "opaque", "type": "message.c
 - `GET /auth/me`: returns the active user. `POST /auth/logout` revokes the current session.
 
 Passwords require 12–72 bytes and are hashed with bcrypt cost 10. Usernames use lowercase ASCII letters, digits, `_` and `-` (3–32 characters). Auth work is limited to four concurrent hash operations and 20 attempts/minute per direct peer. Behind the bundled proxy this is a shared limit; untrusted forwarding headers are never used as identity. External per-client throttling can be added at a trusted edge.
+
+## Channels and messages (F02-E03)
+
+`GET /channels` returns `{channels}` filtered by access. Administrators create channels with `POST /channels` and `{name,kind:"text",private}`. Private channels require membership except for administrators.
+
+`GET /channels/{id}/messages?before={cursor}` returns `{messages,next_cursor}` (newest first, max 50). `POST` to the same path accepts `{content,client_id}` and returns the saved message. Retry an uncertain send with the same client ID and content. Reusing an ID for different content returns 409. IDs are strings. Message content is displayed as text, not injected HTML.
