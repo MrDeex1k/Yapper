@@ -9,6 +9,7 @@ const bridge: DesktopBridge = Object.freeze<DesktopBridge>({
       ipcRenderer.removeListener('desktop:ptt', handle);
     };
   },
+  setVoiceActive: (active) => ipcRenderer.invoke('desktop:voice-active', active),
   version: () => ipcRenderer.invoke('desktop:version'),
   openExternal: (url: string) => ipcRenderer.invoke('desktop:external', url),
 });

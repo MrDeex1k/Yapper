@@ -14,6 +14,12 @@ export function Workspace({
 }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selected, setSelected] = useState('');
+  const [voiceID, setVoiceID] = useState('');
+  const voiceChannel = channels.find((c) => c.id === voiceID);
+  function selectChannel(channel: Channel) {
+    setSelected(channel.id);
+    if (channel.kind === 'voice') setVoiceID(channel.id);
+  }
   const [error, setError] = useState('');
   const [invite, setInvite] = useState('');
   useEffect(() => {
@@ -49,7 +55,7 @@ export function Workspace({
         }),
       });
       setChannels((current) => [...current, channel]);
-      setSelected(channel.id);
+      selectChannel(channel);
       form.reset();
     } catch (e) {
       setError(errorMessage(e));
@@ -81,7 +87,7 @@ export function Workspace({
             <button
               className={c.id === selected ? 'channel active' : 'channel'}
               key={c.id}
-              onClick={() => setSelected(c.id)}
+              onClick={() => selectChannel(c)}
             >
               <span aria-hidden="true">{c.kind === 'voice' ? '◉' : '#'}</span>
               {c.name}
@@ -118,6 +124,11 @@ export function Workspace({
           </details>
         ) : null}
         <output className="error">{error}</output>
+        {voiceChannel && channel?.kind !== 'voice' ? (
+          <Button variant="outline" onClick={() => selectChannel(voiceChannel)}>
+            Voice controls · {voiceChannel.name}
+          </Button>
+        ) : null}
         <footer className="user-bar">
           <div className="avatar">{user.username[0].toUpperCase()}</div>
           <div>
@@ -129,20 +140,22 @@ export function Workspace({
           </Button>
         </footer>
       </aside>
-      {channel ? (
-        channel.kind === 'voice' ? (
+      {channel?.kind === 'text' ? (
+        <Conversation key={channel.id} client={client} channel={channel} />
+      ) : null}
+      {voiceChannel ? (
+        <div hidden={channel?.kind !== 'voice'} className="voice-container">
           <Suspense fallback={<p className="empty">Loading voice…</p>}>
-            <VoicePanel key={channel.id} client={client} channel={channel} />
+            <VoicePanel key={voiceChannel.id} client={client} channel={voiceChannel} />
           </Suspense>
-        ) : (
-          <Conversation key={channel.id} client={client} channel={channel} />
-        )
-      ) : (
+        </div>
+      ) : null}
+      {!channel ? (
         <section className="empty">
           <h2>No channels yet.</h2>
           <p>Your administrator can create one.</p>
         </section>
-      )}
+      ) : null}
     </main>
   );
 }

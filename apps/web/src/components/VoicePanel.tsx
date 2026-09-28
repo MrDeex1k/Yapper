@@ -64,6 +64,12 @@ export default function VoicePanel({ client, channel }: { client: Client; channe
         void client.request(`/channels/${channel.id}/voice`, { method: 'DELETE' }).catch(() => {});
     };
   }, [client, channel.id, room]);
+  useEffect(() => {
+    void window.yapperDesktop?.setVoiceActive(joined);
+    return () => {
+      void window.yapperDesktop?.setVoiceActive(false);
+    };
+  }, [joined]);
   async function join() {
     setBusy(true);
     setError('');
