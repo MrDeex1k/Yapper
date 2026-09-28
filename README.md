@@ -1,8 +1,8 @@
 # Yapper
 
-Yapper is a planned self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
+Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
 
-**Status:** approved product and implementation plan. This repository currently contains documentation only. No application, deployment configuration, or automated checks have been implemented.
+**Status:** Stage 0 foundation under verification. AUTH/Go interoperability, monorepo checks and development scaffolds exist. Chat, voice and production installation are not ready. See [evidence](docs/evidence/stage-0.md).
 
 Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
 
@@ -24,4 +24,25 @@ The first private release provides text and voice channels, persistent message h
 
 Native mobile clients, a Rust terminal client, and a native macOS client follow after the first release is stabilized. Additional communication features are prioritized from real usage.
 
-The existing GitHub repository is retained. Replacing its Git history is a separate future operation, documented in [Operations](docs/operations.md#repository-history-reset). No remote repository changes have been performed as part of this documentation work.
+## Local foundation development
+
+Install the versions in `.node-version`, `.bun-version`, `.go-version`, and `package.json`. Then:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm setup:dev
+docker compose -f compose.dev.yaml up -d --wait
+pnpm migrate:auth
+pnpm dev
+```
+
+Open `http://127.0.0.1:5173`. The foundation preview checks the Go connection; it is not yet a chat client. The Astro status page runs on port 4321. Generated `.env` credentials remain local. Setup refuses to overwrite an existing environment.
+
+```sh
+pnpm check
+pnpm test:integration
+```
+
+Integration tests create and delete a disposable account in the development AUTH database. Never point them at production. `pnpm build` builds the compatibility scaffolds too. For a local Electron smoke launch, run `pnpm --filter @yapper/desktop exec install-electron` once, then `pnpm --filter @yapper/desktop start`. This is not an installer or release package.
+
+The existing GitHub repository is retained; its default branch now has a new root history. See [reset evidence](docs/evidence/stage-0.md#repository-reset).

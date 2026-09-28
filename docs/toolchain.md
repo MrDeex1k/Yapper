@@ -1,21 +1,21 @@
 # Approved monorepo toolchain
 
-Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH runtime**. This is the implementation baseline. Vite+ is not part of the selected stack; the comparison below records why. No tools have been installed or benchmarked by this documentation change.
+Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH runtime**. This is the implementation baseline. Vite+ is not part of the selected stack; the comparison below records why. Pinned tools and executed compatibility checks are recorded in [Stage 0 evidence](evidence/stage-0.md).
 
 ## Tool ownership
 
-| Layer | Tool | Responsibility |
-| --- | --- | --- |
-| JS/TS dependencies | pnpm | Workspace linking, installation, lockfile |
-| Repository tasks | Turborepo | Ordering, parallelism, filtering, task-result cache |
-| React client | Vite | Development server and production browser/renderer bundles |
-| Landing | Astro CLI | Astro development/build pipeline |
-| AUTH execution | Bun | Elysia 2 Beta and Better Auth runtime |
-| Tooling execution | Pinned supported Node.js | Frontend tooling and desktop packaging where expected |
-| Desktop execution | Electron | Its bundled Chromium/Node runtime |
-| Quality | Oxlint, Oxfmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy |
-| Backend/native builds | Go, later Cargo, Xcode and Gradle | Language-specific compilation and dependencies |
-| Deployed services | Docker Compose | Runtime lifecycle and networking |
+| Layer                 | Tool                                   | Responsibility                                             |
+| --------------------- | -------------------------------------- | ---------------------------------------------------------- |
+| JS/TS dependencies    | pnpm                                   | Workspace linking, installation, lockfile                  |
+| Repository tasks      | Turborepo                              | Ordering, parallelism, filtering, task-result cache        |
+| React client          | Vite                                   | Development server and production browser/renderer bundles |
+| Landing               | Astro CLI                              | Astro development/build pipeline                           |
+| AUTH execution        | Bun                                    | Elysia 2 Beta and Better Auth runtime                      |
+| Tooling execution     | Pinned supported Node.js               | Frontend tooling and desktop packaging where expected      |
+| Desktop execution     | Electron                               | Its bundled Chromium/Node runtime                          |
+| Quality               | Oxlint, Oxfmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy            |
+| Backend/native builds | Go, later Cargo, Xcode and Gradle      | Language-specific compilation and dependencies             |
+| Deployed services     | Docker Compose                         | Runtime lifecycle and networking                           |
 
 pnpm's `run`/`exec` may launch a local command; that does not make pnpm an application runtime. Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser, and Electron does not become a Bun application.
 
@@ -27,11 +27,11 @@ Vite+ is an integrated toolchain, not merely an accelerated Vite switch. Its loc
 
 Its `vp run` supports workspace dependency ordering and caching. That overlaps with Turbo's repository-level responsibility. Direct commands such as `vp build` differ from scripts such as `vp run build`; Astro still needs its Astro command. [Task runner](https://www.viteplus.dev/guide/run)
 
-| Option | Assessment for Yapper |
-| --- | --- |
-| Vite + standalone Oxc tools + Turbo | Selected: explicit roles and independent upgrades; more configuration to maintain |
+| Option                                    | Assessment for Yapper                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Vite + standalone Oxc tools + Turbo       | Selected: explicit roles and independent upgrades; more configuration to maintain                                               |
 | Vite+ as local frontend toolchain + Turbo | Not selected: integrated commands require additional compatibility checks and separation of repository caching responsibilities |
-| Vite+ replacing Turbo | Not selected for the requested mixed-language orchestration |
+| Vite+ replacing Turbo                     | Not selected for the requested mixed-language orchestration                                                                     |
 
 The decision is based on integration cost, not a measured speed advantage. Adopting Vite+ would require a separate documented toolchain decision and compatibility verification for Astro, Electron, TypeScript checks, and `@shadcn/lint`. The current implementation uses standard Vite and standalone Oxc tools, with Turbo as the repository task scheduler.
 

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [
+    "tsconfig.base.json",
+    ".oxlintrc.json",
+    ".oxfmtrc.json",
+    ".node-version",
+    ".bun-version",
+    ".go-version"
+  ],
+  "globalEnv": ["YAPPER_TOOLCHAIN_KEY"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "bin/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:integration": {
+      "cache": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["AUTH_*", "DATABASE_URL", "HTTP_ADDR"]
+    }
+  }
+}

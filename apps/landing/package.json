@@ -1,0 +1,18 @@
+{
+  "name": "@yapper/landing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "typecheck": "astro check",
+    "dev": "astro dev --host 127.0.0.1 --port 4321"
+  },
+  "dependencies": {
+    "@yapper/i18n": "workspace:*",
+    "astro": "7.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "6.0.3"
+  }
+}

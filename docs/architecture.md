@@ -2,16 +2,16 @@
 
 ## Service boundaries
 
-| Component | Responsibility | Implementation |
-| --- | --- | --- |
-| Web client | Community UI, voice controls, moderation, administration | React, TypeScript, Tailwind, shadcn/ui with Base UI |
-| Desktop shell | Saved servers, platform integration, packaged application | Electron with the shared React client |
-| Landing | Public project information and downloads in EN/PL | Astro |
-| Application server | Guests, membership, permissions, channels, messages, presence, voice admission | Go |
-| Authentication service | Owner/moderator credentials and sessions, JWT signing and JWKS | Bun, TypeScript, Elysia 2 Beta, Better Auth |
-| Media server | WebRTC media transport and TURN connectivity | Self-hosted LiveKit |
-| Database | Durable application and authentication data | PostgreSQL; separate databases and database roles |
-| Public ingress | Trusted HTTPS and routing to local services | Reverse proxy; implementation default: Caddy |
+| Component              | Responsibility                                                                 | Implementation                                      |
+| ---------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Web client             | Community UI, voice controls, moderation, administration                       | React, TypeScript, Tailwind, shadcn/ui with Base UI |
+| Desktop shell          | Saved servers, platform integration, packaged application                      | Electron with the shared React client               |
+| Landing                | Public project information and downloads in EN/PL                              | Astro                                               |
+| Application server     | Guests, membership, permissions, channels, messages, presence, voice admission | Go                                                  |
+| Authentication service | Owner/moderator credentials and sessions, JWT signing and JWKS                 | Bun, TypeScript, Elysia 2 Beta, Better Auth         |
+| Media server           | WebRTC media transport and TURN connectivity                                   | Self-hosted LiveKit                                 |
+| Database               | Durable application and authentication data                                    | PostgreSQL; separate databases and database roles   |
+| Public ingress         | Trusted HTTPS and routing to local services                                    | Reverse proxy; implementation default: Caddy        |
 
 All runtime services for one community belong to one Docker Compose project. The landing is deployed independently. Start with one host and one application-server instance. Multi-host clustering, Kubernetes, and federation are deferred.
 
