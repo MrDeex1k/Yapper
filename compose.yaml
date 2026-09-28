@@ -41,5 +41,18 @@ services:
       server:
         condition: service_healthy
     restart: unless-stopped
+  media:
+    image: livekit/livekit-server:v1.13.7
+    profiles: [media]
+    command: [--config, /etc/livekit.yaml]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-localkey}: ${LIVEKIT_API_SECRET:-}"
+    volumes:
+      - ./deploy/livekit.local.yaml:/etc/livekit.yaml:ro
+    ports:
+      - '127.0.0.1:17880:7880'
+      - '127.0.0.1:17881:17881'
+      - '127.0.0.1:17882:17882/udp'
+    restart: unless-stopped
 volumes:
   database:
