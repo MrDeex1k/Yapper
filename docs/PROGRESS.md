@@ -21,3 +21,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F02-E03 | `feat/implement-persistent-chat` | pending | Real PostgreSQL tests verify deduplicated retries, conflicting retry rejection and persistence across server objects. Frontend lint/typecheck/build passed. React Doctor returned to 100/100 after simplifying AUTH control flow. Live server bootstrap was verified; realtime arrives in F02-E04. |
 
 | F02-E04 | `feat/implement-realtime` | pending | Go race tests against PostgreSQL and real WebSocket connections passed, including initial sync, event delivery, unauthorized subscription and live revocation. Frontend lint/typecheck and React Doctor passed (100/100). Browser login exposed and corrected an HTML pattern compatibility issue. |
+
+| F02-E05 | `test/prepare-chat-release` | pending | Real PostgreSQL/race integration suite passed. Browser sign-in and message send passed. Backup restored one local account and one message into a NEW database without modifying the live instance. Published release upgrade remains pending; no version was published. |

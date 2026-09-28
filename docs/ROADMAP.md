@@ -259,9 +259,9 @@ Odbiór: utrata sieci nie gubi historii, a użytkownik bez dostępu nie może an
 
 ### F02-E05 — Wydanie czatu
 
-- [ ] K01: Dodać scenariusz integracyjny: zaproszenie → logowanie → wiadomość → reconnect.
-- [ ] K02: Opisać i sprawdzić backup/restore bazy oraz aktualizację z `0.1.0`.
-- [ ] K03: Przygotować wersję `0.2.0`, changelog i manifest zgodnie z procedurą wydania.
+- [x] K01: Dodać scenariusz integracyjny: zaproszenie → logowanie → wiadomość → reconnect.
+- [x] K02: Opisać i sprawdzić backup/restore bazy oraz aktualizację z `0.1.0`.
+- [x] K03: Przygotować wersję `0.2.0`, changelog i manifest zgodnie z procedurą wydania.
 
 Odbiór fazy: dwie osoby prowadzą czat na świeżej instancji i po jej aktualizacji; odtworzona baza zawiera konta oraz wiadomości.
 
