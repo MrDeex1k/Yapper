@@ -11,6 +11,7 @@ import (
 var Version = "0.1.0-dev"
 
 type Server struct {
+	authLimit       authLimiter
 	BootstrapToken  string
 	DB              *pgxpool.Pool
 	ready           atomic.Bool
@@ -39,7 +40,8 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
-		mux.HandleFunc("POST /api/v1/auth/bootstrap", s.bootstrap)
+		mux.HandleFunc("POST /api/v1/auth/bootstrap", s.authLimit.wrap(s.bootstrap))
+		mux.HandleFunc("POST /api/v1/auth/login", s.authLimit.wrap(s.login))
 	}
 	return mux
 }

@@ -115,3 +115,30 @@ func (s *Server) newSession(w http.ResponseWriter, r *http.Request, user User) {
 	w.Header().Set("Cache-Control", "no-store")
 	JSON(w, 200, map[string]any{"token": raw, "expires_at": expiry, "user": user})
 }
+
+func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if len(body.Password) > 72 || len(body.Password) < 12 || !usernamePattern.MatchString(body.Username) {
+		fail(w, 401, "invalid_credentials", "Incorrect username or password.")
+		return
+	}
+	var user User
+	var hash string
+	err := s.DB.QueryRow(r.Context(), "SELECT id,username,role,password_hash FROM users WHERE username=$1 AND NOT banned", body.Username).Scan(&user.ID, &user.Username, &user.Role, &hash)
+	if err != nil {
+		_, _ = bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+		fail(w, 401, "invalid_credentials", "Incorrect username or password.")
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(body.Password)) != nil {
+		fail(w, 401, "invalid_credentials", "Incorrect username or password.")
+		return
+	}
+	s.newSession(w, r, user)
+}
