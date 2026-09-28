@@ -15,3 +15,7 @@ Global hold-to-talk is opt-in during a joined conversation: choose F8, F9 or F10
 Closing an active voice window asks whether to keep it open, hide to tray (voice stays active), or quit and disconnect. Switching to a text channel keeps the voice panel mounted; its controls remain reachable in the sidebar. Deafen blocks transmission from both PTT controls. Use one PTT mode at a time.
 
 Verification: macOS renderer smoke passed. Windows/Linux startup/package jobs were launched in PR #16; Linux found a scoped-package executable-name bug, fixed with explicit `executableName: yapper`. Global key press/release, tray interaction and microphones still need physical Windows/X11/Wayland pilot results. Sources: [Electron global shortcuts](https://www.electronjs.org/docs/latest/api/global-shortcut), [uiohook-napi](https://github.com/SnosMe/uiohook-napi).
+
+## Distribution status
+
+CI stores unsigned Windows portable and Linux AppImage/tar.gz artifacts with SHA-256 manifests. The prepared tag workflow includes those exact CI-built packages in the draft release alongside server images. It does not sign, notarize, publish automatically to users, or install an auto-updater. Do not describe these candidates as trusted signed installers. Artifacts and checksums are tied to the workflow commit; download both from the same successful run.

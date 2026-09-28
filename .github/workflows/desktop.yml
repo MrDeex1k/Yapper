@@ -2,6 +2,7 @@ name: Desktop
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -33,3 +34,13 @@ jobs:
         run: xvfb-run -a ./apps/desktop/artifacts/linux-unpacked/yapper --smoke --no-sandbox
       - if: runner.os == 'Windows'
         run: '& ./apps/desktop/artifacts/win-unpacked/yapper.exe --smoke'
+      - run: node scripts/checksum-desktop.cjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: desktop-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/artifacts/Yapper-*.exe
+            apps/desktop/artifacts/Yapper-*.AppImage
+            apps/desktop/artifacts/Yapper-*.tar.gz
+            apps/desktop/artifacts/SHA256SUMS-*
