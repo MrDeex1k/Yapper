@@ -46,7 +46,8 @@ export function installPTT(window: BrowserWindow) {
         if (e.keycode !== native.UiohookKey[key] || pressed) return;
         pressed = true;
         emit(true);
-        timer = setTimeout(release, 30000);
+        // Keep the held-key latch until keyup so auto-repeat cannot reopen the microphone.
+        timer = setTimeout(() => emit(false), 30000);
       };
       const up = (e: UiohookKeyboardEvent) => {
         if (e.keycode === native.UiohookKey[key]) release();
@@ -60,8 +61,14 @@ export function installPTT(window: BrowserWindow) {
       return { enabled: false, reason: 'Native input unavailable. Use focused V push-to-talk.' };
     }
   });
-  powerMonitor.on('suspend', release);
-  powerMonitor.on('lock-screen', release);
+  powerMonitor.on('suspend', () => {
+    clearTimeout(timer);
+    emit(false);
+  });
+  powerMonitor.on('lock-screen', () => {
+    clearTimeout(timer);
+    emit(false);
+  });
   window.webContents.on('render-process-gone', stop);
   window.webContents.on('did-start-navigation', stop);
   app.on('will-quit', stop);
