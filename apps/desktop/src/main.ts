@@ -1,5 +1,6 @@
 import { app, BrowserWindow, net, protocol } from 'electron';
 import path from 'node:path';
+import { secureWindow } from './security';
 import { pathToFileURL } from 'node:url';
 
 protocol.registerSchemesAsPrivileged([
@@ -33,10 +34,16 @@ app.whenReady().then(async () => {
     minWidth: 780,
     show: !smoke,
     backgroundColor: '#171816',
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
+  secureWindow(window, app.getVersion());
   await window.loadURL('yapper://app/');
   if (smoke) {
     const result = await window.webContents.executeJavaScript(
