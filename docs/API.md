@@ -45,3 +45,11 @@ The packaged desktop origin `yapper://app` is explicitly accepted for CORS/WebSo
 `POST /channels/{id}/files` accepts exactly one multipart field named `file`. It returns `{id,channel_id,filename,bytes}`. The server validates current access before and after receiving the body, bounds concurrent uploads to four, streams into an opaque local object and serializes quota accounting. `MAX_FILE_BYTES` defaults to 16 MiB and `FILE_QUOTA_BYTES` to 1 GiB of tracked payload bytes (filesystem overhead/crash orphans require disk monitoring). JSON requests remain limited to 64 KiB. Upload duration is also bounded by the HTTP server's read timeout.
 
 `POST /channels/{id}/messages` additionally accepts `file_id`; the attachment must belong to the sender and channel. Include it unchanged on idempotent retries. `GET /files/{id}/info` returns metadata; `GET /files/{id}` authorizes against current channel membership and returns an attachment with `nosniff`, sandbox CSP and no-store caching. Files have no public static URL. The web/desktop client downloads through authenticated fetch; it does not preview active HTML/SVG content.
+
+## Search, edits and read state (F05-E02)
+
+`GET /search?q=...&before=...` searches indexed PostgreSQL `simple` lexemes using web-search syntax, filters channel permissions in SQL and returns up to 50 newest results with a next cursor. Queries are 2–200 characters. Search is lexical, not fuzzy matching or semantic search.
+
+`PATCH /channels/{channel}/messages/{id}` accepts `{content}` for the author or a moderator/admin with access. It records `edited_at` and emits `message.updated`; concurrent edits use last-write-wins. The original send content is retained separately so retries after an edit return the existing edited message without reverting it.
+
+`PUT /channels/{channel}/read-state` accepts `{last_message_id}` belonging to that channel. Updates only advance the cursor. `GET /channels` adds unread counts excluding one's own messages. Counts are stored per user/instance and visible across sessions; the UI refreshes channels every 15 seconds and on focus. Read state advances only when the end marker is visible in a visible tab.

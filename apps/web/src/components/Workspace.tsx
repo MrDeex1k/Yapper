@@ -27,23 +27,43 @@ export function Workspace({
   const [invite, setInvite] = useState('');
   useEffect(() => {
     const controller = new AbortController();
-    client
-      .request<{ channels: Channel[] }>('/channels', { signal: controller.signal })
-      .then((data) => {
-        setChannels(data.channels);
-        setSelected(data.channels[0]?.id ?? '');
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(errorMessage(e));
-      });
-    return () => controller.abort();
+    let pending = false;
+    const load = () => {
+      if (pending) return;
+      pending = true;
+      void client
+        .request<{ channels: Channel[] }>('/channels', { signal: controller.signal })
+        .then((data) => {
+          if (controller.signal.aborted) return;
+          setChannels(data.channels);
+          setSelected((current) =>
+            data.channels.some((c) => c.id === current) ? current : (data.channels[0]?.id ?? ''),
+          );
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted) setError(errorMessage(e));
+        })
+        .finally(() => {
+          pending = false;
+        });
+    };
+    void load();
+    const timer = setInterval(() => void load(), 15000);
+    const focus = () => void load();
+    window.addEventListener('focus', focus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', focus);
+      controller.abort();
+    };
   }, [client]);
   async function logout() {
     try {
       await client.request('/auth/logout', { method: 'POST' });
-      onLogout();
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      onLogout();
     }
   }
   async function createChannel(event: FormEvent<HTMLFormElement>) {
@@ -96,6 +116,11 @@ export function Workspace({
             >
               <span aria-hidden="true">{c.kind === 'voice' ? '◉' : '#'}</span>
               {c.name}
+              {c.unread > 0 ? (
+                <span className="unread-count" aria-label={`${c.unread} unread`}>
+                  {c.unread}
+                </span>
+              ) : null}
             </button>
           ))}
         </nav>

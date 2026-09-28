@@ -58,3 +58,30 @@ func TestEditingPreservesSendIdempotency(t *testing.T) {
 		t.Fatal("retry reverted edit", status, retry)
 	}
 }
+
+func TestReadCursorOnlyAdvancesAcrossSessions(t *testing.T) {
+	s := testServer(t)
+	admin := adminSession(t, s)
+	member := memberSession(t, s, admin)
+	_, channels := request(t, s, "GET", "/api/v1/channels", admin, nil)
+	channel := channels["channels"].([]any)[0].(map[string]any)["id"].(string)
+	ids := []string{}
+	for _, key := range []string{"one", "two"} {
+		_, message := request(t, s, "POST", "/api/v1/channels/"+channel+"/messages", admin, map[string]string{"content": key, "client_id": key})
+		ids = append(ids, message["id"].(string))
+	}
+	for _, id := range []string{ids[1], ids[0]} {
+		status, result := request(t, s, "PUT", "/api/v1/channels/"+channel+"/read-state", member, map[string]string{"last_message_id": id})
+		if status != 204 {
+			t.Fatal(status, result)
+		}
+	}
+	status, login := request(t, s, "POST", "/api/v1/auth/login", "", map[string]string{"username": "member", "password": "test-password-strong"})
+	if status != 200 {
+		t.Fatal(status, login)
+	}
+	_, channels = request(t, s, "GET", "/api/v1/channels", login["token"].(string), nil)
+	if channels["channels"].([]any)[0].(map[string]any)["unread"] != float64(0) {
+		t.Fatal("cursor regressed", channels)
+	}
+}

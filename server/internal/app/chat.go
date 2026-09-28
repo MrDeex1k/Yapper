@@ -10,6 +10,7 @@ import (
 )
 
 type Channel struct {
+	Unread  int64  `json:"unread"`
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Kind    string `json:"kind"`
@@ -24,7 +25,7 @@ func (s *Server) canAccess(r *http.Request, user User, id string) bool {
 	return err == nil && ok
 }
 func (s *Server) channels(w http.ResponseWriter, r *http.Request, user User) {
-	rows, err := s.DB.Query(r.Context(), "SELECT c.id,c.name,c.kind,c.private FROM channels c WHERE "+accessible+" ORDER BY c.created_at,c.id", user.Role, user.ID)
+	rows, err := s.DB.Query(r.Context(), "SELECT c.id,c.name,c.kind,c.private,(SELECT count(*) FROM messages m WHERE m.channel_id=c.id AND m.user_id<>$2 AND m.id>COALESCE((SELECT last_message_id FROM read_states rs WHERE rs.user_id=$2 AND rs.channel_id=c.id),0)) FROM channels c WHERE "+accessible+" ORDER BY c.created_at,c.id", user.Role, user.ID)
 	if err != nil {
 		fail(w, 503, "database_unavailable", "Could not load channels.")
 		return
@@ -33,7 +34,7 @@ func (s *Server) channels(w http.ResponseWriter, r *http.Request, user User) {
 	channels := []Channel{}
 	for rows.Next() {
 		var c Channel
-		if err = rows.Scan(&c.ID, &c.Name, &c.Kind, &c.Private); err != nil {
+		if err = rows.Scan(&c.ID, &c.Name, &c.Kind, &c.Private, &c.Unread); err != nil {
 			fail(w, 500, "read_failed", "Could not load channels.")
 			return
 		}
@@ -66,7 +67,7 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, user User
 		fail(w, 400, "channel_invalid", "Use a name of 1–64 characters and a text or voice channel.")
 		return
 	}
-	c := Channel{rand.Text(), body.Name, body.Kind, body.Private}
+	c := Channel{ID: rand.Text(), Name: body.Name, Kind: body.Kind, Private: body.Private}
 	if _, err := s.DB.Exec(r.Context(), "INSERT INTO channels(id,name,kind,private) VALUES($1,$2,$3,$4)", c.ID, c.Name, c.Kind, c.Private); err != nil {
 		fail(w, 503, "database_unavailable", "Could not create channel.")
 		return

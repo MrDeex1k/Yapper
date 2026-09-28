@@ -484,3 +484,28 @@ h1 span {
   max-width: 100%;
   font-size: 11px;
 }
+.unread-count {
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 11px;
+}
+.read-marker {
+  height: 1px;
+}
+.search-result {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.message-editor {
+  display: grid;
+  gap: 8px;
+}
+.message-editor textarea {
+  min-height: 80px;
+  width: 100%;
+  padding: 10px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  color: inherit;
+}

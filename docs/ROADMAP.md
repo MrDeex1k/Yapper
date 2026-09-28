@@ -368,9 +368,9 @@ Odbiór: plik z prywatnego kanału nie jest publiczny przez odgadnięcie adresu;
 
 ### F05-E02 — Wyszukiwanie i stan wiadomości
 
-- [ ] K01: Dodać wyszukiwanie historii w PostgreSQL z filtrowaniem według uprawnień.
-- [ ] K02: Dodać edycję wiadomości z autoryzacją autora/moderatora i zdarzeniem aktualizacji.
-- [ ] K03: Dodać ostatnio przeczytaną wiadomość i liczniki nieprzeczytanych synchronizowane między sesjami.
+- [x] K01: Dodać wyszukiwanie historii w PostgreSQL z filtrowaniem według uprawnień.
+- [x] K02: Dodać edycję wiadomości z autoryzacją autora/moderatora i zdarzeniem aktualizacji.
+- [x] K03: Dodać ostatnio przeczytaną wiadomość i liczniki nieprzeczytanych synchronizowane między sesjami.
 
 Odbiór: wyniki wyszukiwania nie ujawniają niedostępnych kanałów, a reconnect odtwarza aktualny stan wiadomości.
 

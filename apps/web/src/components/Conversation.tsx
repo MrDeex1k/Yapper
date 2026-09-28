@@ -1,3 +1,4 @@
+import { ReadMarker } from './ReadMarker';
 import { MessageEditor } from './MessageEditor';
 import { subscribe } from '../lib/realtime';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -189,6 +190,14 @@ export function Conversation({
             </div>
           </article>
         ))}
+        {messages.length ? (
+          <ReadMarker
+            client={client}
+            channel={channel.id}
+            last={messages[messages.length - 1].id}
+            onError={setError}
+          />
+        ) : null}
       </div>
       <form className="composer" onSubmit={send}>
         <label className="sr-only" htmlFor="message">
