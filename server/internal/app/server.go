@@ -30,6 +30,10 @@ func (s *Server) Handler() http.Handler {
 				return
 			}
 		}
+		if !s.ready.Load() {
+			JSON(w, 503, map[string]string{"status": "draining"})
+			return
+		}
 		JSON(w, 200, map[string]string{"status": "ready"})
 	})
 	mux.HandleFunc("GET /api/v1/info", func(w http.ResponseWriter, r *http.Request) {
