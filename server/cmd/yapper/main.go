@@ -20,6 +20,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	s := app.NewServer()
+	s.BootstrapToken = os.Getenv("BOOTSTRAP_TOKEN")
 	if c.DatabaseURL != "" {
 		startupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		pool, err := app.OpenDatabase(startupCtx, c.DatabaseURL)
