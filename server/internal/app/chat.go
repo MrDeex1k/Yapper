@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"crypto/rand"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -88,6 +90,12 @@ func (s *Server) membership(w http.ResponseWriter, r *http.Request, u User) {
 			return
 		}
 		s.eventsHub.revoke(user, channel)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		if err := s.revokeMedia(ctx, user, channel); err != nil {
+			fail(w, 503, "disconnect_pending", "Access revoked; SFU disconnect will be retried.")
+			return
+		}
 		w.WriteHeader(204)
 		return
 	}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -43,6 +44,10 @@ func run(ctx context.Context) error {
 		}
 		s.Media = media
 	}
+	mediaCtx, mediaCancel := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	workers.Go(func() { s.ReconcileMedia(mediaCtx) })
+	defer func() { mediaCancel(); workers.Wait() }()
 	handler := s.Handler()
 	srv := &http.Server{Addr: c.Address, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 16 << 10, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := rand.Text()

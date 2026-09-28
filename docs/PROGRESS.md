@@ -25,3 +25,5 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 | F02-E05 | `test/prepare-chat-release` | pending | Real PostgreSQL/race integration suite passed. Browser sign-in and message send passed. Backup restored one local account and one message into a NEW database without modifying the live instance. Published release upgrade remains pending; no version was published. |
 
 | F03-E01 | `feat/implement-media-service` | pending | Local SFU started and two Go participants exchanged Opus RTP. Go builds/tests passed. SDK protocol pinned to its compatible version after detecting an upstream mismatch. WAN audio, acoustic quality and relay-only TURN remain explicitly pending. |
+
+| F03-E02 | `feat/authorize-voice-rooms` | pending | Go/PostgreSQL race suite passed. Signed grant tests verify room scope, microphone-only publication and no data publishing. A fake SFU verifies allowed sessions remain and revoked sessions are removed; actual SFU local RTP was verified in the previous stage. Network-partition revocation is explicitly eventual. |

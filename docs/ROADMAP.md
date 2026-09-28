@@ -279,9 +279,9 @@ Odbiór: dwie osoby w różnych sieciach słyszą się, a wymuszona ścieżka TU
 
 ### F03-E02 — Autoryzacja kanałów głosowych
 
-- [ ] K01: Dodać model kanału głosowego i mapowanie na pokój mediów.
-- [ ] K02: Dodać wydawanie krótkotrwałych tokenów pokoju po serwerowej kontroli uprawnień.
-- [ ] K03: Dodać usuwanie uczestnika z pokoju po odebraniu dostępu i uzgadnianie listy uczestników ze stanem SFU.
+- [x] K01: Dodać model kanału głosowego i mapowanie na pokój mediów.
+- [x] K02: Dodać wydawanie krótkotrwałych tokenów pokoju po serwerowej kontroli uprawnień.
+- [x] K03: Dodać usuwanie uczestnika z pokoju po odebraniu dostępu i uzgadnianie listy uczestników ze stanem SFU.
 
 Odbiór: klient nie może sam nadać sobie dostępu do pokoju ani pozostać w nim po skutecznym usunięciu.
 

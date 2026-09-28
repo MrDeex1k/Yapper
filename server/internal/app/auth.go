@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -200,6 +201,13 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, user User) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if _, err := s.DB.Exec(r.Context(), "DELETE FROM sessions WHERE token_hash=$1", tokenHash(raw)); err != nil {
 		fail(w, 503, "database_unavailable", "Could not revoke session.")
+		return
+	}
+	s.eventsHub.revoke(user.ID, "")
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	if err := s.revokeMedia(ctx, user.ID, ""); err != nil {
+		fail(w, 503, "disconnect_pending", "Session revoked; voice disconnect will be retried.")
 		return
 	}
 	w.WriteHeader(204)

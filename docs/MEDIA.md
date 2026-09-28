@@ -20,3 +20,9 @@ WAN and TURN acceptance are pending until public networking/certificates are con
 ## Failure behavior
 
 Text chat remains usable if media is unavailable. Joining voice must report a clear error and leave the microphone off. Revocation must remove active SFU participants as well as deny new grants. Media grants are short-lived and scoped to one room and identity; clients never receive the server API secret.
+
+## Room admission and revocation
+
+`POST /api/v1/channels/{id}/voice` requires a current authorized application session and a voice channel. It returns a one-minute room-specific join token that initially permits only microphone publication. `GET .../participants` queries current SFU participants. `DELETE .../voice` revokes the user's grant and removes their participant.
+
+Membership removal and logout revoke grants and request immediate SFU removal. A bounded reconciliation loop checks active SFU participants against current database sessions and membership every five seconds, including after a restart. If SFU control is unavailable the API reports disconnect pending and the loop retries. This is bounded eventual revocation, not a claim of instantaneous enforcement during a network partition. A previously issued token can still be presented during its validity; the reconciler removes unauthorized rejoins. Self-hosted token refresh behavior must be included in WAN/security acceptance.
