@@ -315,9 +315,9 @@ Cel: pierwsza wersja używana na co dzień przez pilotażową grupę.
 
 ### F04-E01 — Powłoka desktopowa
 
-- [ ] K01: Dodać Electron korzystający ze współdzielonego interfejsu webowego.
-- [ ] K02: Dodać minimalne typowane IPC, izolację kontekstu i kontrolę otwierania linków zewnętrznych.
-- [ ] K03: Dodać paczki developerskie Windows i Linux oraz uruchomieniowe smoke testy.
+- [x] K01: Dodać Electron korzystający ze współdzielonego interfejsu webowego.
+- [x] K02: Dodać minimalne typowane IPC, izolację kontekstu i kontrolę otwierania linków zewnętrznych.
+- [x] K03: Dodać paczki developerskie Windows i Linux oraz uruchomieniowe smoke testy.
 
 Odbiór: oba systemy uruchamiają aplikację, a renderer nie ma nieograniczonego dostępu do Node/systemu.
 
