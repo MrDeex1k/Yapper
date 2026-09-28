@@ -1,23 +1,64 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/MrDeex1k/Yapper/server/internal/app"
 )
 
-func main() {
+func run(ctx context.Context) error {
 	c, err := app.LoadConfig()
 	if err != nil {
-		slog.Error("configuration_invalid", "error", err)
-		os.Exit(1)
+		return err
 	}
-	srv := &http.Server{Addr: c.Address, Handler: http.NewServeMux(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: time.Minute}
-	if err := srv.ListenAndServe(); err != nil {
-		slog.Error("server_stopped", "error", err)
+	s := app.NewServer()
+	handler := s.Handler()
+	srv := &http.Server{Addr: c.Address, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 16 << 10, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := rand.Text()
+		w.Header().Set("X-Request-ID", id)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		started := time.Now()
+		handler.ServeHTTP(w, r)
+		slog.Info("request_completed", "request_id", id, "method", r.Method, "duration_ms", time.Since(started).Milliseconds())
+	})}
+	result := make(chan error, 1)
+	go func() {
+		slog.Info("server_listening", "address", c.Address, "version", app.Version)
+		result <- srv.ListenAndServe()
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		s.Drain()
+		slog.Info("server_draining")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), c.ShutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			_ = srv.Close()
+			return err
+		}
+		if err := <-result; !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		slog.Info("server_stopped")
+		return nil
+	}
+}
+func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx); err != nil {
+		slog.Error("server_failed", "error", err)
 		os.Exit(1)
 	}
 }

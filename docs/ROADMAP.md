@@ -187,9 +187,9 @@ Odbiór: nowy developer potrafi znaleźć komponenty i uruchomić udokumentowane
 
 ### F01-E02 — Minimalny serwer Go
 
-- [ ] K01: Dodać uruchamianie serwera HTTP z walidowaną konfiguracją środowiskową.
-- [ ] K02: Dodać endpointy wersji, liveness i readiness z rozróżnieniem stanu procesu i zależności.
-- [ ] K03: Dodać logi strukturalne, identyfikator żądania i kontrolowane zamykanie procesu.
+- [x] K01: Dodać uruchamianie serwera HTTP z walidowaną konfiguracją środowiskową.
+- [x] K02: Dodać endpointy wersji, liveness i readiness z rozróżnieniem stanu procesu i zależności.
+- [x] K03: Dodać logi strukturalne, identyfikator żądania i kontrolowane zamykanie procesu.
 
 Odbiór: proces startuje z poprawną konfiguracją, raportuje wersję i zamyka się bez urywania obsługiwanych żądań w zadanym limicie czasu.
 
