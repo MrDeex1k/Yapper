@@ -1,6 +1,6 @@
 # Local deployment
 
-Copy `.env.example` to `.env` and replace the PostgreSQL password with `openssl rand -hex 24`. Run `docker compose up --build -d --wait`. Open http://127.0.0.1:8088 and connect to that same origin.
+Copy `.env.example` to `.env` and replace the PostgreSQL password with `openssl rand -hex 24`. Run `docker compose up --build -d --wait`. Open http://127.0.0.1:18088 and connect to that same origin.
 
 Database and application backend are private to the Compose network. Only the web origin is exposed on localhost. For Internet hosting put a TLS reverse proxy in front of this origin, supporting HTTP/1.1 WebSocket upgrades. Do not expose PostgreSQL. Use HTTPS outside localhost; media later also needs public UDP and TURN configuration.
 

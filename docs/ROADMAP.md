@@ -206,10 +206,10 @@ Odbiór: web pokazuje rzeczywisty stan serwera, błąd połączenia jest czyteln
 
 ### F01-E04 — Lokalne wdrożenie i CI
 
-- [ ] K01: Dodać obrazy serwera i webu uruchamiane bez uprawnień roota tam, gdzie to możliwe.
-- [ ] K02: Dodać Compose z PostgreSQL, healthcheckami, trwałym wolumenem i przykładową konfiguracją bez sekretów.
-- [ ] K03: Dodać CI budujące zmienione komponenty i wykonujące smoke test Compose oraz dokumentację TLS/portów.
-- [ ] K04: Dodać wymagane kontrole CI: Oxlint z `@shadcn/lint`, Oxfmt w trybie sprawdzania i typecheck dla właściwych pakietów; zmiany wspólnej konfiguracji sprawdzają wszystkie objęte pakiety.
+- [x] K01: Dodać obrazy serwera i webu uruchamiane bez uprawnień roota tam, gdzie to możliwe.
+- [x] K02: Dodać Compose z PostgreSQL, healthcheckami, trwałym wolumenem i przykładową konfiguracją bez sekretów.
+- [x] K03: Dodać CI budujące zmienione komponenty i wykonujące smoke test Compose oraz dokumentację TLS/portów.
+- [x] K04: Dodać wymagane kontrole CI: Oxlint z `@shadcn/lint`, Oxfmt w trybie sprawdzania i typecheck dla właściwych pakietów; zmiany wspólnej konfiguracji sprawdzają wszystkie objęte pakiety.
 
 Odbiór: czysty checkout można uruchomić według README, a restart kontenerów zachowuje wolumen danych.
 
