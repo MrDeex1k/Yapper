@@ -29,5 +29,7 @@ jobs:
           printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" > .env
           docker compose up --build -d --wait
           ./scripts/smoke.sh
+          docker compose -f compose.yaml -f compose.dev.yaml up -d database --wait
+          python3 scripts/test-server.py
       - if: always()
         run: docker compose down

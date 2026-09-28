@@ -1,0 +1,5 @@
+# Optional developer-only database access; never use this override for public hosting.
+services:
+  database:
+    ports:
+      - '127.0.0.1:15433:5432'

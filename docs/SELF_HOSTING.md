@@ -17,3 +17,9 @@ A `vX.Y.Z` tag must match `VERSION`. Before tagging, run CI for that commit. The
 Download `compose.yaml`, `env.example`, `INSTALL.md`, `manifest.json` and `SHA256SUMS` from the draft. Verify checksums, copy `env.example` to `.env`, set credentials and run `docker compose up -d --wait`. Run the `/health/live`, `/health/ready` and `/api/v1/info` probes, then connect through the UI. Only after testing the exact published digests should the owner publish the draft.
 
 Partial publication stops the script instead of overwriting a version. Compare the remote digest, commit label and manifest; recover the missing steps manually for that same commit. Any code correction gets a new version. Publication was not exercised during the unmerged implementation series because no release was authorized.
+
+## Initial administrator
+
+Generate a separate `BOOTSTRAP_TOKEN` in `.env`, restart the server and use the bootstrap form/API once. Remove this token and restart after creating the administrator. Accounts thereafter require an administrator-created invitation. Never put session or invitation secrets in public URLs or logs.
+
+For development integration tests only: `docker compose -f compose.yaml -f compose.dev.yaml up -d database --wait`, then `python3 scripts/test-server.py`. Tests use isolated temporary schemas and drop only their own schema. The override binds PostgreSQL to localhost:15433; do not include it in public deployments.

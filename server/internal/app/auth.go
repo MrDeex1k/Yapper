@@ -142,3 +142,65 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	s.newSession(w, r, user)
 }
+
+func (s *Server) register(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Invite   string `json:"invite"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if !validCredentials(body.Username, body.Password) || len(body.Invite) > 256 {
+		fail(w, 400, "credentials_invalid", "Use a valid username, invitation and 12–72 byte password.")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		fail(w, 500, "hash_failed", "Could not create account.")
+		return
+	}
+	tx, err := s.DB.Begin(r.Context())
+	if err != nil {
+		fail(w, 503, "database_unavailable", "Try again later.")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	tag, err := tx.Exec(r.Context(), "UPDATE invites SET used_at=now() WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now()", tokenHash(body.Invite))
+	if err != nil || tag.RowsAffected() != 1 {
+		fail(w, 400, "invalid_invite", "Invitation expired or was already used.")
+		return
+	}
+	user := User{rand.Text(), body.Username, "member"}
+	if _, err = tx.Exec(r.Context(), "INSERT INTO users(id,username,password_hash) VALUES($1,$2,$3)", user.ID, user.Username, string(hash)); err != nil {
+		fail(w, 409, "registration_conflict", "Username unavailable.")
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		fail(w, 503, "database_unavailable", "Try again later.")
+		return
+	}
+	s.newSession(w, r, user)
+}
+func (s *Server) createInvite(w http.ResponseWriter, r *http.Request, user User) {
+	if user.Role != "admin" {
+		fail(w, 403, "forbidden", "Administrator access required.")
+		return
+	}
+	raw := rand.Text()
+	expiry := time.Now().Add(24 * time.Hour)
+	if _, err := s.DB.Exec(r.Context(), "INSERT INTO invites(token_hash,created_by,expires_at) VALUES($1,$2,$3)", tokenHash(raw), user.ID, expiry); err != nil {
+		fail(w, 503, "database_unavailable", "Try again later.")
+		return
+	}
+	JSON(w, 201, map[string]any{"invite": raw, "expires_at": expiry})
+}
+func (s *Server) logout(w http.ResponseWriter, r *http.Request, user User) {
+	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if _, err := s.DB.Exec(r.Context(), "DELETE FROM sessions WHERE token_hash=$1", tokenHash(raw)); err != nil {
+		fail(w, 503, "database_unavailable", "Could not revoke session.")
+		return
+	}
+	w.WriteHeader(204)
+}

@@ -37,7 +37,9 @@ func (l *authLimiter) wrap(next http.HandlerFunc) http.HandlerFunc {
 		}
 		item.count++
 		allowed := item.count <= 20 && len(l.entries) < 4096
-		l.entries[host] = item
+		if _, exists := l.entries[host]; exists || len(l.entries) < 4096 {
+			l.entries[host] = item
+		}
 		l.mu.Unlock()
 		if !allowed {
 			w.Header().Set("Retry-After", "60")

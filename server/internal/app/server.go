@@ -42,6 +42,10 @@ func (s *Server) Handler() http.Handler {
 	if s.DB != nil {
 		mux.HandleFunc("POST /api/v1/auth/bootstrap", s.authLimit.wrap(s.bootstrap))
 		mux.HandleFunc("POST /api/v1/auth/login", s.authLimit.wrap(s.login))
+		mux.HandleFunc("POST /api/v1/auth/register", s.authLimit.wrap(s.register))
+		mux.HandleFunc("POST /api/v1/auth/logout", s.authenticated(s.logout))
+		mux.HandleFunc("POST /api/v1/auth/invites", s.authenticated(s.createInvite))
+		mux.HandleFunc("GET /api/v1/auth/me", s.authenticated(func(w http.ResponseWriter, r *http.Request, u User) { JSON(w, 200, u) }))
 	}
 	return mux
 }

@@ -235,9 +235,9 @@ Odbiór: migracje działają na pustej bazie, a kontrakt ma przykłady poprawnyc
 
 ### F02-E02 — Konta i sesje
 
-- [ ] K01: Dodać jednorazowy bootstrap administratora bez domyślnego publicznego hasła.
-- [ ] K02: Dodać logowanie z bezpiecznym hashowaniem haseł i ograniczeniem prób.
-- [ ] K03: Dodać sesje, wylogowanie/unieważnianie i wygasające zaproszenia do rejestracji.
+- [x] K01: Dodać jednorazowy bootstrap administratora bez domyślnego publicznego hasła.
+- [x] K02: Dodać logowanie z bezpiecznym hashowaniem haseł i ograniczeniem prób.
+- [x] K03: Dodać sesje, wylogowanie/unieważnianie i wygasające zaproszenia do rejestracji.
 
 Odbiór: wygasła sesja i zużyte zaproszenie są odrzucane; sekrety nie trafiają do logów. Kod kliencki AUTH w JS/TS podlega Oxlint, Oxfmt i typecheck, a jego formularze również regułom `@shadcn/lint`. Testy backendu Go osobno weryfikują zachowanie uwierzytelniania i sesji.
 
