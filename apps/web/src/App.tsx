@@ -7,7 +7,9 @@ import { Button } from './components/ui/button';
 export function App() {
   const [connected, setConnected] = useState('');
   const [session, setSession] = useState<{ client: Client; user: User } | null>(null);
-  const [origin, setOrigin] = useState(window.location.origin);
+  const [origin, setOrigin] = useState(
+    window.location.protocol === 'yapper:' ? 'http://127.0.0.1:18088' : window.location.origin,
+  );
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);

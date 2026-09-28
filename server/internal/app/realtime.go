@@ -67,7 +67,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		fail(w, 503, "draining", "Server is shutting down.")
 		return
 	}
-	conn, err := websocket.Accept(w, r, nil)
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: r.Header.Get("Origin") == "yapper://app"})
 	if err != nil {
 		return
 	}

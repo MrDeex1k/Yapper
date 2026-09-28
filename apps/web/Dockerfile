@@ -4,7 +4,7 @@ WORKDIR /src
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/landing/package.json apps/landing/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter @yapper/web...
 COPY apps/web/ apps/web/
 RUN pnpm --filter @yapper/web build
 FROM nginxinc/nginx-unprivileged:1.28-alpine

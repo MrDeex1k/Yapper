@@ -1,0 +1,58 @@
+{
+  "name": "@yapper/desktop",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Yapper desktop client",
+  "author": "Yapper contributors",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "pnpm --filter @yapper/web build && pnpm build && electron .",
+    "pack": "pnpm --filter @yapper/web build && pnpm build && electron-builder --dir",
+    "dist": "pnpm --filter @yapper/web build && pnpm build && electron-builder",
+    "smoke": "electron . --smoke"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "org.yapper.desktop",
+    "productName": "Yapper",
+    "directories": {
+      "output": "artifacts"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Network"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ]
+    },
+    "publish": null
+  }
+}

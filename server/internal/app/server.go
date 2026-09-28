@@ -59,7 +59,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /api/v1/auth/invites", s.authenticated(s.createInvite))
 		mux.HandleFunc("GET /api/v1/auth/me", s.authenticated(func(w http.ResponseWriter, r *http.Request, u User) { JSON(w, 200, u) }))
 	}
-	return mux
+	return desktopCORS(mux)
 }
 func JSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
