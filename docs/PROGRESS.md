@@ -1,6 +1,6 @@
 # Delivery ledger
 
-All entries refer to unmerged work. No phase has been released. Detailed remaining acceptance checks are recorded with each stage.
+All 25 stage entries refer to open, unmerged PRs, stacked in order from #1 to #25. No phase has been released. Detailed remaining acceptance checks are recorded with each stage.
 
 | Stage | Branch | PR | Validation / remaining evidence |
 | --- | --- | --- | --- |
@@ -54,4 +54,4 @@ All entries refer to unmerged work. No phase has been released. Detailed remaini
 
 Latest verified CI before F05-E05: PR #24 passed general verification and both Windows/Linux packaged startup jobs. Some earlier PR heads retain historical CI failures fixed by later stages; merging the stack will require reviewing and refreshing each next base. No PR was merged.
 
-| F05-E05 | `test/prepare-multimedia-release` | pending | PostgreSQL integration/race tests and go vet passed. Oxlint, Oxfmt, TypeScript, Astro check and workspace builds passed; React Doctor 100/100. Two Chrome clients passed attachment byte comparison, search, camera/screen decode and video pause/resume. Three simultaneous RTP rooms passed. Complete backup restored into an isolated database with attachment checksums/inventory verified. Physical devices, WAN/TURN and group pilot remain pending; no release published. |
+| F05-E05 | `test/prepare-multimedia-release` | [#25](https://github.com/MrDeex1k/Yapper/pull/25) | PostgreSQL integration/race tests and go vet passed. Oxlint, Oxfmt, TypeScript, Astro check and workspace builds passed; React Doctor 100/100. Two Chrome clients passed attachment byte comparison, search, camera/screen decode and video pause/resume. Three simultaneous RTP rooms passed. Complete backup restored into an isolated database with attachment checksums/inventory verified. Physical devices, WAN/TURN and group pilot remain pending; no release published. |
