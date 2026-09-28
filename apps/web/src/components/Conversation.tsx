@@ -1,3 +1,4 @@
+import { MessageEditor } from './MessageEditor';
 import { subscribe } from '../lib/realtime';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
@@ -155,6 +156,18 @@ export function Conversation({
                 </time>
               </header>
               <p>{message.content}</p>
+              {message.edited_at ? <small>Edited</small> : null}
+              {message.user_id === user.id || user.role !== 'member' ? (
+                <MessageEditor
+                  client={client}
+                  message={message}
+                  onEdited={(update) =>
+                    setMessages((current) =>
+                      current.map((m) => (m.id === message.id ? { ...m, ...update } : m)),
+                    )
+                  }
+                />
+              ) : null}
               {message.file_id ? (
                 <Button
                   size="sm"

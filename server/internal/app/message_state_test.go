@@ -32,3 +32,29 @@ func TestSearchRespectsChannelAccess(t *testing.T) {
 		t.Fatal(status, result)
 	}
 }
+
+func TestEditingPreservesSendIdempotency(t *testing.T) {
+	s := testServer(t)
+	admin := adminSession(t, s)
+	member := memberSession(t, s, admin)
+	_, channels := request(t, s, "GET", "/api/v1/channels", admin, nil)
+	channel := channels["channels"].([]any)[0].(map[string]any)["id"].(string)
+	body := map[string]string{"content": "original", "client_id": "stable-key"}
+	status, message := request(t, s, "POST", "/api/v1/channels/"+channel+"/messages", admin, body)
+	if status != 201 {
+		t.Fatal(status, message)
+	}
+	route := "/api/v1/channels/" + channel + "/messages/" + message["id"].(string)
+	status, _ = request(t, s, "PATCH", route, member, map[string]string{"content": "unauthorized"})
+	if status != 404 {
+		t.Fatal("foreign edit", status)
+	}
+	status, _ = request(t, s, "PATCH", route, admin, map[string]string{"content": "edited"})
+	if status != 200 {
+		t.Fatal("edit", status)
+	}
+	status, retry := request(t, s, "POST", "/api/v1/channels/"+channel+"/messages", admin, body)
+	if status != 201 || retry["id"] != message["id"] || retry["content"] != "edited" {
+		t.Fatal("retry reverted edit", status, retry)
+	}
+}

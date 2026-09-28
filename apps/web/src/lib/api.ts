@@ -2,6 +2,7 @@ export type User = { id: string; username: string; role: 'admin' | 'moderator' |
 export type Channel = { id: string; name: string; kind: 'text' | 'voice'; private: boolean };
 export type Message = {
   file_id: string;
+  edited_at: string | null;
   id: string;
   channel_id: string;
   user_id: string;

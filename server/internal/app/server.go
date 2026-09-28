@@ -48,6 +48,7 @@ func (s *Server) Handler() http.Handler {
 		JSON(w, 200, map[string]any{"name": "Yapper", "version": Version, "protocol": 1})
 	})
 	if s.DB != nil {
+		mux.HandleFunc("PATCH /api/v1/channels/{channel}/messages/{message}", s.authenticated(s.editMessage))
 		mux.HandleFunc("GET /api/v1/search", s.authenticated(s.search))
 		mux.HandleFunc("POST /api/v1/channels/{channel}/files", s.authenticated(s.upload))
 		mux.HandleFunc("GET /api/v1/files/{file}/info", s.authenticated(s.download))
