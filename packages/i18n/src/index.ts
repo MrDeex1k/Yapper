@@ -1,0 +1,38 @@
+export const en = {
+  language: "Language",
+  workspace: "Your space, your people.",
+  channels: "Channels",
+  general: "general",
+  lounge: "Lounge",
+  members: "Members",
+  connection: "Connection",
+  offline: "Not connected",
+  connecting: "Connecting…",
+  ready: "Server available",
+  foundation: "This installation is being prepared. Chat and voice will be available after setup.",
+  retry: "Check connection",
+  settings: "Settings",
+  build: "Development preview",
+  server: "Your server",
+  privacy: "Hosted by you.",
+} as const;
+export type Locale = "en" | "pl";
+export const pl: Record<keyof typeof en, string> = {
+  language: "Język",
+  workspace: "Twoje miejsce, Twoi ludzie.",
+  channels: "Kanały",
+  general: "ogólny",
+  lounge: "Salon",
+  members: "Uczestnicy",
+  connection: "Połączenie",
+  offline: "Brak połączenia",
+  connecting: "Łączenie…",
+  ready: "Serwer dostępny",
+  foundation: "Ta instalacja jest przygotowywana. Czat i głos będą dostępne po konfiguracji.",
+  retry: "Sprawdź połączenie",
+  settings: "Ustawienia",
+  build: "Wersja rozwojowa",
+  server: "Twój serwer",
+  privacy: "Na Twoim serwerze.",
+};
+export const messages = { en, pl };

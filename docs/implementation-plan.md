@@ -1,6 +1,6 @@
 # Implementation plan
 
-This is the approved direction for a new implementation. All stages below are **not started**. Documentation preparation is complete; it does not mean application development or Git history replacement has started.
+This is the approved direction for a new implementation. **Stage 0 is in progress**; Stages 1–8 are not started. See [Stage 0 evidence](evidence/stage-0.md). Application scaffolding and the repository history reset have begun; later product gates remain unchanged.
 
 Stages use completion gates rather than dates. Each stage depends on the preceding stage unless stated otherwise. Keep changes reviewable and use multiple feature branches within a stage when useful.
 

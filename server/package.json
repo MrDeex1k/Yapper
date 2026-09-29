@@ -1,0 +1,11 @@
+{
+  "name": "@yapper/server",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -trimpath -o bin/yapper ./cmd/yapper",
+    "test": "go test -race ./...",
+    "typecheck": "go vet ./...",
+    "dev": "go run ./cmd/yapper"
+  }
+}

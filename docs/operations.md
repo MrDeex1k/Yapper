@@ -1,6 +1,6 @@
 # Operations plan
 
-These are requirements for future operational tooling. No executable installation, recovery, or deployment commands exist yet.
+Production installation and recovery remain planned. A local PostgreSQL development environment now exists; see README. It is not a production deployment.
 
 ## Installation
 
@@ -45,7 +45,7 @@ Reference: [Electron packaging and signing](https://www.electronjs.org/docs/late
 
 ## Repository history reset
 
-**Approved intent:** keep `MrDeex1k/Yapper` on GitHub and start a completely new Git history. **Current status:** documentation-only local folder; no `.git` initialization, push, branch deletion, tag deletion, or remote settings change has been performed by this documentation task.
+**Approved intent:** keep `MrDeex1k/Yapper` on GitHub and start a completely new Git history. **Current status:** reset executed on 2026-09-29; see [evidence and remaining limitations](evidence/stage-0.md#repository-reset).
 
 Execute this as a dedicated operation at the start of implementation, not as an incidental documentation edit:
 
@@ -57,4 +57,4 @@ Execute this as a dedicated operation at the start of implementation, not as an 
 
 Repository deletion is excluded. Git history replacement does not guarantee physical erasure from GitHub retention, PR refs, forks, cached objects, or other people's clones. Releases, Actions artifacts, and packages are separate resources; inspect and address their scope explicitly during the reset instead of assuming a force-push removes them.
 
-This procedure records the approved future operation. It is not evidence that the remote history has already been replaced.
+The procedure above is retained for audit; the linked evidence records what was actually executed.

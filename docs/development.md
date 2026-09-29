@@ -4,7 +4,7 @@
 
 Use English for source identifiers, comments, documentation, branches, and commits. Product copy is localized in English and Polish.
 
-Proposed monorepo layout, to be created in Stage 0:
+Target monorepo layout; current packages are listed by pnpm. Shared UI/API packages follow in Stage 1:
 
 ```text
 apps/web/          React application and administration UI
@@ -31,16 +31,16 @@ These workflow requirements were requested by the owner on 2026-09-29. Resolve s
 - **Go idioms — `modern-go-guidelines:use-modern-go`:** before writing, modifying, fixing, or refactoring Go code, run the skill wrapper's `list` command for the target file or established Go version. Read its complete, unfiltered output. Use `explain` for specific guideline IDs when needed, including before skipping an apparently relevant guideline. Follow the version-specific guidance; this check does not replace compilation and tests.
 - **Go engineering — `engineering-skills-for-go`:** read the skill matching the actual work before applying its workflow. Use the routing table below rather than loading all skills for every Go edit.
 
-| Work | Skill |
-| --- | --- |
-| Local types, errors, interfaces, generics, and data | `go-language-engineering` |
-| Packages, modules, exported APIs, and compatibility | `go-project-and-api-design` |
-| HTTP, WebSocket integration boundaries, request lifecycle, and shutdown | `go-service-boundaries` (within its documented scope) |
-| Authentication/authorization, input handling, secrets, and exploit prevention | `go-security-hardening` |
-| Test design, race checks, fuzzing, and deterministic verification | `go-testing-and-verification` |
-| Health, telemetry, process lifecycle, and releases | `go-production-operations` |
-| Measured CPU, memory, latency, and contention issues | `go-performance-and-diagnostics` |
-| Reviewing a Go change | `review-go-engineering-change` |
+| Work                                                                          | Skill                                                 |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Local types, errors, interfaces, generics, and data                           | `go-language-engineering`                             |
+| Packages, modules, exported APIs, and compatibility                           | `go-project-and-api-design`                           |
+| HTTP, WebSocket integration boundaries, request lifecycle, and shutdown       | `go-service-boundaries` (within its documented scope) |
+| Authentication/authorization, input handling, secrets, and exploit prevention | `go-security-hardening`                               |
+| Test design, race checks, fuzzing, and deterministic verification             | `go-testing-and-verification`                         |
+| Health, telemetry, process lifecycle, and releases                            | `go-production-operations`                            |
+| Measured CPU, memory, latency, and contention issues                          | `go-performance-and-diagnostics`                      |
+| Reviewing a Go change                                                         | `review-go-engineering-change`                        |
 
 Read each skill's actual instructions when invoked. If a required capability is unavailable, report the concrete limitation and continue independent work; do not claim that the skill, documentation lookup, or CLI check was performed.
 
@@ -48,12 +48,12 @@ Read each skill's actual instructions when invoked. If a required capability is 
 
 Branch names must not contain `codex` in any letter case. Use a short English description derived from the intended squash-commit subject:
 
-| Squash commit title | Branch |
-| --- | --- |
-| `feat: implement auth` | `feat/implement-auth` |
-| `feat: implement stage 1` | `feat/implement-stage1` |
+| Squash commit title                  | Branch                              |
+| ------------------------------------ | ----------------------------------- |
+| `feat: implement auth`               | `feat/implement-auth`               |
+| `feat: implement stage 1`            | `feat/implement-stage1`             |
 | `fix: restore voice after reconnect` | `fix/restore-voice-after-reconnect` |
-| `docs: define implementation plan` | `docs/define-implementation-plan` |
+| `docs: define implementation plan`   | `docs/define-implementation-plan`   |
 
 Prefer one coherent change per branch. `feat/implement-stage1` is permitted, but large stages should normally be split into smaller reviewable branches. Supported prefixes include `feat/`, `fix/`, `docs/`, `refactor/`, `test/`, `chore/`, and `ci/`.
 
@@ -75,7 +75,7 @@ The [shadcn lint documentation](https://github.com/shadcn-ui/lint) inspected dur
 
 ## Verification and CI
 
-Stage 0 creates real commands for format checking, lint, type checking, tests, and builds; commands are not available in this documentation-only state.
+Run `pnpm check` for formatting, lint, type checking, isolated tests and builds. Run `pnpm test:integration` separately against the disposable development database; it is uncached. Root build/test/typecheck wrappers include actual toolchain/platform versions in Turbo cache identity. Use those wrappers for artifact-producing checks.
 
 JS/TS CI checks formatting, lint, types, translation parity, and relevant unit/integration tests. Go CI uses formatting, static analysis, tests, and race testing for concurrency-sensitive code. Test contracts between AUTH, Go, and clients against real services where mocks would hide compatibility failures.
 

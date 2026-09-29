@@ -25,11 +25,11 @@ The initial acceptance workload is 100 stored participant identities/accounts, 3
 
 The first release has three fixed roles:
 
-| Role | Capabilities |
-| --- | --- |
-| Owner | Installation configuration, channel/category management, invitations, moderator assignment, and moderation |
-| Moderator | Kick, ban, force microphone mute, and delete messages |
-| Participant | Read accessible history, send/edit/delete own messages, and join permitted voice channels |
+| Role        | Capabilities                                                                                               |
+| ----------- | ---------------------------------------------------------------------------------------------------------- |
+| Owner       | Installation configuration, channel/category management, invitations, moderator assignment, and moderation |
+| Moderator   | Kick, ban, force microphone mute, and delete messages                                                      |
+| Participant | Read accessible history, send/edit/delete own messages, and join permitted voice channels                  |
 
 Owners and moderators use local Better Auth accounts. Guests do not acquire privileged roles solely through a nickname or a browser preference. Moderation actions are available in the client; installation management is available in its administration area.
 

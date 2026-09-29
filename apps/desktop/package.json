@@ -1,0 +1,18 @@
+{
+  "name": "@yapper/desktop",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc --noEmit false --outDir dist",
+    "typecheck": "tsc --noEmit",
+    "start": "electron .",
+    "test": "tsc --noEmit false --outDir .test-build && node --test .test-build/preview.test.js"
+  },
+  "dependencies": {
+    "@yapper/web": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "44.4.5"
+  }
+}

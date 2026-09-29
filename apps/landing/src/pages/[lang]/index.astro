@@ -1,0 +1,123 @@
+---
+import { messages, type Locale } from "@yapper/i18n";
+export function getStaticPaths() {
+  return ["en", "pl"].map((lang) => ({ params: { lang } }));
+}
+const lang = Astro.params.lang as Locale;
+const t = messages[lang];
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={t.foundation} />
+    <title>Yapper — {t.workspace}</title>
+  </head>
+  <body>
+    <header>
+      <a href={`/${lang}/`} class="wordmark">
+        yapper.
+      </a>
+      <nav aria-label={t.language}>
+        <a
+          href="/en/"
+          lang="en"
+          aria-current={lang === "en" ? "page" : undefined}
+        >
+          EN
+        </a>
+        <a
+          href="/pl/"
+          lang="pl"
+          aria-current={lang === "pl" ? "page" : undefined}
+        >
+          PL
+        </a>
+      </nav>
+    </header>
+    <main>
+      <p class="eyebrow">{t.build}</p>
+      <h1>{t.workspace}</h1>
+      <p class="description">{t.foundation}</p>
+    </main>
+    <footer>{t.privacy}</footer>
+  </body>
+</html>
+<style>
+  :global(html) {
+    color-scheme: dark;
+    background: #151817;
+    color: #e7eee9;
+    font-family: system-ui, sans-serif;
+  }
+  :global(body) {
+    margin: 0;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+  header,
+  footer {
+    padding: 2rem clamp(1.5rem, 6vw, 7rem);
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2b332e;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  a:focus-visible {
+    outline: 2px solid #b9eccb;
+    outline-offset: 6px;
+  }
+  nav {
+    display: flex;
+    gap: 1.5rem;
+  }
+  nav [aria-current] {
+    color: #b9eccb;
+    text-decoration: underline;
+    text-underline-offset: 6px;
+  }
+  .wordmark {
+    font-weight: 800;
+    font-size: 2rem;
+    letter-spacing: -0.08em;
+  }
+  main {
+    width: min(54rem, calc(100% - 3rem));
+    margin: auto;
+    padding: 6rem 0;
+  }
+  .eyebrow {
+    color: #b9eccb;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  h1 {
+    max-width: 50rem;
+    font-size: clamp(3rem, 8vw, 7rem);
+    line-height: 1.03;
+    font-weight: 500;
+    letter-spacing: -0.06em;
+    margin: 2rem 0;
+  }
+  .description {
+    max-width: 30rem;
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: #a8b3ac;
+  }
+  footer {
+    color: #a8b3ac;
+    font-size: 0.8rem;
+    border-top: 1px solid #2b332e;
+  }
+</style>
