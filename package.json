@@ -18,7 +18,8 @@
     "generate:api": "node scripts/check-contract.mjs --write",
     "check:api": "node scripts/check-contract.mjs",
     "test:containers": "node --env-file=.env scripts/test-containers.mjs",
-    "migrate:server": "node --env-file=.env scripts/migrate-server.mjs"
+    "migrate:server": "node --env-file=.env scripts/migrate-server.mjs",
+    "test:desktop": "node scripts/test-desktop.mjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",

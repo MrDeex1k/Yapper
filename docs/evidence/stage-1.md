@@ -77,3 +77,16 @@ Executed locally on the documented macOS/OrbStack environment:
 - All application images built. Fresh `yapper-review-smoke` Compose installation with special-character database passwords passed setup/login, two guest identities, invitations, shared durable chat, retry deduplication, ban, revoked-session denial and private ingress denial. Identity/history survived restarting PostgreSQL, AUTH and Go.
 
 The React tests use a pinned Happy DOM environment and controlled transport/media doubles to exercise lifecycle races; they do not prove microphone or audio behavior. Context7 Happy DOM setup documentation was consulted. Public HTTPS/TURN, real two-person speech, interrupted-network recovery and native Windows/macOS client acceptance remain outstanding. No GitHub Actions workflow was added.
+
+## Native macOS runtime verification — 2026-09-29
+
+The bounded `test:desktop` smoke test passed on macOS arm64 with Electron 44.4.5 against the local `yapper-review-smoke` Compose installation. It runs the actual built application entry point, preload, renderer and gateway, using an isolated temporary user-data directory. Two consecutive processes proved:
+
+- The renderer loads on its loopback HTTP origin with sandbox/context isolation/web security enabled and Node integration disabled; renderer `require` and `process` are unavailable.
+- A fresh invitation admits a guest through the real Go service. The response does not expose `Set-Cookie` and renderer cookies do not expose the guest credential.
+- OS `safeStorage` encrypts the main-process cookie/server state. The saved file is nonempty and does not contain the plain server origin.
+- After process restart the selected server and exact participant ID are restored; after reload the React conversation and the expected guest name render successfully.
+
+Both the initial runtime test and the strengthened rendered-conversation test passed. Oxlint and formatting checks passed for the new test scripts. Electron emitted a macOS helper sandbox-extension diagnostic, but both processes completed and all asserted security preferences remained enabled. This evidence does not establish absence of all platform diagnostics.
+
+This supersedes the earlier lack of native startup evidence for the **unpackaged macOS development runtime only**. Signed/notarized package installation, OS microphone behavior, real speech and Windows remain unverified. No native GUI automation call with an unbounded wait is used; the harness and parent enforce timeouts.

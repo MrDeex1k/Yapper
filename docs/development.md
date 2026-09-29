@@ -86,3 +86,11 @@ Use browser end-to-end tests for setup, joining, chat, roles, and language switc
 Build container images and validate Compose configuration. Build Electron packages on the corresponding Windows and macOS machines. Publish artifacts only through an explicitly authorized release procedure. Versions and image references are pinned; runtime manifests must not depend on a moving `latest` tag.
 
 For each PR, state the resulting behavior, relevant tests and evidence, migration impact, and any remaining platform limits. A skipped or unavailable check is reported as unverified.
+
+## Native desktop smoke test
+
+After `pnpm build` and installing the pinned Electron runtime, run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.mjs`.
+
+The command starts the actual Electron entry point twice with an isolated temporary profile. It checks sandbox/context isolation, lack of renderer Node access, guest admission, cookie isolation, encrypted on-disk state, selected-server/identity restoration across process restart, and the rendered conversation after reload. Each process has a 30-second hard deadline. Temporary local credentials/profile files are removed on completion or failure; the admitted test participant remains on the disposable server.
+
+This explicit local test is not a cached Turbo task and is not part of `pnpm check`. It does not capture a microphone or prove packaging, signing, public HTTPS, real voice or Windows behavior when run on macOS. The test harness is outside the desktop package's `files` allowlist.
