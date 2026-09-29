@@ -191,7 +191,18 @@ try {
     "PASS: HTTPS/TURN TLS routing, signaling credentials, authenticated relay, PROXY address and restricted peer rejection.",
   );
 } finally {
-  if (created)
-    run("docker", [...compose, "down", "--volumes", "--remove-orphans"], { stdio: "inherit" });
-  await rm(dir, { recursive: true, force: true });
+  try {
+    if (created)
+      run("docker", [...compose, "down", "--volumes", "--remove-orphans"], { stdio: "inherit" });
+  } catch (error) {
+    console.error("TURN container cleanup failed:", error.message);
+    process.exitCode = 1;
+  } finally {
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch {
+      console.error("TURN temporary directory cleanup failed.");
+      process.exitCode = 1;
+    }
+  }
 }
