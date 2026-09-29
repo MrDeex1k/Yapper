@@ -12,7 +12,7 @@ Each installation is an independent community, operated through one Docker Compo
 - [Architecture](docs/architecture.md): service responsibilities, identities, protocols, storage, and deployment boundaries.
 - [Implementation plan](docs/implementation-plan.md): ordered stages, dependencies, deliverables, and completion gates.
 - [Validation](docs/validation.md): functional, platform, recovery, and load acceptance scenarios.
-- [Development workflow](docs/development.md): repository layout, branches, squash commits, tooling, and CI.
+- [Development workflow](docs/development.md): repository layout, branches, squash commits, tooling, and local verification.
 - [Approved toolchain](docs/toolchain.md): pnpm, Turborepo, standard Vite, Bun runtime boundaries, and multi-language integration.
 - [Operations](docs/operations.md): planned installation, updates, backups, diagnostics, and history reset procedure.
 

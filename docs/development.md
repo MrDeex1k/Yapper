@@ -55,11 +55,11 @@ Branch names must not contain `codex` in any letter case. Use a short English de
 | `fix: restore voice after reconnect` | `fix/restore-voice-after-reconnect` |
 | `docs: define implementation plan`   | `docs/define-implementation-plan`   |
 
-Prefer one coherent change per branch. `feat/implement-stage1` is permitted, but large stages should normally be split into smaller reviewable branches. Supported prefixes include `feat/`, `fix/`, `docs/`, `refactor/`, `test/`, `chore/`, and `ci/`.
+Prefer one coherent change per branch. `feat/implement-stage1` is permitted, but large stages should normally be split into smaller reviewable branches. Supported prefixes include `feat/`, `fix/`, `docs/`, `refactor/`, `test/`, `chore/`.
 
 Use squash & merge for pull requests. The final squash title describes the resulting change and follows the type/subject convention above. Update branch/PR wording when scope changes; mechanical word-for-word matching is unnecessary. Keep the main branch linear; merge commits are not used.
 
-When repository configuration is implemented, enable squash merging, disable merge-commit merging and rebase merging for PRs, and require relevant CI checks. The one-time new-history initialization is separate from normal PR work.
+When repository configuration is implemented, enable squash merging, disable merge-commit merging and rebase merging for PRs, and require recorded local verification before merging. The one-time new-history initialization is separate from normal PR work.
 
 ## JavaScript and TypeScript quality
 
@@ -73,14 +73,16 @@ When repository configuration is implemented, enable squash merging, disable mer
 
 The [shadcn lint documentation](https://github.com/shadcn-ui/lint) inspected during planning requires Oxlint 1.80 or newer and describes its JS plugin API as alpha. Pin and test compatible versions rather than relying on floating upgrades.
 
-## Verification and CI
+## Local verification
+
+GitHub Actions workflows are not permitted in this repository. Run checks locally and record their results in the PR; do not add files under `.github/workflows/`.
 
 Run `pnpm check` for formatting, lint, type checking, isolated tests and builds. Run `pnpm test:integration` separately against the disposable development database; it is uncached. Root build/test/typecheck wrappers include actual toolchain/platform versions in Turbo cache identity. Use those wrappers for artifact-producing checks.
 
-JS/TS CI checks formatting, lint, types, translation parity, and relevant unit/integration tests. Go CI uses formatting, static analysis, tests, and race testing for concurrency-sensitive code. Test contracts between AUTH, Go, and clients against real services where mocks would hide compatibility failures.
+Local JS/TS verification checks formatting, lint, types, translation parity, and relevant unit/integration tests. Local Go verification uses formatting, static analysis, tests, and race testing for concurrency-sensitive code. Test contracts between AUTH, Go, and clients against real services where mocks would hide compatibility failures.
 
 Use browser end-to-end tests for setup, joining, chat, roles, and language switching. Media verification includes real devices and actual microphone/network behavior; fake media and browser automation alone are insufficient.
 
-Build container images and validate Compose configuration. Build Electron packages on the corresponding Windows and macOS runners. Publish artifacts only through an intentional release workflow. Versions and image references are pinned; runtime manifests must not depend on a moving `latest` tag.
+Build container images and validate Compose configuration. Build Electron packages on the corresponding Windows and macOS machines. Publish artifacts only through an explicitly authorized release procedure. Versions and image references are pinned; runtime manifests must not depend on a moving `latest` tag.
 
 For each PR, state the resulting behavior, relevant tests and evidence, migration impact, and any remaining platform limits. A skipped or unavailable check is reported as unverified.

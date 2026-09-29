@@ -19,7 +19,7 @@ Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH
 
 pnpm's `run`/`exec` may launch a local command; that does not make pnpm an application runtime. Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser, and Electron does not become a Bun application.
 
-Pin pnpm, Node, Bun, Go, and build-tool versions independently. Use `pnpm-workspace.yaml` with `apps/*`, `packages/*`, and `server` when using its wrapper described below. Use `workspace:*` for local JS/TS dependencies. Commit one pnpm lockfile; retain language-native manifests such as `go.mod`/`go.sum`. Do not run `bun install` or generate a second JS lockfile. Disable Bun runtime auto-install so missing dependencies fail instead of bypassing pnpm's resolved graph. CI installs through `pnpm install --frozen-lockfile`.
+Pin pnpm, Node, Bun, Go, and build-tool versions independently. Use `pnpm-workspace.yaml` with `apps/*`, `packages/*`, and `server` when using its wrapper described below. Use `workspace:*` for local JS/TS dependencies. Commit one pnpm lockfile; retain language-native manifests such as `go.mod`/`go.sum`. Do not run `bun install` or generate a second JS lockfile. Disable Bun runtime auto-install so missing dependencies fail instead of bypassing pnpm's resolved graph. Reproducible local verification installs through `pnpm install --frozen-lockfile`.
 
 ## Vite versus Vite+
 
@@ -41,7 +41,7 @@ Turborepo 2.11, released September 18, 2026, adds experimental native discovery 
 
 For the initial single Go module, use a small private `server/package.json` task adapter, included in pnpm's workspace. It exposes commands such as `go test ./...`, `go vet ./...`, and an explicit binary build to a declared output directory. Go still owns compilation and module dependencies. This uses the documented generic integration mechanism. [Multi-language guide](https://turborepo.dev/docs/guides/multi-language)
 
-Alternatively, Stage 0 can evaluate native Go discovery with a root `go.work` and `experimentalGoWorkspaces` on a pinned release. Validate package discovery, artifact restoration, filtering, and cross-language dependencies first. Choose one discovery mechanism per project; avoid registering the same module through both mechanisms. Revisit Cargo integration when the TUI stage starts. Swift and Kotlin tasks can later call native build tools on appropriate CI runners without requiring native graph discovery.
+Alternatively, Stage 0 can evaluate native Go discovery with a root `go.work` and `experimentalGoWorkspaces` on a pinned release. Validate package discovery, artifact restoration, filtering, and cross-language dependencies first. Choose one discovery mechanism per project; avoid registering the same module through both mechanisms. Revisit Cargo integration when the TUI stage starts. Swift and Kotlin tasks can later call native build tools on appropriate local build machines without requiring native graph discovery.
 
 ## Task graph and cache correctness
 

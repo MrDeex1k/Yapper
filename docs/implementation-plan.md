@@ -12,8 +12,8 @@ Deliverables:
 
 - Perform the separately scheduled [repository history reset](operations.md#repository-history-reset), retaining the GitHub repository and the approved documentation.
 - Create the monorepo skeleton from [Development](development.md), configure pnpm workspaces with one JS/TS lockfile, retain Bun for AUTH execution, and add Turborepo orchestration plus standard Vite for the React client. Follow the selected configuration and verification gates in [Approved toolchain](toolchain.md).
-- Establish Oxlint, Oxfmt, `@shadcn/lint`, type checks, EN/PL translation structure, and minimal CI.
-- Verify deterministic pnpm installation, explicit Bun execution, task dependency selection, cache invalidation/restoration, and the chosen Go adapter before enabling incremental CI.
+- Establish Oxlint, Oxfmt, `@shadcn/lint`, type checks, EN/PL translation structure, and local verification commands.
+- Verify deterministic pnpm installation, explicit Bun execution, task dependency selection, cache invalidation/restoration, and the chosen Go adapter before enabling incremental local checks.
 - Pin the Elysia 2 Beta/Bun/Better Auth integration and demonstrate login plus JWT/JWKS verification from Go.
 - Define the initial API/event contracts and role/identity boundaries.
 - Validate Compose service topology, PostgreSQL isolation, LiveKit prerequisites, certificates, and public media connectivity.
@@ -21,7 +21,7 @@ Deliverables:
 
 **Completion gate:** a clean checkout installs and runs the configured checks; Go verifies a valid AUTH token and rejects invalid issuer/audience/expiry; all compatibility investigations have an executable test plan and identified owners (the solo developer). No placeholder production secrets are shipped.
 
-Suggested branches: `chore/bootstrap-workspace`, `feat/verify-auth-integration`, `ci/add-quality-checks`.
+Suggested branches: `chore/bootstrap-workspace`, `feat/verify-auth-integration`, `chore/add-quality-checks`.
 
 ## Stage 1 — First complete conversation
 

@@ -55,6 +55,6 @@ Execute this as a dedicated operation at the start of implementation, not as an 
 4. Remove obsolete project-owned branch and tag refs retaining the old history according to the recorded reset scope. Identify any PR or protected-ref blocker instead of assuming the default-branch rewrite removes every reference.
 5. Verify a fresh clone has the intended new root and only the intended branches/tags, and that repository identity/settings remain intact. Restore any temporarily adjusted protection and apply the squash-only workflow.
 
-Repository deletion is excluded. Git history replacement does not guarantee physical erasure from GitHub retention, PR refs, forks, cached objects, or other people's clones. Releases, Actions artifacts, and packages are separate resources; inspect and address their scope explicitly during the reset instead of assuming a force-push removes them.
+Repository deletion is excluded. Git history replacement does not guarantee physical erasure from GitHub retention, PR refs, forks, cached objects, or other people's clones. Releases, build artifacts, and packages are separate resources; inspect and address their scope explicitly during the reset instead of assuming a force-push removes them.
 
 The procedure above is retained for audit; the linked evidence records what was actually executed.

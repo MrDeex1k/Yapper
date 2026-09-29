@@ -1,6 +1,6 @@
 # Stage 0 foundation evidence
 
-Date: 2026-09-29. Branch: `chore/bootstrap-workspace`. Status: local foundation checks passed; PR/CI review pending. This is not a release or a completed conversation.
+Date: 2026-09-29. Branch: `chore/bootstrap-workspace`. Status: local foundation checks passed; foundation PR #27 merged; product acceptance remains incomplete. This is not a release or a completed conversation.
 
 ## Environment and pins
 
@@ -24,13 +24,13 @@ Astro's checker currently supports TypeScript 5/6, so the landing pins TypeScrip
 
 ## Repository reset
 
-New root: `5cbfb87f91c894fdb8ba616b940b50f1e6b9eb92`. Replaced old main `a25031fd637f51fb70ded99fc03c877c38c92666` and deleted 23 obsolete branch refs in one atomic push guarded by exact old SHAs. A fresh clone reported one commit and the new root with no parent. No tags or releases existed. Old PRs are no longer open. Removed 36 old Actions runs and their artifacts. Enabled squash-only PR merging. The GitHub repository was retained.
+New root: `5cbfb87f91c894fdb8ba616b940b50f1e6b9eb92`. Replaced old main `a25031fd637f51fb70ded99fc03c877c38c92666` and deleted 23 obsolete branch refs in one atomic push guarded by exact old SHAs. A fresh clone reported one commit and the new root with no parent. No tags or releases existed. Old PRs are no longer open. Enabled squash-only PR merging. The GitHub repository was retained.
 
 GitHub Packages inventory returned 403 (missing `read:packages`); package cleanup is unverified. Old commit objects may remain in GitHub retention, PR refs, forks or external clones. No physical erasure claim is made.
 
 ## Compatibility investigations and owners
 
-All investigations are owned by the solo maintainer. The initial automated test host is this macOS arm64 machine plus Linux CI; Windows/macOS release runners and physical iPhone/iPad/Android devices must be recorded before platform gates can pass.
+All investigations are owned by the solo maintainer. The initial automated test host is this macOS arm64 machine; additional Linux and Windows/macOS build machines and physical iPhone/iPad/Android devices must be recorded before platform gates can pass.
 
 | Investigation                   | Evidence or next executable scenario                                                                                                                                           | Gate                          |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
@@ -41,7 +41,7 @@ All investigations are owned by the solo maintainer. The initial automated test 
 | LiveKit replay                  | Run self-hosted LiveKit, save a grant, remove/ban identity, reconnect using the saved grant and require denial before media publication.                                       | Stage 1 blocker until passed  |
 | Public media topology           | On a Linux host with a trusted domain, test HTTPS/WSS, UDP, then block UDP and test TURN/TLS. Verify advertised public IP and certificate chain.                               | Stage 1 and real-network gate |
 | Mobile foreground voice         | On recorded iOS/iPadOS Safari and Android Chrome devices: permission, mute/deafen, interruption/reconnect, route change and foreground call.                                   | Stage 4                       |
-| Distribution                    | Build Windows/macOS packages on matching runners and install on clean devices; signing status explicit.                                                                        | Stage 4                       |
+| Distribution                    | Build Windows/macOS packages on matching local machines and install on clean devices; signing status explicit.                                                                 | Stage 4                       |
 
 Self-hosted LiveKit does not automatically revoke issued tokens when removing participants. Short expiry alone does not meet the approved replay gate. Proposed implementation: expose signaling only through a Go admission boundary that checks current media-session membership on every initial/reconnect WebSocket handshake; keep LiveKit signaling private; synchronously remove active sessions on moderation. Pin and test the actual server before claiming this closes the replay window. LiveKit-generated refreshed tokens and racing admissions are explicit test cases. Reference: [LiveKit token lifecycle](https://docs.livekit.io/frontends/authentication/tokens).
 
@@ -49,7 +49,7 @@ A single-node LiveKit deployment can begin without Redis; multi-node deployment 
 
 ## Remaining acceptance work
 
-Fresh staged-source export into a separate temporary directory passed `pnpm install --frozen-lockfile` and `pnpm check` without local dependencies or secrets. The first attempt inside ignored `.tmp/` was invalid because Oxfmt inherited the parent ignore rule; the independent-directory rerun passed. CI review remains pending. Production Compose/HTTPS, real media, setup, admissions and conversation UI are not implemented in this foundation. Astro and Electron are compatibility scaffolds. shadcn lint is active; the current single button uses Base UI directly, with shared shadcn components to follow in Stage 1. No phase/version label substitutes for these gates.
+Fresh staged-source export into a separate temporary directory passed `pnpm install --frozen-lockfile` and `pnpm check` without local dependencies or secrets. The first attempt inside ignored `.tmp/` was invalid because Oxfmt inherited the parent ignore rule; the independent-directory rerun passed. Further acceptance requires locally recorded results. Production Compose/HTTPS, real media, setup, admissions and conversation UI are not implemented in this foundation. Astro and Electron are compatibility scaffolds. shadcn lint is active; the current single button uses Base UI directly, with shared shadcn components to follow in Stage 1. No phase/version label substitutes for these gates.
 
 ## CodeRabbit review corrections — 2026-09-29
 
