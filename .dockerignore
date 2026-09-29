@@ -25,4 +25,5 @@ deploy/data
 **/test-results
 
 **/.test-build
+**/.test-tools
 apps/desktop/renderer

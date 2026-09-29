@@ -4,7 +4,7 @@ const child = spawn(
   ["exec", "turbo", "run", "dev"],
   { stdio: "inherit", env: { ...process.env, TURBO_TELEMETRY_DISABLED: "1" } },
 );
-for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => child.kill(signal));
 child.on("error", (error) => {
   console.error(error.message);
   process.exitCode = 1;

@@ -12,6 +12,7 @@
     "**/node_modules/**",
     "**/bin/**",
     "**/.test-build/**",
+    "**/.test-tools/**",
     "apps/desktop/renderer/**"
   ],
   "overrides": [

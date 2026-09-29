@@ -1,9 +1,18 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { writeFile, readFile, mkdir } from "node:fs/promises";
+import assert from "node:assert/strict";
+import type { components } from "../packages/api/src/generated.ts";
+type Schemas = components["schemas"];
+type Guest = { id: string; cookie: string };
+type SmokeState = { channel: string; guest: Guest };
+type RequestOptions = { body?: unknown; cookie?: string; token?: string };
 await mkdir(".tmp", { recursive: true });
 const base = "http://127.0.0.1:8090";
 const password = randomBytes(24).toString("hex");
-const call = async (path, { body, cookie, token } = {}) => {
+const call = async <T = Record<string, unknown>>(
+  path: string,
+  { body, cookie, token }: RequestOptions = {},
+) => {
   const response = await fetch(base + path, {
     method: body === undefined ? "GET" : "POST",
     headers: {
@@ -15,15 +24,21 @@ const call = async (path, { body, cookie, token } = {}) => {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await response.text();
-  let data;
+  let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
     data = null;
   }
-  return { response, data };
+  return {
+    response,
+    get data(): T {
+      assert(data !== null && typeof data === "object", `Missing JSON response for ${path}`);
+      return data as T;
+    },
+  };
 };
-const expect = (actual, expected, label) => {
+const expect = (actual: unknown, expected: unknown, label: string) => {
   if (actual !== expected) throw new Error(`${label}: ${actual} != ${expected}`);
 };
 // Restart returns before PostgreSQL and dependent services are necessarily ready.
@@ -39,13 +54,16 @@ for (;;) {
   await new Promise((resolve) => setTimeout(resolve, 250));
 }
 if (process.argv.includes("--verify-persistence")) {
-  const saved = JSON.parse(await readFile(".tmp/container-smoke-state.json", "utf8"));
-  const me = await call("/api/v1/me", { cookie: saved.guest.cookie });
+  const saved = JSON.parse(await readFile(".tmp/container-smoke-state.json", "utf8")) as SmokeState;
+  const me = await call<Schemas["Me"]>("/api/v1/me", { cookie: saved.guest.cookie });
   expect(me.response.status, 200, "restored guest");
   expect(me.data.participant.id, saved.guest.id, "restored identity");
-  const history = await call(`/api/v1/channels/${saved.channel}/messages`, {
-    cookie: saved.guest.cookie,
-  });
+  const history = await call<{ messages: Schemas["Message"][] }>(
+    `/api/v1/channels/${saved.channel}/messages`,
+    {
+      cookie: saved.guest.cookie,
+    },
+  );
   expect(history.data.messages.length, 1, "restored history");
   console.info("PASS: guest identity and committed message survived container restart.");
   process.exit(0);
@@ -70,13 +88,17 @@ const ownerCookie = result.response.headers
   .getSetCookie()
   .map((c) => c.split(";")[0])
   .join("; ");
-const token = (await call("/api/auth/token", { cookie: ownerCookie })).data.token;
-const me = (await call("/api/v1/me", { token })).data;
-const channel = me.channels.find((c) => c.kind === "text").id;
-const guests = [];
+const token = (await call<{ token: string }>("/api/auth/token", { cookie: ownerCookie })).data
+  .token;
+const me = (await call<Schemas["Me"]>("/api/v1/me", { token })).data;
+const textChannel = me.channels.find((c) => c.kind === "text");
+assert(textChannel, "Default text channel is required");
+const channel = textChannel.id;
+const guests: Guest[] = [];
 for (const nickname of ["Guest One", "Guest Two"]) {
-  const invitation = (await call("/api/v1/invitations", { body: {}, token })).data.token;
-  const joined = await call("/api/v1/guests", { body: { nickname, invitation } });
+  const invitation = (await call<{ token: string }>("/api/v1/invitations", { body: {}, token }))
+    .data.token;
+  const joined = await call<{ id: string }>("/api/v1/guests", { body: { nickname, invitation } });
   expect(joined.response.status, 201, "guest admission");
   guests.push({
     id: joined.data.id,
@@ -91,29 +113,37 @@ for (const nickname of ["Guest One", "Guest Two"]) {
     "invite replay",
   );
 }
+const [firstGuest, secondGuest] = guests;
+assert(firstGuest && secondGuest, "Two admitted guests are required");
 expect(
-  (await call("/api/v1/invitations", { body: {}, cookie: guests[0].cookie })).response.status,
+  (await call("/api/v1/invitations", { body: {}, cookie: firstGuest.cookie })).response.status,
   403,
   "guest admin boundary",
 );
 const send = { requestId: randomUUID(), body: "Persisted through the container stack." };
 const results = await Promise.all(
   Array.from({ length: 5 }, () =>
-    call(`/api/v1/channels/${channel}/messages`, { body: send, cookie: guests[0].cookie }),
+    call<Schemas["Message"]>(`/api/v1/channels/${channel}/messages`, {
+      body: send,
+      cookie: firstGuest.cookie,
+    }),
   ),
 );
 for (const r of results) expect(r.response.status, 200, "send retry");
 expect(new Set(results.map((r) => r.data.id)).size, 1, "deduplication");
-const history = (await call(`/api/v1/channels/${channel}/messages`, { cookie: guests[1].cookie }))
-  .data.messages;
+const history = (
+  await call<{ messages: Schemas["Message"][] }>(`/api/v1/channels/${channel}/messages`, {
+    cookie: secondGuest.cookie,
+  })
+).data.messages;
 expect(history.length, 1, "shared history");
 expect(
-  (await call("/api/v1/me", { cookie: guests[0].cookie })).data.participant.id,
-  guests[0].id,
+  (await call<Schemas["Me"]>("/api/v1/me", { cookie: firstGuest.cookie })).data.participant.id,
+  firstGuest.id,
   "identity persistence",
 );
 expect(
-  (await call(`/api/v1/participants/${guests[1].id}/ban`, { body: {}, token })).response.status,
+  (await call(`/api/v1/participants/${secondGuest.id}/ban`, { body: {}, token })).response.status,
   200,
   "ban",
 );
@@ -121,7 +151,7 @@ expect(
   (
     await call(`/api/v1/channels/${channel}/messages`, {
       body: { requestId: randomUUID(), body: "denied" },
-      cookie: guests[1].cookie,
+      cookie: secondGuest.cookie,
     })
   ).response.status,
   403,
@@ -138,7 +168,7 @@ expect(
   404,
   "private auth ingress",
 );
-await writeFile(".tmp/container-smoke-state.json", JSON.stringify({ channel, guest: guests[0] }), {
+await writeFile(".tmp/container-smoke-state.json", JSON.stringify({ channel, guest: firstGuest }), {
   mode: 0o600,
 });
 console.info(

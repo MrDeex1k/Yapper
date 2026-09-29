@@ -23,7 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Run with scripts/test-turn.mjs, which supplies an isolated container network.
+// Run with scripts/test-turn.ts, which supplies an isolated container network.
 func TestTURNDeployment(t *testing.T) {
 	if os.Getenv("YAPPER_TURN_TEST") != "1" {
 		t.Skip("run pnpm test:turn for the isolated TURN deployment")

@@ -98,5 +98,6 @@ Desktop.ini
 
 # Compiled Node integration tests.
 .test-build/
+.test-tools/
 
 /apps/desktop/renderer/

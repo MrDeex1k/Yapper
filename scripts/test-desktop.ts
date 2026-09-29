@@ -7,7 +7,7 @@ const invitation = process.env.DESKTOP_TEST_INVITATION;
 if (!server || !invitation)
   throw new Error("DESKTOP_TEST_SERVER and a fresh DESKTOP_TEST_INVITATION are required");
 const requireDesktop = createRequire(new URL("../apps/desktop/package.json", import.meta.url));
-const electron = requireDesktop("electron");
+const electron: string = requireDesktop("electron");
 await mkdir(".tmp", { recursive: true });
 const directory = await mkdtemp(join(process.cwd(), ".tmp", "desktop-native-"));
 try {
@@ -16,14 +16,18 @@ try {
     mode: 0o600,
   });
   for (const phase of ["join", "restore"]) {
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const environment = { ...process.env };
       delete environment.ELECTRON_RUN_AS_NODE;
       delete environment.DESKTOP_TEST_INVITATION;
-      const child = spawn(electron, ["apps/desktop/scripts/native-smoke.cjs", directory, phase], {
-        stdio: "inherit",
-        env: environment,
-      });
+      const child = spawn(
+        electron,
+        ["apps/desktop/.test-tools/native-smoke.cjs", directory, phase],
+        {
+          stdio: "inherit",
+          env: environment,
+        },
+      );
       const timeout = setTimeout(() => child.kill("SIGKILL"), 30000);
       child.once("error", (error) => {
         clearTimeout(timeout);

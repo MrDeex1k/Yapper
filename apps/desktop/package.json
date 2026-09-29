@@ -9,8 +9,8 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc --noEmit false --outDir dist && node scripts/copy-preload.mjs",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit false --outDir dist && tsc -p tsconfig.scripts.json --noEmit false && node scripts/copy-renderer.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
     "start": "electron .",
     "test": "tsc --noEmit false --outDir .test-build && node --test .test-build/gateway.test.js .test-build/preview.test.js"
   },
