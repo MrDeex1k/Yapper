@@ -28,6 +28,7 @@ type Verifier struct {
 	keys        jwk.Set
 	expires     time.Time
 	lastAttempt time.Time
+	refreshDone chan struct{}
 }
 
 func NewVerifier(issuer, audience, endpoint string) (*Verifier, error) {
@@ -66,18 +67,62 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (string, error) {
 
 func (v *Verifier) key(ctx context.Context, kid string) (ed25519.PublicKey, error) {
 	v.mu.Lock()
-	defer v.mu.Unlock()
 	now := time.Now()
 	if v.keys != nil && now.Before(v.expires) {
 		if key, ok := v.keys.LookupKeyID(kid); ok {
+			v.mu.Unlock()
 			return exportKey(key)
+		}
+	}
+	if done := v.refreshDone; done != nil {
+		v.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-done:
+			return v.cachedKey(kid)
 		}
 	}
 	// Bound refresh attempts even when attackers supply arbitrary unknown key IDs.
 	if now.Sub(v.lastAttempt) < 5*time.Second {
+		v.mu.Unlock()
 		return nil, ErrUnauthorized
 	}
 	v.lastAttempt = now
+	done := make(chan struct{})
+	v.refreshDone = done
+	v.mu.Unlock()
+
+	keys, err := v.fetchKeys(ctx)
+	v.mu.Lock()
+	if err == nil {
+		v.keys = keys
+		v.expires = time.Now().Add(5 * time.Minute)
+	}
+	v.refreshDone = nil
+	close(done)
+	v.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return v.cachedKey(kid)
+}
+
+func (v *Verifier) cachedKey(kid string) (ed25519.PublicKey, error) {
+	v.mu.Lock()
+	if v.keys == nil || !time.Now().Before(v.expires) {
+		v.mu.Unlock()
+		return nil, ErrUnauthorized
+	}
+	key, ok := v.keys.LookupKeyID(kid)
+	v.mu.Unlock()
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+	return exportKey(key)
+}
+
+func (v *Verifier) fetchKeys(ctx context.Context) (jwk.Set, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.endpoint, nil)
 	if err != nil {
 		return nil, ErrUnauthorized
@@ -86,7 +131,7 @@ func (v *Verifier) key(ctx context.Context, kid string) (ed25519.PublicKey, erro
 	if err != nil {
 		return nil, fmt.Errorf("JWKS unavailable: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return nil, ErrUnauthorized
 	}
@@ -98,13 +143,7 @@ func (v *Verifier) key(ctx context.Context, kid string) (ed25519.PublicKey, erro
 	if err != nil || keys.Len() == 0 || keys.Len() > 16 {
 		return nil, ErrUnauthorized
 	}
-	v.keys = keys
-	v.expires = now.Add(5 * time.Minute)
-	key, ok := keys.LookupKeyID(kid)
-	if !ok {
-		return nil, ErrUnauthorized
-	}
-	return exportKey(key)
+	return keys, nil
 }
 
 func exportKey(key jwk.Key) (ed25519.PublicKey, error) {

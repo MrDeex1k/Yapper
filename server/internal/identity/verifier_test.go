@@ -1,13 +1,18 @@
 package identity
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json/v2"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -105,5 +110,110 @@ func TestVerifierRejectsJWKSRedirect(t *testing.T) {
 	}
 	if _, err := v.key(t.Context(), "key"); err == nil {
 		t.Fatal("redirect accepted")
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestRefreshDoesNotBlockCachedKeys(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		name := "successful rotation"
+		if malformed {
+			name = "malformed refresh"
+		}
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				public, _, err := ed25519.GenerateKey(rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				set := jwk.NewSet()
+				for _, kid := range []string{"trusted", "rotated"} {
+					key, err := jwk.Import(public)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := key.Set("kid", kid); err != nil {
+						t.Fatal(err)
+					}
+					if err := set.AddKey(key); err != nil {
+						t.Fatal(err)
+					}
+				}
+				data, err := json.Marshal(set)
+				if err != nil {
+					t.Fatal(err)
+				}
+				v, err := NewVerifier("https://issuer.example", "yapper-api", "https://issuer.example/jwks")
+				if err != nil {
+					t.Fatal(err)
+				}
+				trusted, _ := set.LookupKeyID("trusted")
+				v.keys = jwk.NewSet()
+				if err := v.keys.AddKey(trusted); err != nil {
+					t.Fatal(err)
+				}
+				v.expires = time.Now().Add(time.Minute)
+				originalExpiry := v.expires
+				entered, release := make(chan struct{}), make(chan struct{})
+				var calls atomic.Int32
+				v.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					calls.Add(1)
+					close(entered)
+					select {
+					case <-release:
+					case <-r.Context().Done():
+						return nil, r.Context().Err()
+					}
+					body := string(data)
+					if malformed {
+						body = "invalid JSON"
+					}
+					return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+				})
+				results := make(chan error, 9)
+				var workers sync.WaitGroup
+				workers.Go(func() { _, err := v.key(t.Context(), "rotated"); results <- err })
+				<-entered
+				for range 8 {
+					workers.Go(func() { _, err := v.key(t.Context(), "rotated"); results <- err })
+				}
+				synctest.Wait()
+				// This must complete while the refresh HTTP response is still blocked.
+				if _, err := v.key(t.Context(), "trusted"); err != nil {
+					t.Fatalf("cached key blocked or rejected: %v", err)
+				}
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+				if _, err := v.key(ctx, "rotated"); err == nil {
+					t.Fatal("canceled waiter accepted")
+				}
+				if calls.Load() != 1 {
+					t.Fatalf("parallel refresh requests: %d", calls.Load())
+				}
+				close(release)
+				workers.Wait()
+				close(results)
+				for err := range results {
+					if (err != nil) != malformed {
+						t.Fatalf("unexpected refresh result: %v", err)
+					}
+				}
+				if malformed && !v.expires.Equal(originalExpiry) {
+					t.Fatal("failed refresh changed cache expiry")
+				}
+				if _, err := v.key(t.Context(), "trusted"); err != nil {
+					t.Fatal("refresh discarded trusted cached key")
+				}
+				if _, err := v.key(t.Context(), "unknown"); err == nil {
+					t.Fatal("unknown key accepted")
+				}
+				if calls.Load() != 1 {
+					t.Fatal("five-second refresh limit bypassed")
+				}
+			})
+		})
 	}
 }

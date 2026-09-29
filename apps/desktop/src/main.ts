@@ -1,9 +1,17 @@
 import { app, BrowserWindow, session } from "electron";
 import { fileURLToPath } from "node:url";
+import { startPreview } from "./preview.js";
 
 // Foundation smoke shell only. Network credentials and microphone permissions
 // are intentionally added with the tested Stage 1 transport contract.
 await app.whenReady();
+const preview = await startPreview(
+  fileURLToPath(new URL("../../web/dist/", import.meta.url)),
+  process.env.YAPPER_API_ORIGIN,
+);
+app.on("before-quit", () => {
+  void preview.close();
+});
 session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
   callback(false),
 );
@@ -24,7 +32,7 @@ function openWindow() {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
-  void window.loadFile(fileURLToPath(new URL("../../web/dist/index.html", import.meta.url)));
+  void window.loadURL(preview.origin);
 }
 openWindow();
 app.on("activate", () => {

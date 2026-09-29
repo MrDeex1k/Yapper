@@ -50,3 +50,14 @@ A single-node LiveKit deployment can begin without Redis; multi-node deployment 
 ## Remaining acceptance work
 
 Fresh staged-source export into a separate temporary directory passed `pnpm install --frozen-lockfile` and `pnpm check` without local dependencies or secrets. The first attempt inside ignored `.tmp/` was invalid because Oxfmt inherited the parent ignore rule; the independent-directory rerun passed. CI review remains pending. Production Compose/HTTPS, real media, setup, admissions and conversation UI are not implemented in this foundation. Astro and Electron are compatibility scaffolds. shadcn lint is active; the current single button uses Base UI directly, with shared shadcn components to follow in Stage 1. No phase/version label substitutes for these gates.
+
+## CodeRabbit review corrections — 2026-09-29
+
+PR #27's two functional findings were reproduced from the bootstrap source and addressed on `chore/bootstrap-workspace`. Docstring coverage feedback was intentionally excluded at the owner's request.
+
+- Electron no longer loads the foundation renderer from `file://`. A loopback HTTP server serves bundled files and forwards only the public health probe to the configured Go origin. Browser security remains enabled and the Web Vite proxy is unchanged. The transport rejects foreign Host/Origin values, redirects, non-GET requests and access to other API routes; it forwards no cookies or authorization headers.
+- JWKS HTTP I/O and parsing happen outside the cache mutex. Concurrent refresh callers share a completion channel and can cancel their wait; valid cached keys remain usable during a slow refresh. Failed parsing preserves the previous cache and expiry. Refresh attempts retain the five-second limit.
+- `pnpm check` passed after the corrections, including Oxlint/Oxfmt, type checks, desktop transport regression tests, Go race tests, and builds. Deterministic `testing/synctest` cases cover successful rotation and malformed refresh while known-key lookups and concurrent waiters run. Transport tests exercise the same-origin static/health routes over real local HTTP.
+- Context7 Electron documentation confirmed the awaited HTTP listener plus `BrowserWindow.loadURL` pattern and existing sandbox settings. Native Windows/macOS GUI behavior was not revalidated by these tests; the tests establish the transport behavior, not platform acceptance.
+
+The optional real AUTH/PostgreSQL integration rerun was attempted but could not start: PostgreSQL at loopback port 55439 refused the connection and the OrbStack Docker socket was unavailable. No new successful database integration run is claimed for this review commit; the passing isolated JWT/JWKS and concurrency tests are separate evidence.

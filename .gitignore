@@ -95,3 +95,6 @@ Desktop.ini
 # Keep reproducibility inputs and project instructions versioned:
 # pnpm-lock.yaml, go.mod, go.sum, Cargo.lock, Package.resolved,
 # Gradle wrapper files, migrations, .github/, AGENTS.md, and docs/.
+
+# Compiled desktop transport tests.
+.test-build/

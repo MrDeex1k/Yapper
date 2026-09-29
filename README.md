@@ -43,6 +43,6 @@ pnpm check
 pnpm test:integration
 ```
 
-Integration tests create and delete a disposable account in the development AUTH database. Never point them at production. `pnpm build` builds the compatibility scaffolds too. For a local Electron smoke launch, run `pnpm --filter @yapper/desktop exec install-electron` once, then `pnpm --filter @yapper/desktop start`. This is not an installer or release package.
+Integration tests create and delete a disposable account in the development AUTH database. Never point them at production. `pnpm build` builds the compatibility scaffolds too. For a local Electron smoke launch, run `pnpm --filter @yapper/desktop exec install-electron` once, then `pnpm --filter @yapper/desktop start`. This is not an installer or release package. The desktop preview serves the built renderer and public health probe from one loopback HTTP origin, with the Go API at `http://127.0.0.1:8080` by default. Set `YAPPER_API_ORIGIN` when starting Electron to select another HTTPS origin (HTTP is restricted to loopback). This foundation transport does not proxy authenticated APIs.
 
 The existing GitHub repository is retained; its default branch now has a new root history. See [reset evidence](docs/evidence/stage-0.md#repository-reset).
