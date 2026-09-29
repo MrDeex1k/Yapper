@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "rootDir": "scripts",
+    "outDir": ".test-tools"
+  },
+  "include": ["scripts/native-smoke.cts"]
+}

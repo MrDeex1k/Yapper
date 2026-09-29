@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -7,7 +7,30 @@ import { join, resolve } from "node:path";
 // Uses the real deployment overlay, but replaces public addresses/certificates
 // with disposable fixtures. No production volume, credentials or port is used.
 const root = resolve(import.meta.dirname, "..");
-const run = (command, args, options = {}) => {
+type Port = { target: number; published?: string; protocol?: string };
+type Volume = { type: string; source: string; target: string; read_only?: boolean };
+type Service = {
+  image: string;
+  ports?: Port[];
+  environment?: Record<string, string>;
+  networks?: Record<string, { ipv4_address?: string; aliases?: string[] }>;
+  volumes?: Volume[];
+  build?: unknown;
+  depends_on?: unknown;
+  restart?: string;
+  entrypoint?: string[];
+};
+type Compose = {
+  name?: string;
+  services: Record<string, Service>;
+  networks: Record<string, { name?: string }>;
+  volumes?: unknown;
+};
+const run = (
+  command: string,
+  args: string[],
+  options: Partial<SpawnSyncOptionsWithStringEncoding> = {},
+): string => {
   const result = spawnSync(command, args, {
     cwd: root,
     encoding: "utf8",
@@ -18,9 +41,11 @@ const run = (command, args, options = {}) => {
   if (result.error || result.status !== 0) {
     // Compose output can contain interpolated secrets. Only explicitly selected
     // test output is inherited; do not print captured command output on failure.
-    throw new Error(`${command} failed (${result.status ?? result.error?.code})`);
+    throw new Error(
+      `${command} failed (${result.status ?? (result.error as NodeJS.ErrnoException | undefined)?.code})`,
+    );
   }
-  return result.stdout?.trim();
+  return result.stdout?.trim() ?? "";
 };
 await mkdir(join(root, ".tmp"), { recursive: true });
 const dir = await mkdtemp(join(root, ".tmp/turn-test-"));
@@ -87,21 +112,23 @@ try {
       ],
       { env },
     ),
-  );
-  assert(!config.services.livekit.ports.some((port) => port.target === 7880));
-  assert(
-    !config.services.ingress.ports.some((port) => port.target === 443 && port.protocol === "tcp"),
-  );
-  assert(
-    config.services["tls-router"].ports.some(
-      (port) => port.published === "443" && port.protocol === "tcp",
-    ),
-  );
-  assert(config.services.livekit.ports.some((port) => port.target === 7881));
-  assert(config.services.livekit.ports.some((port) => port.target === 7882));
+  ) as Compose;
+  const { livekit, ingress, "tls-router": router } = config.services;
+  assert(livekit?.ports && ingress?.ports && router?.ports);
+  assert(!livekit.ports.some((port) => port.target === 7880));
+  assert(!ingress.ports.some((port) => port.target === 443 && port.protocol === "tcp"));
+  assert(router.ports.some((port) => port.published === "443" && port.protocol === "tcp"));
+  assert(livekit.ports.some((port) => port.target === 7881));
+  assert(livekit.ports.some((port) => port.target === 7882));
 
   const arch = run("docker", ["info", "--format", "{{.Architecture}}"]);
-  const goarch = { aarch64: "arm64", arm64: "arm64", x86_64: "amd64", amd64: "amd64" }[arch];
+  const architectures: Record<string, string> = {
+    aarch64: "arm64",
+    arm64: "arm64",
+    x86_64: "amd64",
+    amd64: "amd64",
+  };
+  const goarch = architectures[arch];
   assert(goarch, `Unsupported Docker architecture: ${arch}`);
   run("go", ["test", "-c", "-o", join(dir, "turn.test"), "./internal/deployment"], {
     cwd: join(root, "server"),
@@ -121,20 +148,23 @@ try {
   );
   for (const name of ["livekit", "ingress", "tls-router"]) {
     const service = config.services[name];
+    assert(service);
     delete service.ports;
     delete service.depends_on;
     delete service.build;
     service.restart = "no";
   }
-  const livekit = config.services.livekit;
-  livekit.networks["turn-proxy"].ipv4_address = "172.30.245.3";
+  const turnNetwork = livekit.networks?.["turn-proxy"];
+  assert(turnNetwork);
+  turnNetwork.ipv4_address = "172.30.245.3";
   // Only the isolated test subnet can be a private relay peer. Production
   // retains LiveKit's default denial of private/loopback/link-local peers.
+  assert(livekit.environment?.LIVEKIT_CONFIG);
   livekit.environment.LIVEKIT_CONFIG = livekit.environment.LIVEKIT_CONFIG.replace(
     "  enabled: true\n",
     "  enabled: true\n  allow_restricted_peer_cidrs: [172.30.245.0/29]\n",
   );
-  config.services.ingress.volumes = [
+  ingress.volumes = [
     {
       type: "bind",
       source: join(dir, "Caddyfile"),
@@ -144,7 +174,11 @@ try {
     { type: "bind", source: certs, target: "/test-certs", read_only: true },
   ];
   config.services = Object.fromEntries(
-    ["livekit", "ingress", "tls-router"].map((name) => [name, config.services[name]]),
+    ["livekit", "ingress", "tls-router"].map((name) => {
+      const service = config.services[name];
+      assert(service);
+      return [name, service];
+    }),
   );
   config.services.probe = {
     image: livekit.image,
@@ -195,7 +229,10 @@ try {
     if (created)
       run("docker", [...compose, "down", "--volumes", "--remove-orphans"], { stdio: "inherit" });
   } catch (error) {
-    console.error("TURN container cleanup failed:", error.message);
+    console.error(
+      "TURN container cleanup failed:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
     process.exitCode = 1;
   } finally {
     try {

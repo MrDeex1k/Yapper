@@ -22,6 +22,8 @@ docs/             Specifications, plans, and decision records
 
 Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun remains the AUTH runtime, not the package manager. Turborepo orchestrates repository tasks; standard Vite builds the React client. See [Approved toolchain](toolchain.md) for tool ownership, runtime boundaries, and Go integration. Add future native clients only when their stage starts.
 
+Repository scripts and Astro configuration use TypeScript. Node 24 executes `.ts` scripts through native type stripping; `pnpm typecheck:scripts` checks them with strict types and `erasableSyntaxOnly`, and is included in `pnpm typecheck`/`pnpm check`. Type stripping does not perform type checking. Preload and native Electron smoke sources use `.cts` and are compiled to CommonJS for Electron. The smoke harness is emitted into ignored `.test-tools/`, outside the application's package allowlist; the preload is emitted into `dist/preload.cjs`. Both are checked by the desktop type-check command. Do not commit generated JavaScript.
+
 ## Required skills and documentation
 
 These workflow requirements were requested by the owner on 2026-09-29. Resolve skills through the current agent skill catalog rather than hard-coding one machine's plugin-cache paths.
@@ -89,7 +91,7 @@ For each PR, state the resulting behavior, relevant tests and evidence, migratio
 
 ## Native desktop smoke test
 
-After `pnpm build` and installing the pinned Electron runtime, run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.mjs`.
+After `pnpm build` and installing the pinned Electron runtime, run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.ts`.
 
 The command starts the actual Electron entry point twice with an isolated temporary profile. It checks sandbox/context isolation, lack of renderer Node access, guest admission, cookie isolation, encrypted on-disk state, selected-server/identity restoration across process restart, and the rendered conversation after reload. Each process has a 30-second hard deadline. Temporary local credentials/profile files are removed on completion or failure; the admitted test participant remains on the disposable server.
 

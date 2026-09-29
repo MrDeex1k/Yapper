@@ -31,6 +31,7 @@ try {
     "Created .env with fresh development credentials. Existing files are never overwritten.",
   );
 } catch (error) {
-  if (error.code === "EEXIST") console.info("Keeping existing .env.");
+  if (error instanceof Error && "code" in error && error.code === "EEXIST")
+    console.info("Keeping existing .env.");
   else throw error;
 }

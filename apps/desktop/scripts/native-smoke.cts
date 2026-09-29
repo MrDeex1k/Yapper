@@ -1,18 +1,21 @@
 // Runs only as an explicit local test entry point, never imported by the application.
-const { app } = require("electron");
-const { readFile, writeFile } = require("node:fs/promises");
-const { join } = require("node:path");
-const { pathToFileURL } = require("node:url");
-const assert = require("node:assert/strict");
+const { app }: typeof import("electron") = require("electron");
+const { readFile, writeFile }: typeof import("node:fs/promises") = require("node:fs/promises");
+const { join }: typeof import("node:path") = require("node:path");
+const { pathToFileURL }: typeof import("node:url") = require("node:url");
+const assert: typeof import("node:assert/strict") = require("node:assert/strict");
 const directory = process.argv[2];
 const phase = process.argv[3];
-if (!directory || !["join", "restore"].includes(phase)) app.exit(2);
+if (!directory || !phase || !["join", "restore"].includes(phase)) {
+  app.exit(2);
+  throw new Error("Invalid native smoke arguments");
+}
 app.setPath("userData", join(directory, "profile"));
 const watchdog = setTimeout(() => {
   console.error("Native desktop smoke timed out");
   app.exit(1);
 }, 25000);
-const loaded = new Promise((resolve, reject) => {
+const loaded = new Promise<import("electron").BrowserWindow>((resolve, reject) => {
   app.once("browser-window-created", (_event, window) => {
     window.hide();
     window.webContents.once("did-fail-load", () => reject(new Error("Renderer failed to load")));
@@ -20,16 +23,25 @@ const loaded = new Promise((resolve, reject) => {
   });
 });
 void (async () => {
-  const fixture = JSON.parse(await readFile(join(directory, "fixture.json"), "utf8"));
+  const fixture = JSON.parse(await readFile(join(directory, "fixture.json"), "utf8")) as {
+    server: string;
+    invitation: string;
+  };
   await import(pathToFileURL(join(__dirname, "../dist/main.js")).href);
   const window = await loaded;
-  const preferences = window.webContents.getLastWebPreferences();
+  // Electron exposes this runtime diagnostic without a public TS declaration.
+  // Keep the narrow adapter in the test harness, outside the shipped package.
+  const contents = window.webContents as import("electron").WebContents & {
+    getLastWebPreferences(): import("electron").WebPreferences;
+  };
+  const preferences = contents.getLastWebPreferences();
   assert.equal(preferences.sandbox, true);
   assert.equal(preferences.contextIsolation, true);
   assert.equal(preferences.nodeIntegration, false);
   assert.equal(preferences.webSecurity, true);
   assert.ok(window.webContents.getURL().startsWith("http://127.0.0.1:"));
-  const result = await window.webContents.executeJavaScript(`(async () => {
+  const result: { id: string; role: string; server: string | null } = await window.webContents
+    .executeJavaScript(`(async () => {
     if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Renderer has Node access');
     const fixture = ${JSON.stringify(fixture)};
     const phase = ${JSON.stringify(phase)};
@@ -47,8 +59,8 @@ void (async () => {
     if (document.cookie.includes('yapper_guest')) throw new Error('Guest cookie available in renderer');
     return { id: me.participant.id, role: me.participant.role, server: await window.yapperDesktop.getServer() };
   })()`);
-  await new Promise((resolve) => {
-    window.webContents.once("did-finish-load", resolve);
+  await new Promise<void>((resolve) => {
+    window.webContents.once("did-finish-load", () => resolve());
     window.webContents.reload();
   });
   const deadline = Date.now() + 5000;
