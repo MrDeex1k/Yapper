@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
+    "@yapper/api": "workspace:*",
     "@yapper/i18n": "workspace:*",
+    "@yapper/ui": "workspace:*",
+    "livekit-client": "2.22.3",
+    "lucide-react": "1.48.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

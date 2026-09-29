@@ -1,0 +1,26 @@
+{$YAPPER_DOMAIN} {
+  encode zstd gzip
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    Permissions-Policy "camera=(), microphone=(self)"
+    Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{$YAPPER_DOMAIN}; media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+  }
+  @auth path /api/auth/*
+  handle @auth {
+    reverse_proxy auth:3001
+  }
+  @application path /api/* /livekit/*
+  handle @application {
+    reverse_proxy server:8080
+  }
+  @private path /internal/*
+  handle @private {
+    respond 404
+  }
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}

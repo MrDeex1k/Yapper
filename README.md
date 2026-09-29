@@ -2,7 +2,7 @@
 
 Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
 
-**Status:** Stage 0 foundation under verification. AUTH/Go interoperability, monorepo checks and development scaffolds exist. Chat, voice and production installation are not ready. See [evidence](docs/evidence/stage-0.md).
+**Status:** foundation merged in PR #27 with recorded local verification; Stage 1 conversation implementation is under review and acceptance testing. Real-device voice, public network deployment and native Electron behavior remain unverified. See [Stage 1 evidence](docs/evidence/stage-1.md).
 
 Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
 
@@ -24,7 +24,7 @@ The first private release provides text and voice channels, persistent message h
 
 Native mobile clients, a Rust terminal client, and a native macOS client follow after the first release is stabilized. Additional communication features are prioritized from real usage.
 
-## Local foundation development
+## Local development
 
 Install the versions in `.node-version`, `.bun-version`, `.go-version`, and `package.json`. Then:
 
@@ -33,16 +33,17 @@ pnpm install --frozen-lockfile
 pnpm setup:dev
 docker compose -f compose.dev.yaml up -d --wait
 pnpm migrate:auth
+pnpm migrate:server
 pnpm dev
 ```
 
-Open `http://127.0.0.1:5173`. The foundation preview checks the Go connection; it is not yet a chat client. The Astro status page runs on port 4321. Generated `.env` credentials remain local. Setup refuses to overwrite an existing environment.
+Open `http://127.0.0.1:5173`. Use the host-local setup token from `.env` to create the owner, then log in and create invitations. Keep that token private. The Astro status page runs on port 4321. Generated `.env` credentials remain local. Setup refuses to overwrite an existing environment.
 
 ```sh
 pnpm check
 pnpm test:integration
 ```
 
-Integration tests create and delete a disposable account in the development AUTH database. Never point them at production. `pnpm build` builds the compatibility scaffolds too. For a local Electron smoke launch, run `pnpm --filter @yapper/desktop exec install-electron` once, then `pnpm --filter @yapper/desktop start`. This is not an installer or release package. The desktop preview serves the built renderer and public health probe from one loopback HTTP origin, with the Go API at `http://127.0.0.1:8080` by default. Set `YAPPER_API_ORIGIN` when starting Electron to select another HTTPS origin (HTTP is restricted to loopback). This foundation transport does not proxy authenticated APIs.
+Integration tests create disposable schemas/accounts in the development databases and exercise local LiveKit. Never point them at production. `pnpm build` builds clients and services. For a local Electron smoke launch, run `pnpm --filter @yapper/desktop exec install-electron` once, then `pnpm --filter @yapper/desktop start`. This is not an installer or release package. Electron serves its bundled renderer and API gateway from one loopback HTTP origin. Select the server in the application; credentials remain isolated in the main process. The foundation-only `YAPPER_API_ORIGIN` preview setting is superseded by this server picker.
 
 The existing GitHub repository is retained; its default branch now has a new root history. See [reset evidence](docs/evidence/stage-0.md#repository-reset).

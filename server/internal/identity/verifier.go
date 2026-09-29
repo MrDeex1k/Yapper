@@ -47,11 +47,24 @@ func NewVerifier(issuer, audience, endpoint string) (*Verifier, error) {
 	}}, nil
 }
 
+type Account struct {
+	jwt.RegisteredClaims
+	SessionID string `json:"sid"`
+}
+
 func (v *Verifier) Verify(ctx context.Context, raw string) (string, error) {
-	if len(raw) == 0 || len(raw) > 8192 {
-		return "", ErrUnauthorized
+	account, err := v.VerifyAccount(ctx, raw)
+	if err != nil {
+		return "", err
 	}
-	claims := new(jwt.RegisteredClaims)
+	return account.Subject, nil
+}
+
+func (v *Verifier) VerifyAccount(ctx context.Context, raw string) (Account, error) {
+	if len(raw) == 0 || len(raw) > 8192 {
+		return Account{}, ErrUnauthorized
+	}
+	claims := new(Account)
 	token, err := jwt.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
 		kid, ok := token.Header["kid"].(string)
 		if !ok || kid == "" || len(kid) > 128 {
@@ -60,9 +73,9 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (string, error) {
 		return v.key(ctx, kid)
 	}, jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithIssuer(v.issuer), jwt.WithAudience(v.audience), jwt.WithExpirationRequired(), jwt.WithIssuedAt(), jwt.WithLeeway(5*time.Second))
 	if err != nil || !token.Valid || claims.Subject == "" {
-		return "", ErrUnauthorized
+		return Account{}, ErrUnauthorized
 	}
-	return claims.Subject, nil
+	return *claims, nil
 }
 
 func (v *Verifier) key(ctx context.Context, kid string) (ed25519.PublicKey, error) {

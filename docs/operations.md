@@ -1,6 +1,8 @@
 # Operations plan
 
-Production installation and recovery remain planned. A local PostgreSQL development environment now exists; see README. It is not a production deployment.
+A complete local container smoke installation exists; public production installation and recovery remain unverified. See [Stage 1 evidence](evidence/stage-1.md). `compose.yaml` provides Caddy/Go/AUTH/PostgreSQL/LiveKit topology, and `compose.smoke.yaml` restricts the smoke ingress to loopback HTTP. Do not use that override for public deployment.
+
+The base Compose configuration requires `YAPPER_DOMAIN` (trusted public domain), `YAPPER_PUBLIC_IP` (advertised media address), and the distinct secrets/database settings in `.env.example`. Ingress uses TCP 80/443; media uses TCP 7881 and UDP 7882. Internal signaling port 7880 must remain private so clients cannot bypass Go admission/revocation. TURN is not configured yet. Generated development settings are not a production installation procedure.
 
 ## Installation
 

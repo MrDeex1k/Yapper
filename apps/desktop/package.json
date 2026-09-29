@@ -1,18 +1,24 @@
 {
   "name": "@yapper/desktop",
+  "version": "0.0.0",
   "private": true,
+  "files": [
+    "dist",
+    "renderer"
+  ],
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc --noEmit false --outDir dist",
+    "build": "tsc --noEmit false --outDir dist && node scripts/copy-preload.mjs",
     "typecheck": "tsc --noEmit",
     "start": "electron .",
-    "test": "tsc --noEmit false --outDir .test-build && node --test .test-build/preview.test.js"
+    "test": "tsc --noEmit false --outDir .test-build && node --test .test-build/gateway.test.js .test-build/preview.test.js"
   },
   "dependencies": {
-    "@yapper/web": "workspace:*"
+    "tough-cookie": "6.0.2"
   },
   "devDependencies": {
+    "@yapper/web": "workspace:*",
     "electron": "44.4.5"
   }
 }

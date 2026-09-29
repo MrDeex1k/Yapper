@@ -1,0 +1,22 @@
+# Local HTTP smoke test only; production uses compose.yaml and trusted HTTPS.
+services:
+  auth-migrate:
+    environment:
+      AUTH_BASE_URL: http://127.0.0.1:8090
+      AUTH_ISSUER: http://127.0.0.1:8090
+  auth:
+    environment:
+      AUTH_BASE_URL: http://127.0.0.1:8090
+      AUTH_ISSUER: http://127.0.0.1:8090
+  server-migrate:
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:8090
+  server:
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:8090
+  ingress:
+    environment:
+      YAPPER_DOMAIN: :8090
+    ports: !override ["127.0.0.1:8090:8090"]
+  livekit:
+    ports: !override []

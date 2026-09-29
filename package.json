@@ -10,12 +10,18 @@
     "lint": "oxlint --deny-warnings .",
     "format": "oxfmt --write . && prettier --plugin=prettier-plugin-astro --write \"apps/landing/**/*.astro\"",
     "format:check": "oxfmt --check . && prettier --plugin=prettier-plugin-astro --check \"apps/landing/**/*.astro\"",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-    "test:integration": "bun --env-file=.env apps/auth/test/integration.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm check:api && pnpm typecheck && pnpm test && pnpm build",
+    "test:integration": "bun --env-file=.env apps/auth/test/integration.ts && pnpm test:server",
     "setup:dev": "node scripts/setup-dev.mjs",
-    "migrate:auth": "bun --env-file=.env apps/auth/src/migrate.ts"
+    "migrate:auth": "bun --env-file=.env apps/auth/src/migrate.ts",
+    "test:server": "node --env-file=.env scripts/test-server.mjs",
+    "generate:api": "node scripts/check-contract.mjs --write",
+    "check:api": "node scripts/check-contract.mjs",
+    "test:containers": "node --env-file=.env scripts/test-containers.mjs",
+    "migrate:server": "node --env-file=.env scripts/migrate-server.mjs"
   },
   "devDependencies": {
+    "@electron/packager": "20.3.0",
     "@shadcn/lint": "0.2.0",
     "@types/bun": "1.4.2",
     "@types/node": "24.10.1",

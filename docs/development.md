@@ -4,7 +4,7 @@
 
 Use English for source identifiers, comments, documentation, branches, and commits. Product copy is localized in English and Polish.
 
-Target monorepo layout; current packages are listed by pnpm. Shared UI/API packages follow in Stage 1:
+Current monorepo layout; exact packages are listed by pnpm:
 
 ```text
 apps/web/          React application and administration UI
