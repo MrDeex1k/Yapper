@@ -96,5 +96,7 @@ Desktop.ini
 # pnpm-lock.yaml, go.mod, go.sum, Cargo.lock, Package.resolved,
 # Gradle wrapper files, migrations, .github/, AGENTS.md, and docs/.
 
-# Compiled desktop transport tests.
+# Compiled Node integration tests.
 .test-build/
+
+/apps/desktop/renderer/

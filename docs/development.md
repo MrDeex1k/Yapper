@@ -4,7 +4,7 @@
 
 Use English for source identifiers, comments, documentation, branches, and commits. Product copy is localized in English and Polish.
 
-Target monorepo layout; current packages are listed by pnpm. Shared UI/API packages follow in Stage 1:
+Current monorepo layout; exact packages are listed by pnpm:
 
 ```text
 apps/web/          React application and administration UI
@@ -86,3 +86,17 @@ Use browser end-to-end tests for setup, joining, chat, roles, and language switc
 Build container images and validate Compose configuration. Build Electron packages on the corresponding Windows and macOS machines. Publish artifacts only through an explicitly authorized release procedure. Versions and image references are pinned; runtime manifests must not depend on a moving `latest` tag.
 
 For each PR, state the resulting behavior, relevant tests and evidence, migration impact, and any remaining platform limits. A skipped or unavailable check is reported as unverified.
+
+## Native desktop smoke test
+
+After `pnpm build` and installing the pinned Electron runtime, run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.mjs`.
+
+The command starts the actual Electron entry point twice with an isolated temporary profile. It checks sandbox/context isolation, lack of renderer Node access, guest admission, cookie isolation, encrypted on-disk state, selected-server/identity restoration across process restart, and the rendered conversation after reload. Each process has a 30-second hard deadline. Temporary local credentials/profile files are removed on completion or failure; the admitted test participant remains on the disposable server.
+
+This explicit local test is not a cached Turbo task and is not part of `pnpm check`. It does not capture a microphone or prove packaging, signing, public HTTPS, real voice or Windows behavior when run on macOS. The test harness is outside the desktop package's `files` allowlist.
+
+## TURN deployment test
+
+Build the local ingress image first (`docker compose build ingress` with the required base environment), then run `pnpm test:turn` with Docker, Go and OpenSSL available. Set `DOCKER_CONTEXT=orbstack` when using OrbStack. The command compiles an isolated Linux test binary for the Docker engine's architecture and starts disposable LiveKit, HAProxy and Caddy containers derived from the real `compose.turn.yaml` overlay. It uses no production volumes or public host ports and removes its containers, networks, keys and fixtures when it finishes. The test subnet is `172.30.245.0/29`; an overlap causes the test to fail instead of modifying an existing network.
+
+The test checks HTTPS/TURN hostname routing, trusted versus untrusted TLS, TURN credentials from actual LiveKit signaling, rejected incorrect credentials, forwarded client address, relay address/port range, a bidirectional UDP payload through TURN/TLS and denial of a link-local metadata peer. Only the isolated fixture permits its private subnet as a TURN peer. It does not prove public CA issuance, host firewall/NAT mappings, browser ICE selection or real speech. This uncached Docker test is separate from `pnpm check` and normal database integrations.

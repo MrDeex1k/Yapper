@@ -1,6 +1,6 @@
 # Validation and release evidence
 
-Status: acceptance scenarios below remain requirements. Executed foundation checks and limitations are recorded in [Stage 0 evidence](evidence/stage-0.md). Do not interpret this checklist as proof of product completion.
+Status: acceptance scenarios below remain requirements. Executed foundation checks and limitations are recorded in [Stage 0 evidence](evidence/stage-0.md). The [Stage 1 checkpoint](evidence/stage-1.md) records conversation tests and outstanding real-device/network gates. Do not interpret this checklist as proof of product completion.
 
 ## Evidence format
 

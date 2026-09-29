@@ -26,3 +26,16 @@ describe("AUTH configuration", () => {
     expect(readConfig({ ...valid, AUTH_BASE_URL: "http://127.0.0.1:5173" }).port).toBe(3001);
   });
 });
+
+test("database password remains data rather than URL syntax", () => {
+  const password = "p@ss/#?:% word'\\$";
+  const config = readConfig({
+    ...valid,
+    AUTH_DATABASE_URL: "postgres://yapper_auth@postgres:5432/yapper_auth",
+    AUTH_DATABASE_PASSWORD: password,
+  });
+  const database = new URL(config.databaseURL);
+  expect(decodeURIComponent(database.password)).toBe(password);
+  expect(database.hostname).toBe("postgres");
+  expect(database.pathname).toBe("/yapper_auth");
+});

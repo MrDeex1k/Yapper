@@ -7,13 +7,18 @@ export interface AuthConfig {
 }
 
 export function readConfig(env: Record<string, string | undefined>): AuthConfig {
-  const databaseURL = env.AUTH_DATABASE_URL;
+  let databaseURL = env.AUTH_DATABASE_URL;
   const baseURL = env.AUTH_BASE_URL;
   const secret = env.AUTH_SECRET;
   if (!databaseURL || !baseURL || !secret || secret.length < 32) {
     throw new Error(
       "AUTH_DATABASE_URL, AUTH_BASE_URL and a 32+ character AUTH_SECRET are required",
     );
+  }
+  if (env.AUTH_DATABASE_PASSWORD !== undefined) {
+    const database = new URL(databaseURL);
+    database.password = encodeURIComponent(env.AUTH_DATABASE_PASSWORD);
+    databaseURL = database.href;
   }
   const url = new URL(baseURL);
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);

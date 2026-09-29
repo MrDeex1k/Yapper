@@ -6,11 +6,16 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "bun test test"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
+    "@yapper/api": "workspace:*",
     "@yapper/i18n": "workspace:*",
+    "@yapper/ui": "workspace:*",
+    "livekit-client": "2.22.3",
+    "lucide-react": "1.48.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
@@ -19,6 +24,7 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@vitejs/plugin-react": "6.1.1",
+    "happy-dom": "20.14.5",
     "tailwindcss": "4.3.3",
     "vite": "8.3.1"
   }

@@ -2,8 +2,18 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "jsx-a11y"],
   "jsPlugins": ["@shadcn/lint"],
-  "categories": { "correctness": "error" },
-  "ignorePatterns": [".agents/**", ".tmp/**", "**/dist/**", "**/node_modules/**", "**/bin/**"],
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": [
+    ".agents/**",
+    ".tmp/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/bin/**",
+    "**/.test-build/**",
+    "apps/desktop/renderer/**"
+  ],
   "overrides": [
     {
       "files": ["apps/web/src/**/*.tsx", "packages/ui/**/*.tsx"],

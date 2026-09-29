@@ -12,7 +12,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "bin/**"]
+      "outputs": ["dist/**", "bin/**", "renderer/**"]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"]
@@ -27,7 +27,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["AUTH_*", "DATABASE_URL", "HTTP_ADDR"]
+      "passThroughEnv": ["AUTH_*", "DATABASE_URL", "HTTP_ADDR", "SETUP_*", "LIVEKIT_*"]
     }
   }
 }

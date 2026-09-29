@@ -14,7 +14,12 @@ export function createAuth(config: AuthConfig, database: Pool) {
     plugins: [
       username(),
       jwt({
-        jwt: { issuer: config.baseURL, audience: config.audience, expirationTime: "5m" },
+        jwt: {
+          issuer: config.baseURL,
+          audience: config.audience,
+          expirationTime: "5m",
+          definePayload: ({ session }) => ({ sid: session.id }),
+        },
         jwks: { keyPairConfig: { alg: "EdDSA", crv: "Ed25519" } },
       }),
     ],

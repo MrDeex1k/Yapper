@@ -1,0 +1,118 @@
+name: yapper
+x-auth-environment: &auth-environment
+  AUTH_DATABASE_URL: postgres://yapper_auth@postgres:5432/yapper_auth
+  AUTH_DATABASE_PASSWORD: ${AUTH_DB_PASSWORD:?Required}
+  AUTH_BASE_URL: https://${YAPPER_DOMAIN:?Required}
+  AUTH_ISSUER: https://${YAPPER_DOMAIN:?Required}
+  AUTH_SECRET: ${AUTH_SECRET:?Required}
+  AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Required}
+  AUTH_HOST: 0.0.0.0
+  AUTH_PORT: 3001
+x-server-environment: &server-environment
+  DATABASE_URL: postgres://yapper_app@postgres:5432/yapper_app
+  DATABASE_PASSWORD: ${APP_DB_PASSWORD:?Required}
+  HTTP_ADDR: 0.0.0.0:8080
+  AUTH_ISSUER: https://${YAPPER_DOMAIN:?Required}
+  AUTH_JWKS_URL: http://auth:3001/api/auth/jwks
+  AUTH_INTERNAL_URL: http://auth:3001
+  AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Required}
+  SETUP_TOKEN: ${SETUP_TOKEN:?Required}
+  SETUP_TOKEN_EXPIRES_AT: ${SETUP_TOKEN_EXPIRES_AT:?Required}
+  LIVEKIT_INTERNAL_URL: http://livekit:7880
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Required}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Required}
+services:
+  postgres:
+    image: postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?Required}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Required}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./deploy/init-databases.sh:/docker-entrypoint-initdb.d/10-yapper.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  auth-migrate:
+    image: yapper-auth:0.1.0-dev
+    build: { context: ., target: auth }
+    environment: *auth-environment
+    command: [bun, src/migrate.ts]
+    depends_on:
+      postgres: { condition: service_healthy }
+  auth:
+    image: yapper-auth:0.1.0-dev
+    build: { context: ., target: auth }
+    restart: unless-stopped
+    environment: *auth-environment
+    depends_on:
+      auth-migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          CMD,
+          bun,
+          -e,
+          "const r=await fetch('http://127.0.0.1:3001/healthz');process.exit(r.ok?0:1)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  server-migrate:
+    image: yapper-server:0.1.0-dev
+    build: { context: ., target: server }
+    environment: *server-environment
+    command: [migrate]
+    depends_on:
+      postgres: { condition: service_healthy }
+  server:
+    image: yapper-server:0.1.0-dev
+    build: { context: ., target: server }
+    restart: unless-stopped
+    environment: *server-environment
+    depends_on:
+      server-migrate: { condition: service_completed_successfully }
+      auth: { condition: service_healthy }
+      livekit: { condition: service_started }
+  livekit:
+    image: livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3
+    restart: unless-stopped
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses: [0.0.0.0]
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+          node_ip: ${YAPPER_PUBLIC_IP:?Required}
+        keys:
+          ${LIVEKIT_API_KEY:?Required}: ${LIVEKIT_API_SECRET:?Required}
+        room:
+          auto_create: true
+        logging:
+          level: warn
+          json: true
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+  ingress:
+    image: yapper-ingress:0.1.0-dev
+    build: { context: ., target: ingress }
+    restart: unless-stopped
+    environment:
+      YAPPER_DOMAIN: ${YAPPER_DOMAIN:?Required}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      server: { condition: service_started }
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

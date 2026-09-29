@@ -7,5 +7,8 @@
     "test": "go test -race ./...",
     "typecheck": "go vet ./...",
     "dev": "go run ./cmd/yapper"
+  },
+  "dependencies": {
+    "@yapper/api": "workspace:*"
   }
 }

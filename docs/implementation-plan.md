@@ -1,6 +1,6 @@
 # Implementation plan
 
-This is the approved direction for a new implementation. **Stage 0 is in progress**; Stages 1–8 are not started. See [Stage 0 evidence](evidence/stage-0.md). Application scaffolding and the repository history reset have begun; later product gates remain unchanged.
+This is the approved direction for a new implementation. **Stage 0 foundation is implemented and PR #27 is merged, with recorded local verification. Stage 1 is implemented in part, with acceptance gates outstanding; Stages 2–8 are not started.** See [Stage 0 evidence](evidence/stage-0.md) and [Stage 1 checkpoint](evidence/stage-1.md). No phase/version completion is inferred from the presence of code.
 
 Stages use completion gates rather than dates. Each stage depends on the preceding stage unless stated otherwise. Keep changes reviewable and use multiple feature branches within a stage when useful.
 

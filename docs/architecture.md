@@ -22,7 +22,7 @@ flowchart LR
     W[Web / Electron] -->|HTTPS and WSS| P[Public ingress]
     P --> G[Go application server]
     P --> A[Elysia / Better Auth]
-    P --> L[LiveKit signaling]
+    G -->|Admitted signaling| L[LiveKit]
     W <-->|WebRTC / TURN| L
     G -->|JWKS / account validation| A
     G -->|Media grants / moderation| L
