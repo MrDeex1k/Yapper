@@ -2,16 +2,19 @@ package media
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
 
 	"github.com/MrDeex1k/Yapper/server/internal/community"
+	"github.com/MrDeex1k/Yapper/server/internal/identity"
 	"github.com/coder/websocket"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -142,5 +145,73 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	if _, err = service.room.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: grant.Identity}); err != nil {
 		t.Fatal("cleanup failed", err)
 	}
+
+	t.Run("registered session survives AUTH outage but not revocation", func(t *testing.T) {
+		var active atomic.Bool
+		var unavailable atomic.Bool
+		active.Store(true)
+		authHTTP := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if unavailable.Load() {
+				w.WriteHeader(503)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if active.Load() {
+				_, _ = w.Write([]byte(`{"active":true}`))
+			} else {
+				_, _ = w.Write([]byte(`{"active":false}`))
+			}
+		}))
+		defer authHTTP.Close()
+		auth, err := identity.NewAuthClient(authHTTP.URL, strings.Repeat("s", 32))
+		if err != nil {
+			t.Fatal(err)
+		}
+		registered, err := New(store, auth, endpoint, os.Getenv("LIVEKIT_API_KEY"), os.Getenv("LIVEKIT_API_SECRET"), origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer registered.Close()
+		ownerGrant, err := registered.Grant(ctx, owner.ID, channel, "owner", "session")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ownerProxy := httptest.NewServer(registered)
+		defer ownerProxy.Close()
+		ownerAddress := "ws" + strings.TrimPrefix(ownerProxy.URL, "http") + "/livekit/rtc?access_token=" + url.QueryEscape(ownerGrant.Token) + "&protocol=15"
+		voice, _, err := websocket.Dial(ctx, ownerAddress, &websocket.DialOptions{HTTPHeader: header})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer voice.CloseNow()
+		if _, _, err := voice.Read(ctx); err != nil {
+			t.Fatal(err)
+		}
+		unavailable.Store(true)
+		registered.reconcileOnce(ctx)
+		if _, err := store.VoiceSession(ctx, ownerGrant.Identity); err != nil {
+			t.Fatal("AUTH outage revoked stored session", err)
+		}
+		if _, err := registered.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: ownerGrant.Identity}); err != nil {
+			t.Fatal("AUTH outage removed active voice", err)
+		}
+		unavailable.Store(false)
+		active.Store(false)
+		registered.reconcileOnce(ctx)
+		if _, err := store.VoiceSession(ctx, ownerGrant.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatal("revoked account retained voice")
+		}
+		if _, err := registered.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: ownerGrant.Identity}); err == nil {
+			t.Fatal("revoked account remains in LiveKit")
+		}
+		denied, response, err := websocket.Dial(ctx, ownerAddress, &websocket.DialOptions{HTTPHeader: header})
+		if err == nil {
+			denied.CloseNow()
+			t.Fatal("revoked account token replay succeeded")
+		}
+		if response == nil || response.StatusCode != 403 {
+			t.Fatal("revoked account replay was not denied")
+		}
+	})
 	t.Log("Real LiveKit accepts a revoked token directly; Yapper ingress rejects it and closes the previous connection.")
 }

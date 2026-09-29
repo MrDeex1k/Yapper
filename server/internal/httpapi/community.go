@@ -399,6 +399,8 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(1024)
 	ctx := conn.CloseRead(r.Context())
 	s := &stream{who: t.who, connection: conn, queue: make(chan []byte, 32)}
+	initial, _ := json.Marshal(map[string]any{"version": 1, "type": "ready", "payload": map[string]bool{"reconcile": true}})
+	s.queue <- initial
 	a.mu.Lock()
 	a.streams[s] = struct{}{}
 	a.mu.Unlock()
@@ -407,8 +409,6 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	if err = a.current(ctx, t.who); err != nil {
 		return
 	}
-	initial, _ := json.Marshal(map[string]any{"version": 1, "type": "ready", "payload": map[string]bool{"reconcile": true}})
-	s.queue <- initial
 	timer := time.NewTicker(time.Second)
 	defer timer.Stop()
 	for {

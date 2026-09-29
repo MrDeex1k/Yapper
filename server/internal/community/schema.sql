@@ -48,3 +48,9 @@ CREATE TABLE IF NOT EXISTS media_sessions (
  auth_session_id text NOT NULL DEFAULT '',
  revoked boolean NOT NULL DEFAULT false
 );
+
+CREATE TABLE IF NOT EXISTS media_removals (
+ identity text PRIMARY KEY,
+ participant_id uuid NOT NULL REFERENCES participants(id),
+ channel_id uuid NOT NULL REFERENCES channels(id)
+);

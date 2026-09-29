@@ -172,3 +172,59 @@ func TestMessageRetryAndHistory(t *testing.T) {
 		t.Fatal("cursor did not reconcile", tail, err)
 	}
 }
+
+func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
+	s, owner := configuredStore(t)
+	channels, err := s.Channels(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var channel string
+	for _, c := range channels {
+		if c.Kind == "voice" {
+			channel = c.ID
+		}
+	}
+	old, err := s.StartVoice(t.Context(), owner.ID, channel, "owner-subject", "session", func(context.Context, MediaSession) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	removalFailure := errors.New("LiveKit unavailable")
+	_, err = s.StartVoice(t.Context(), owner.ID, channel, "owner-subject", "session", func(ctx context.Context, stale MediaSession) error {
+		if stale.Identity != old.Identity {
+			t.Fatal("wrong identity removed")
+		}
+		if _, err := s.VoiceSession(ctx, stale.Identity); !errors.Is(err, ErrDenied) {
+			t.Fatal("old grant still accepted while removal is in progress")
+		}
+		return removalFailure
+	})
+	if !errors.Is(err, removalFailure) {
+		t.Fatalf("removal failure not reported: %v", err)
+	}
+	pending, err := s.PendingVoiceRemovals(t.Context())
+	if err != nil || len(pending) != 1 || pending[0].Identity != old.Identity {
+		t.Fatalf("failed removal lost: %v %v", pending, err)
+	}
+	sessions, err := s.AllVoiceSessions(t.Context())
+	if err != nil || len(sessions) != 1 || sessions[0].Identity == old.Identity {
+		t.Fatal("replacement did not commit")
+	}
+	// A delayed leave and reconciliation snapshot may only revoke their exact epoch.
+	if _, err := s.RevokeOwnedVoice(t.Context(), owner.ID, old.Identity); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("stale leave touched replacement")
+	}
+	if _, err := s.RevokeVoiceIdentity(t.Context(), old.Identity); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("stale reconciliation touched replacement")
+	}
+	if _, err := s.VoiceSession(t.Context(), sessions[0].Identity); err != nil {
+		t.Fatal("replacement revoked by stale operation")
+	}
+	if err := s.ForgetVoiceRemoval(t.Context(), old.Identity); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = s.PendingVoiceRemovals(t.Context())
+	if err != nil || len(pending) != 0 {
+		t.Fatal("acknowledged removal not cleared")
+	}
+}

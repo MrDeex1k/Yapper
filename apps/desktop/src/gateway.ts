@@ -9,9 +9,18 @@ import {
 import { request as httpsRequest } from "node:https";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { resolve, extname } from "node:path";
+import { resolve, extname, relative as relativePath, isAbsolute, sep } from "node:path";
 import type { Duplex } from "node:stream";
 import { CookieJar, type SerializedCookieJar } from "tough-cookie";
+
+export function isWithinDirectory(
+  root: string,
+  file: string,
+  paths = { relative: relativePath, isAbsolute, sep },
+) {
+  const inside = paths.relative(root, file);
+  return inside !== ".." && !inside.startsWith(".." + paths.sep) && !paths.isAbsolute(inside);
+}
 
 export interface SavedState {
   selected: string | null;
@@ -58,7 +67,7 @@ export async function createGateway(options: {
       selected,
       jars: Object.fromEntries([...jars].map(([key, jar]) => [key, serialize(jar)])),
     };
-    saving = saving.then(() => options.save(state));
+    saving = saving.catch(() => {}).then(() => options.save(state));
     return saving;
   };
   const authorized = (req: IncomingMessage) => {
@@ -183,7 +192,7 @@ export async function createGateway(options: {
     const relative = decodeURIComponent(path.pathname);
     const root = resolve(options.assets);
     let file = resolve(root, "." + relative);
-    if (file !== root && !file.startsWith(root + "/")) {
+    if (!isWithinDirectory(root, file)) {
       problem(res, 404, "not_found");
       return;
     }

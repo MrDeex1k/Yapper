@@ -60,3 +60,7 @@ Execute this as a dedicated operation at the start of implementation, not as an 
 Repository deletion is excluded. Git history replacement does not guarantee physical erasure from GitHub retention, PR refs, forks, cached objects, or other people's clones. Releases, build artifacts, and packages are separate resources; inspect and address their scope explicitly during the reset instead of assuming a force-push removes them.
 
 The procedure above is retained for audit; the linked evidence records what was actually executed.
+
+## Database connection credentials
+
+Compose passes `AUTH_DB_PASSWORD` and `APP_DB_PASSWORD` as separate `AUTH_DATABASE_PASSWORD` and `DATABASE_PASSWORD` service environment values. Do not URI-encode those raw password variables manually. AUTH encodes its URL password component and Go supplies the pgx password field; reserved URL characters remain password data. When setting Compose environment files, quote literal dollar signs according to Compose environment-file syntax. Local development URLs remain supported when the separate password override is absent.

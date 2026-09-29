@@ -29,7 +29,7 @@ Environment: macOS 27.0.1 arm64, Node 24.20.0, pnpm 12.6.0, Bun 1.4.2, Go 1.27.1
 1. Verify public trusted HTTPS, advertised media address, firewall/UDP reachability and TURN fallback. TURN configuration is not yet supplied. The smoke override intentionally uses loopback HTTP and cannot prove these properties.
 2. Complete a fresh-install scenario with two real clients exchanging text and speaking with real microphones. Exercise mute/deafen, denied permissions, network interruption and reconnect without duplicate voice sessions.
 3. Test the packaged Electron client on Windows and macOS, including OS encryption, server-origin changes, login/session persistence and microphone permissions. Apple signing/notarization is not configured; Windows signing is unavailable.
-4. Add regression evidence for stale voice-leave versus replacement-session races and active registered-user voice revocation. Existing integration tests do not establish every client concurrency path.
+4. Stale voice-leave/reconciliation versus replacement sessions and active registered-user revocation now have regression evidence below. Real client interruption/reconnect scenarios still require platform testing.
 5. Complete code review and record the required local checks for this PR. Further rate limits, recovery, diagnostics, operational readiness and load gates remain Stage 3 work, not delivered production guarantees.
 
 Open admission controls, channel/category management, moderator provisioning, message edit/delete/retention, full device controls and saved-server management remain Stage 2. The local client is not yet the complete first private release.
@@ -51,3 +51,29 @@ PR #27 was squash-merged as `1729517` on 2026-09-29. This branch was rebased ont
 ## Update after removal of hosted workflows
 
 Rebased onto main `e73a1dc` on 2026-09-29. The modify/delete conflict was resolved by retaining the deletion of `.github/workflows/ci.yml`. No GitHub Actions workflow is included in this PR. Documentation now requires local checks. This update changes documentation and removes automation only; application source is unchanged from the preceding rebased checkpoint. Formatting and Git whitespace checks were repeated; application tests were not rerun for this documentation-only update.
+
+## CodeRabbit corrections and additional acceptance work — 2026-09-29
+
+All eight findings against `477be87` were confirmed and addressed. Docstring feedback remains excluded at the owner's request.
+
+| Finding                                                  | Correction and evidence                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A failed Electron save poisons subsequent saves          | The serialized save chain recovers from the previous rejection while reporting each new failure. A failed-save/successful-retry test passes.                                                                                                                |
+| Windows asset containment rejects nested bundles         | Containment uses platform-aware relative paths. Windows and POSIX path cases plus a real nested-asset HTTP request pass. This does not establish native Windows startup.                                                                                    |
+| A late chat send enters another channel                  | Append checks the currently committed channel through a ref, including when React applies the state update. A mounted React hook test reuses a stale callback after switching channels.                                                                     |
+| Canceled voice connection displays an error              | Connection failures from obsolete generations are ignored. A mounted hook test cancels a pending connection and verifies disconnected state without an error.                                                                                               |
+| Database password interpolation changes URL meaning      | Compose passes raw passwords separately. AUTH percent-encodes the password component; Go assigns the pgx password field. Unit and fresh-container tests use reserved characters, including `%`, `/`, `#`, `@`, `$` and spaces.                              |
+| Old voice identity remains admissible during replacement | The new identity and a durable old-session removal record commit before external removal. PostgreSQL tests query the old identity inside the removal callback and require denial. Failed removal remains in `media_removals` for reconciliation.            |
+| WebSocket ready enqueue can block behind broadcasts      | Ready is buffered before stream publication. A regression blocks the AUTH recheck, verifies the first queued event, fills the queue and requires handler termination.                                                                                       |
+| Transient AUTH/database failures revoke voice            | Reconciliation uses independent per-session deadlines and revokes only explicit denial/unauthorized errors. Real LiveKit tests retain an active participant during an AUTH 503, then remove it and deny grant replay when AUTH reports an inactive session. |
+
+Additional Stage 1 evidence now covers stale leave and stale reconciliation against a replacement epoch, and active registered-user voice revocation. A failed old-session removal is retained transactionally rather than becoming an untracked orphan after replacement. Run `pnpm migrate:server` on an existing local database to add the idempotent `media_removals` table; Compose migration services apply it automatically. No data is discarded.
+
+Executed locally on the documented macOS/OrbStack environment:
+
+- `pnpm check`: formatting, Oxlint/shadcn lint, generated contracts, types, unit/transport/React tests, Go race tests and builds passed.
+- `pnpm test:integration`: real AUTH/JWKS, PostgreSQL, WebSocket and self-hosted LiveKit tests passed, including the new race and revocation cases.
+- React Doctor changed-source scan: 100/100, no issues.
+- All application images built. Fresh `yapper-review-smoke` Compose installation with special-character database passwords passed setup/login, two guest identities, invitations, shared durable chat, retry deduplication, ban, revoked-session denial and private ingress denial. Identity/history survived restarting PostgreSQL, AUTH and Go.
+
+The React tests use a pinned Happy DOM environment and controlled transport/media doubles to exercise lifecycle races; they do not prove microphone or audio behavior. Context7 Happy DOM setup documentation was consulted. Public HTTPS/TURN, real two-person speech, interrupted-network recovery and native Windows/macOS client acceptance remain outstanding. No GitHub Actions workflow was added.

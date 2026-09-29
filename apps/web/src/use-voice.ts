@@ -65,9 +65,10 @@ export function useVoice() {
     if (busy.current) return;
     busy.current = true;
     setError(false);
+    let operation = -1;
     try {
       if (current.current) await leave();
-      const operation = ++generation.current;
+      operation = ++generation.current;
       setStatus("connecting");
       const grant = await request<{
         url: string;
@@ -146,8 +147,10 @@ export function useVoice() {
       update();
       // Joining listens first. Microphone capture starts only after an explicit unmute.
       await room.startAudio();
+      if (operation !== generation.current) return;
       setAudioBlocked(!room.canPlaybackAudio);
     } catch {
+      if (operation !== -1 && operation !== generation.current) return;
       const room = current.current;
       current.current = null;
       await room?.disconnect();

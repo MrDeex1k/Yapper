@@ -194,24 +194,48 @@ func (s *Service) Reconcile(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			check, cancel := context.WithTimeout(ctx, 10*time.Second)
-			sessions, err := s.store.AllVoiceSessions(check)
-			if err == nil {
-				for _, m := range sessions {
-					if _, err = s.current(check, m.Identity); err != nil {
-						stale, e := s.store.RevokeVoiceIdentity(check, m.Identity)
-						if e == nil {
-							if e = s.remove(check, stale); e == nil {
-								_ = s.store.ForgetVoice(check, stale.Identity)
-							}
-						}
-					}
-				}
-			}
-			cancel()
+			s.reconcileOnce(ctx)
 		}
 	}
 }
+func (s *Service) reconcileOnce(ctx context.Context) {
+	list, cancel := context.WithTimeout(ctx, 3*time.Second)
+	removals, err := s.store.PendingVoiceRemovals(list)
+	cancel()
+	if err == nil {
+		for _, m := range removals {
+			item, done := context.WithTimeout(ctx, 6*time.Second)
+			if s.remove(item, m) == nil {
+				_ = s.store.ForgetVoiceRemoval(item, m.Identity)
+			}
+			done()
+		}
+	}
+	list, cancel = context.WithTimeout(ctx, 3*time.Second)
+	sessions, err := s.store.AllVoiceSessions(list)
+	cancel()
+	if err != nil {
+		return
+	}
+	for _, m := range sessions {
+		if ctx.Err() != nil {
+			return
+		}
+		item, done := context.WithTimeout(ctx, 3*time.Second)
+		_, err := s.current(item, m.Identity)
+		done()
+		if !errors.Is(err, community.ErrDenied) && !errors.Is(err, identity.ErrUnauthorized) {
+			continue
+		}
+		cleanup, cancel := context.WithTimeout(ctx, 6*time.Second)
+		stale, err := s.store.RevokeVoiceIdentity(cleanup, m.Identity)
+		if err == nil && s.remove(cleanup, stale) == nil {
+			_ = s.store.ForgetVoice(cleanup, stale.Identity)
+		}
+		cancel()
+	}
+}
+
 func (s *Service) Close() {
 	s.mu.Lock()
 	connections := s.connections

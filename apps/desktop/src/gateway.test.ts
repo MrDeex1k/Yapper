@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { createGateway, normalizeServer, type SavedState } from "./gateway.js";
+import { join, win32, posix } from "node:path";
+import { createGateway, normalizeServer, isWithinDirectory, type SavedState } from "./gateway.js";
 
 async function upstream(name: string) {
   const server = createServer((req, res) => {
@@ -111,4 +111,47 @@ test("gateway rejects other origins and keeps cookies out of renderer and other 
     await stop(b.server);
     await rm(assets, { recursive: true, force: true });
   }
+});
+
+test("a failed save is reported without poisoning later saves or nested assets", async () => {
+  const assets = await mkdtemp(join(tmpdir(), "yapper-gateway-retry-"));
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(join(assets, "assets"));
+  await writeFile(join(assets, "index.html"), "client");
+  await writeFile(join(assets, "assets", "app.js"), "nested asset");
+  let calls = 0;
+  const gateway = await createGateway({
+    assets,
+    state: { selected: null, jars: {} },
+    allowLoopbackHTTP: false,
+    save: async () => {
+      calls++;
+      if (calls === 1) throw new Error("temporary storage error");
+    },
+  });
+  try {
+    await assert.rejects(gateway.setServer("https://one.example"), /temporary storage/);
+    await gateway.setServer("https://two.example");
+    assert.equal(calls, 2);
+    assert.equal(gateway.getServer(), "https://two.example");
+    const headers = { "X-Yapper-Desktop": gateway.secret, Origin: gateway.origin };
+    assert.equal(
+      await (await fetch(gateway.origin + "/assets/app.js", { headers })).text(),
+      "nested asset",
+    );
+    assert.equal((await fetch(gateway.origin + "/..%2f..%2fsecret.js", { headers })).status, 404);
+  } finally {
+    gateway.close();
+    await rm(assets, { recursive: true, force: true });
+  }
+});
+
+test("asset containment accepts Windows and POSIX descendants only", () => {
+  for (const paths of [win32, posix]) {
+    const root = paths.resolve("renderer");
+    assert.equal(isWithinDirectory(root, paths.resolve(root, "assets", "app.js"), paths), true);
+    assert.equal(isWithinDirectory(root, paths.resolve(root, "..", "secret.js"), paths), false);
+    assert.equal(isWithinDirectory(root, paths.resolve(root + "-other", "app.js"), paths), false);
+  }
+  assert.equal(isWithinDirectory("C:\\renderer", "D:\\renderer\\app.js", win32), false);
 });

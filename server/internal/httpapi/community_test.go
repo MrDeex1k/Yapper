@@ -8,12 +8,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
 
 	"github.com/MrDeex1k/Yapper/server/internal/community"
+	"github.com/MrDeex1k/Yapper/server/internal/identity"
 	"github.com/coder/websocket"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -178,4 +182,72 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 	if res.StatusCode != 403 {
 		t.Fatal("banned credential reconnected")
 	}
+
+	t.Run("ready is queued before broadcasts during authorization recheck", func(t *testing.T) {
+		var calls atomic.Int32
+		blocked, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		authHTTP := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if calls.Add(1) == 2 {
+				close(blocked)
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			_, _ = w.Write([]byte(`{"active":true}`))
+		}))
+		defer authHTTP.Close()
+		defer unblock()
+		auth, err := identity.NewAuthClient(authHTTP.URL, strings.Repeat("s", 32))
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked, err := NewCommunity(store, nil, auth, CommunityConfig{Origin: origin, SetupToken: strings.Repeat("a", 64), SetupExpires: time.Now().Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer checked.Close()
+		checked.tickets["ready-test"] = ticket{who: principal{participant: owner, account: &identity.Account{RegisteredClaims: jwt.RegisteredClaims{Subject: "subject", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))}, SessionID: "session"}}, expires: time.Now().Add(time.Minute)}
+		finished := make(chan struct{})
+		endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { defer close(finished); checked.events(w, r) }))
+		defer endpoint.Close()
+		check, stop := context.WithTimeout(t.Context(), 3*time.Second)
+		defer stop()
+		conn, _, err := websocket.Dial(check, "ws"+strings.TrimPrefix(endpoint.URL, "http"), &websocket.DialOptions{HTTPHeader: header, Subprotocols: []string{"yapper.v1", "yapper.ticket.ready-test"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.CloseNow()
+		select {
+		case <-blocked:
+		case <-check.Done():
+			t.Fatal("recheck did not start")
+		}
+		checked.mu.Lock()
+		ready := false
+		for stream := range checked.streams {
+			select {
+			case first := <-stream.queue:
+				ready = bytes.Contains(first, []byte(`"type":"ready"`))
+			default:
+			}
+		}
+		checked.mu.Unlock()
+		if !ready {
+			unblock()
+			t.Fatal("ready was not queued before stream publication")
+		}
+		for range 40 {
+			checked.broadcast("message.created", map[string]string{"id": "test"})
+		}
+		unblock()
+		select {
+		case <-finished:
+		case <-check.Done():
+			t.Fatal("full queue leaked WebSocket handler")
+		}
+	})
 }

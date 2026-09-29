@@ -44,7 +44,14 @@ func run() error {
 	}
 	startup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	pool, err := pgxpool.New(startup, databaseURL)
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return errors.New("invalid database configuration")
+	}
+	if password, ok := os.LookupEnv("DATABASE_PASSWORD"); ok {
+		config.ConnConfig.Password = password
+	}
+	pool, err := pgxpool.NewWithConfig(startup, config)
 	if err != nil {
 		return errors.New("invalid database configuration")
 	}

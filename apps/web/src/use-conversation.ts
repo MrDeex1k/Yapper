@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Message } from "@yapper/api";
 import { api, APIError } from "./api";
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -8,6 +8,10 @@ function combine(previous: Message[], incoming: Message[]) {
   return [...map.values()].sort((a, b) => a.sequence - b.sequence);
 }
 export function useConversation(channel: string) {
+  const activeChannel = useRef(channel);
+  useLayoutEffect(() => {
+    activeChannel.current = channel;
+  }, [channel]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<unknown>(null);
@@ -23,7 +27,12 @@ export function useConversation(channel: string) {
     messages,
     status,
     error,
-    append: (message: Message) => setMessages((previous) => combine(previous, [message])),
+    append: (message: Message) => {
+      if (message.channelId !== activeChannel.current) return;
+      setMessages((previous) =>
+        message.channelId === activeChannel.current ? combine(previous, [message]) : previous,
+      );
+    },
   };
 }
 
