@@ -1,0 +1,70 @@
+# Optional TURN/TLS on the same public IPv4 and TCP 443 as HTTPS.
+# Requires Docker Compose 2.24.4+ (!override) and operator-provided TURN certificates.
+services:
+  ingress:
+    ports: !override ["80:80", "443:443/udp"]
+  livekit:
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses: [0.0.0.0]
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+          node_ip: ${YAPPER_PUBLIC_IP:?Required}
+        keys:
+          ${LIVEKIT_API_KEY:?Required}: ${LIVEKIT_API_SECRET:?Required}
+        room:
+          auto_create: true
+        turn:
+          enabled: true
+          bind_addresses: [0.0.0.0]
+          domain: ${YAPPER_TURN_DOMAIN:?Required}
+          tls_port: 443
+          udp_port: 0
+          external_tls: false
+          cert_file: /turn-certs/fullchain.pem
+          key_file: /turn-certs/privkey.pem
+          proxy_protocol: true
+          proxy_protocol_trusted_cidrs: [${YAPPER_TURN_PROXY_IP:-172.30.244.2}/32]
+          relay_range_start: 30000
+          relay_range_end: 30127
+          per_user_relay_allocation_limit: 4
+        logging:
+          level: warn
+          json: true
+    volumes:
+      - type: bind
+        source: ${YAPPER_TURN_CERT_DIR:?Required}
+        target: /turn-certs
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "30000-30127:30000-30127/udp"
+    networks:
+      default:
+      turn-proxy:
+        aliases: [livekit-turn]
+  tls-router:
+    image: haproxy:3.2.25-alpine@sha256:61074191875132a4a61e864f9ec4880b88553b237df7aadecb70060ec44cd63d
+    restart: unless-stopped
+    environment:
+      YAPPER_TURN_DOMAIN: ${YAPPER_TURN_DOMAIN:?Required}
+    ports: ["443:8443/tcp"]
+    volumes:
+      - ./deploy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      default:
+      turn-proxy:
+        ipv4_address: ${YAPPER_TURN_PROXY_IP:-172.30.244.2}
+    depends_on:
+      ingress: { condition: service_started }
+      livekit: { condition: service_started }
+networks:
+  turn-proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${YAPPER_TURN_PROXY_SUBNET:-172.30.244.0/29}

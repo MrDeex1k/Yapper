@@ -26,7 +26,7 @@ Environment: macOS 27.0.1 arm64, Node 24.20.0, pnpm 12.6.0, Bun 1.4.2, Go 1.27.1
 
 ## Remaining acceptance gates
 
-1. Verify public trusted HTTPS, advertised media address, firewall/UDP reachability and TURN fallback. TURN configuration is not yet supplied. The smoke override intentionally uses loopback HTTP and cannot prove these properties.
+1. Verify public trusted HTTPS, advertised media address, firewall/UDP reachability and TURN fallback. The optional TURN configuration has isolated local protocol evidence below; public deployment remains unverified. The HTTP smoke override cannot prove these properties.
 2. Complete a fresh-install scenario with two real clients exchanging text and speaking with real microphones. Exercise mute/deafen, denied permissions, network interruption and reconnect without duplicate voice sessions.
 3. Test the packaged Electron client on Windows and macOS, including OS encryption, server-origin changes, login/session persistence and microphone permissions. Apple signing/notarization is not configured; Windows signing is unavailable.
 4. Stale voice-leave/reconciliation versus replacement sessions and active registered-user revocation now have regression evidence below. Real client interruption/reconnect scenarios still require platform testing.
@@ -90,3 +90,21 @@ The bounded `test:desktop` smoke test passed on macOS arm64 with Electron 44.4.5
 Both the initial runtime test and the strengthened rendered-conversation test passed. Oxlint and formatting checks passed for the new test scripts. Electron emitted a macOS helper sandbox-extension diagnostic, but both processes completed and all asserted security preferences remained enabled. This evidence does not establish absence of all platform diagnostics.
 
 This supersedes the earlier lack of native startup evidence for the **unpackaged macOS development runtime only**. Signed/notarized package installation, OS microphone behavior, real speech and Windows remain unverified. No native GUI automation call with an unbounded wait is used; the harness and parent enforce timeouts.
+
+## Local TURN/TLS deployment verification — 2026-09-29
+
+The optional `compose.turn.yaml` overlay shares public TCP 443 between Caddy HTTPS and embedded LiveKit TURN/TLS using HAProxy SNI passthrough. LiveKit accepts PROXY protocol only from the dedicated proxy address. The TURN certificate directory is mounted read-only; renewal and LiveKit restart remain operator responsibilities. Signaling port 7880 remains unpublished. See the [operator instructions](../operations.md#turntls-on-one-public-ipv4-address).
+
+`pnpm test:turn` passed on the macOS arm64 / OrbStack Docker environment with Go 1.27.1, LiveKit 1.13.7 and HAProxy 3.2.25. The harness derived its disposable topology from the actual overlay, then substituted private test addresses and an ephemeral certificate trusted only by the test. It compiled a Linux test binary and exercised actual sockets in the Docker network:
+
+- Compose assertions confirmed that HAProxy owns public TCP 443, Caddy retains UDP 443, direct media mappings remain and LiveKit signaling is unpublished.
+- HAProxy accepted its configuration. HTTPS reached Caddy through the shared TLS router; TURN reached LiveKit through the same router.
+- A client without the test CA rejected the certificate. The explicitly trusted client connected without disabling verification.
+- Real LiveKit signaling advertised `turns:turn.yapper.test:443?transport=tcp` and issued participant TURN credentials. Incorrect credentials could not allocate a relay.
+- STUN reported the original test client's address rather than the HAProxy address. The allocated relay used the configured IP and UDP port range.
+- A payload traveled through TURN/TLS to a UDP peer and back unchanged. A permission request targeting the link-local metadata address was denied.
+- Test containers, networks and generated keys were removed afterward. No existing installation volume or public host port was used.
+
+The isolated fixture permits its own private subnet as a relay peer; the production overlay retains default restricted-peer denial. This is protocol/topology evidence, not public firewall/NAT, public certificate issuance, browser ICE fallback or real microphone evidence. Stage 1 remains incomplete pending the acceptance gates above. Context7 returned master documentation, so the TURN fields were also checked against the pinned LiveKit source; HAProxy's pinned-version manual was consulted. No GitHub Actions workflow was added.
+
+`pnpm check` passed for this addition. After normalizing Go's direct dependency declarations and checksums with `go mod tidy` (no selected version changes), the final `pnpm test:turn` and formatting check passed again. Database/AUTH integration tests were not repeated for this deployment/test-only addition; the preceding integration evidence remains scoped to the unchanged application implementation.
