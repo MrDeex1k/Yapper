@@ -10,6 +10,8 @@ if (!directory || !phase || !["join", "restore"].includes(phase)) {
   app.exit(2);
   throw new Error("Invalid native smoke arguments");
 }
+// Separate unsigned test runtimes from the generic Electron Keychain entry.
+app.setName(`Yapper Native Smoke ${process.versions.electron}`);
 app.setPath("userData", join(directory, "profile"));
 const watchdog = setTimeout(() => {
   console.error("Native desktop smoke timed out");

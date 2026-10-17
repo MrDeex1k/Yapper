@@ -48,7 +48,7 @@ services:
       turn-proxy:
         aliases: [livekit-turn]
   tls-router:
-    image: haproxy:3.2.25-alpine@sha256:61074191875132a4a61e864f9ec4880b88553b237df7aadecb70060ec44cd63d
+    image: haproxy:3.4.7-alpine@sha256:251da69821897ec8c4819f12b1babbc4b71f562943addc9b9eb14bb6ece40dc6
     restart: unless-stopped
     environment:
       YAPPER_TURN_DOMAIN: ${YAPPER_TURN_DOMAIN:?Required}

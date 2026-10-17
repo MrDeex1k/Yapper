@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@yapper/i18n": "workspace:*",
-    "astro": "7.3.5"
+    "astro": "7.4.0"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",

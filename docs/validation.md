@@ -2,6 +2,8 @@
 
 Status: acceptance scenarios below remain requirements. Executed foundation checks and limitations are recorded in [Stage 0 evidence](evidence/stage-0.md). The [Stage 1 checkpoint](evidence/stage-1.md) records conversation tests and outstanding real-device/network gates. Do not interpret this checklist as proof of product completion.
 
+The [2026-10-17 dependency refresh](evidence/dependency-refresh-2026-10-17.md) records current maintenance versions, compatibility exceptions and verification. The [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md) retains the earlier results.
+
 ## Evidence format
 
 For each implementation gate, record the source revision, image/package versions, date, environment, steps, observed outcome, and remaining limitations. Use logs or screenshots only when they substantiate the result, and exclude secrets and private message content.

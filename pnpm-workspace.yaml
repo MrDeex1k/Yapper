@@ -5,3 +5,14 @@ packages:
 allowBuilds:
   esbuild: true
 minimumReleaseAge: 1440
+# Exact releases selected for the 2026-10-17 refresh.
+minimumReleaseAgeExclude:
+  - "livekit-client@2.23.0"
+  - "lucide-react@1.58.0"
+  - "turbo@2.11.9"
+  - "@turbo/darwin-64@2.11.9"
+  - "@turbo/darwin-arm64@2.11.9"
+  - "@turbo/linux-64@2.11.9"
+  - "@turbo/linux-arm64@2.11.9"
+  - "@turbo/windows-64@2.11.9"
+  - "@turbo/windows-arm64@2.11.9"

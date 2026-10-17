@@ -11,9 +11,9 @@
     "build": "bun build src/index.ts --target=bun --packages=external --outdir=dist"
   },
   "dependencies": {
-    "better-auth": "1.7.6",
-    "elysia": "2.0.0-beta.19",
-    "pg": "8.23.0"
+    "better-auth": "1.7.10",
+    "elysia": "2.0.0-beta.32",
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "@types/pg": "8.23.1"

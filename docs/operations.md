@@ -35,7 +35,7 @@ Open these server firewall ports and preserve the port numbers through any host 
 
 Caddy manages the application hostname's certificate as before. The operator must obtain and renew the separate TURN certificate; no automatic TURN certificate renewal is implemented. Replace both PEM files in the mounted directory and restart LiveKit during the documented maintenance window to load them. Active voice connections are interrupted. Test renewed certificate validity and a relay connection before returning the server to service. Never disable client TLS validation to accommodate an invalid certificate.
 
-References checked against the pinned versions: [LiveKit 1.13.7 TURN listener and peer policy](https://github.com/livekit/livekit/blob/v1.13.7/pkg/service/turn.go), [LiveKit configuration](https://github.com/livekit/livekit/blob/v1.13.7/config-sample.yaml), and [HAProxy 3.2 configuration](https://docs.haproxy.org/3.2/configuration.html). Context7 returned LiveKit master documentation; the versioned source was checked to resolve that coverage gap.
+References checked against the pinned versions: [LiveKit 1.13.10 TURN listener and peer policy](https://github.com/livekit/livekit/blob/v1.13.10/pkg/service/turn.go), [LiveKit configuration](https://github.com/livekit/livekit/blob/v1.13.10/config-sample.yaml), and [HAProxy 3.4 configuration](https://docs.haproxy.org/3.4/configuration.html). Context7 returned LiveKit master documentation; the versioned source was checked to resolve that coverage gap.
 
 ## Installation
 
