@@ -1,6 +1,6 @@
 # Implementation plan
 
-This is the approved direction for a new implementation. **Stage 0 foundation is implemented and PR #27 is merged, with recorded local verification. Stage 1 is implemented in part, with acceptance gates outstanding; Stages 2–8 are not started.** See [Stage 0 evidence](evidence/stage-0.md) and [Stage 1 checkpoint](evidence/stage-1.md). No phase/version completion is inferred from the presence of code.
+**Stages 0 and 1 are complete. Stage 2 is in progress on its feature branch.** The first private desktop release will use Rust and GPUI on Windows and Linux and Electron on macOS. See the [foundation evidence](evidence/stage-0.md) and the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21).
 
 Stages use completion gates rather than dates. Each stage depends on the preceding stage unless stated otherwise. Keep changes reviewable and use multiple feature branches within a stage when useful.
 
@@ -34,9 +34,10 @@ Deliverables:
 - Guest nickname entry, persistent identity, and invitation-only admission with a minimal owner invitation flow.
 - Two admitted guests exchange persisted text messages in one channel and join one LiveKit voice channel.
 - Minimal microphone mute/deafen and connection/error indicators, in EN and PL.
-- An Electron shell using the shared client, with a tested credentials/origin boundary.
+- A development Electron shell using the shared React client, with a tested credentials/origin boundary. Use it as the desktop reference for this stage.
 - Basic server-side authorization, a working forced disconnect, and a media-token replay test.
 - Reconnection that reconciles text history and makes voice state explicit.
+- Refresh npm and Go dependencies and pinned images, use fresh PostgreSQL 19 volumes, and adopt `bun fmt` for repository formatting. [Keep Oxlint for linting](evidence/dependency-refresh-2026-11-21.md#bun-tooling-follow-up).
 
 **Completion gate:** from a clean installation, the owner configures the server and two distinct clients join, exchange text, and speak. A guest cannot call administrative APIs. A banned/removed participant cannot continue publishing or immediately regain access using a cached grant. A brief network interruption can be recovered without duplicate messages or duplicate voice sessions. Record evidence and limitations.
 
@@ -52,10 +53,10 @@ Deliverables:
 - Registered moderator provisioning, fixed roles, kick/ban/IP-block options, enforced mute, and message moderation.
 - Own-message edit/delete, history pagination, retention, retry deduplication, and minimal moderation audit records.
 - Device controls, per-participant volume, speaking indicators, foreground push-to-talk, and robust room transitions.
-- Saved Electron servers with independent identities and one active voice conversation.
+- A small Rust/GPUI prototype on Windows and Linux to validate the build, native session handling, and LiveKit through the Go signaling endpoint, including basic two-way audio. Record dependency choices, tested Linux distributions and desktop sessions, and platform limitations before building the full client.
 - Complete responsive layouts, keyboard navigation, and EN/PL copy including error/recovery states.
 
-**Completion gate:** product acceptance scenarios pass, including concurrent invite redemption, role changes during active connections, reconnect after moderation, and retention. Document the limits of anonymous bans and lost guest credentials in the UI.
+**Completion gate:** the community feature acceptance scenarios pass, including concurrent invite redemption, role changes during active connections, reconnect after moderation, and retention. Document the limits of anonymous bans and lost guest credentials in the UI. Record the GPUI prototype results and resolve any blockers before the full desktop implementation.
 
 Suggested branches: `feat/implement-moderation`, `feat/implement-message-retention`, `feat/implement-voice-controls`.
 
@@ -76,22 +77,23 @@ Deliverables:
 
 Suggested branches: `feat/implement-backup-restore`, `feat/implement-diagnostics`, `test/verify-capacity-and-recovery`.
 
-## Stage 4 — Private client release and landing
+## Stage 4 — Desktop and first private release
 
 **Goal:** let friends install and use the application with accurate documentation.
 
 Deliverables:
 
-- Windows and macOS Electron packages, manual update instructions, and installation tests on clean devices.
-- Use available Apple signing/notarization when credentials are configured; record Windows signing status honestly.
+- A native Rust/GPUI client on Windows and Linux and an Electron client on macOS. Verify the agreed community features, EN/PL UI, keyboard navigation, saved servers with independent identities, and one active voice conversation on each client.
+- Release packages for Windows, supported Linux distributions, and macOS, with manual update instructions and clean installation tests. For Windows and Linux, decide how to handle Electron development profiles. Verify safe credential transfer if supported, or document re-login and the effect of rejoining as a guest on identity and message ownership.
+- Use available Apple signing and notarization for the macOS Electron package when credentials are configured. Record Windows signing status and the Linux package format and integrity verification.
 - Desktop and mobile Web verification on the agreed browser/device matrix.
-- Test global Electron push-to-talk; expose and document only verified support. Foreground push-to-talk remains the baseline.
+- Test global push-to-talk on each target platform. Foreground push-to-talk remains the baseline.
 - Astro landing in EN/PL with working language selection, matching installation documentation, and real download links when artifacts exist.
 - Private release notes, known limits, compatibility information, and reproducible image/package version mapping.
 
-**Completion gate:** the full first-release checklist passes; friends can follow the instructions without developer-only commands. No unsupported public-distribution or background-mobile-voice claim appears in the UI or landing. Release publishing is a distinct action from local artifact preparation.
+**Completion gate:** the full first-release checklist passes, including desktop protocol, identity, media, and package checks on Windows, Linux, and macOS. Friends can follow the instructions without developer-only commands. The UI and landing describe only verified distribution and voice capabilities. Release publishing is a distinct action from local artifact preparation.
 
-Suggested branches: `feat/package-desktop-clients`, `feat/implement-bilingual-landing`, `docs/document-private-release`.
+Suggested branches: `feat/implement-gpui-desktop`, `feat/package-desktop-client`, `feat/implement-bilingual-landing`, `docs/document-private-release`.
 
 ## Stage 5 — Stabilization
 
@@ -111,13 +113,13 @@ At stage entry, specify credential transfer/recovery, native auth redirects, bac
 
 Develop a Rust/Ratatui client. Define its text, moderation, and voice-control scope at stage entry, including the media/audio implementation and credential storage.
 
-**Completion gate:** the declared terminal feature set passes the same protocol and authorization contracts as other clients. Do not equate Ratatui with a GPUI graphical application.
+**Completion gate:** the declared terminal feature set passes the same protocol and authorization contracts as other clients.
 
 ## Stage 8 — Native macOS client
 
-Develop the dedicated Swift macOS application using the established protocol and product behavior. Decide migration from Electron, local identity transfer, and supported macOS versions at stage entry.
+Develop the dedicated Swift macOS application using the established protocol and product behavior. Decide the transition from Electron, local identity transfer, and supported macOS versions at stage entry.
 
-**Completion gate:** native client core scenarios, media behavior, packaging, and migration expectations are verified before recommending replacement of Electron.
+**Completion gate:** verify core scenarios, media behavior, package installation, and the documented transition before replacing Electron on macOS.
 
 ## Later feature backlog
 

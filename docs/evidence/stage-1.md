@@ -1,6 +1,18 @@
 # Stage 1 implementation checkpoint
 
-Date: 2026-09-29. Source: `feat/implement-first-conversation`, based on foundation commit `633f439`. **Implemented for review; the Stage 1 acceptance gate has not passed.** No 0.5.0 release is claimed. Stages 2–8 have not started. The approved Stage 0–8 plan is authoritative; the retired roadmap's F01–F05 version mapping is not silently reused.
+The conversation implementation was squash-merged as `ee997fc` in [PR #28](https://github.com/MrDeex1k/Yapper/pull/28) on 2026-09-29. The results below distinguish the merged implementation from the acceptance checks required by the [implementation plan](../implementation-plan.md).
+
+## Current status
+
+Stage 1 is accepted by the maintainer as of 2026-11-21. The conversation implementation and [dependency refresh](dependency-refresh-2026-11-21.md) form the baseline for Stage 2.
+
+## Acceptance run — 2026-11-21
+
+- The LAN call used the Stage 1 server and Web renderer from `56d9bb7` in an isolated Compose project on macOS arm64 with PostgreSQL 19 and LiveKit 1.13.11. Brave on macOS and Electron 45.4.1 on Windows x64 joined the same room. LiveKit recorded both clients active over UDP, with a published audio track from each client.
+- The Windows run used the updated Electron startup path from `b312ae5`. This Stage 1 revision includes the same startup fix and keeps the Stage 1 renderer and media permission rules. The fix defers startup until the ESM entry point has loaded and clears an inherited `ELECTRON_RUN_AS_NODE` in the development launcher.
+- The maintainer confirmed the checks requested after the LAN run passed, including speech in both directions, direct UDP outside the LAN, TURN/TLS fallback, and recovery after disconnect. This confirmation was reported separately from the observed LAN run. The public host, client versions and selected ICE pair were not supplied for that follow-up.
+- The final local tree passed a frozen pnpm installation, `pnpm check`, the disposable AUTH and Go integration suite, the Compose setup/chat/persistence smoke test, the native macOS Electron join and credential restore smoke test, and `pnpm test:turn` against isolated containers.
+- Final signing, packaging, and the Windows/Linux GPUI clients are covered by later stages. Earlier sections below retain the scope and outcomes of their dated runs.
 
 ## Implemented behavior
 
@@ -24,13 +36,13 @@ Environment: macOS 27.0.1 arm64, Node 24.20.0, pnpm 12.6.0, Bun 1.4.2, Go 1.27.1
 - Browser inspection exercised owner login, message send/history after restart and connection status. LiveKit joined the voice room in the browser. Microphone capture and two-person speech were not tested.
 - Electron gateway tests passed for origin/TLS restrictions, gateway authentication, renderer cookie isolation, independent server cookie jars and persisted restore. An unsigned macOS arm64 development bundle was built using Electron Packager. Native application inspection timed out; a successful build does not prove native startup, microphone permissions or OS credential persistence.
 
-## Remaining acceptance gates
+## Acceptance gaps at the initial checkpoint
 
 1. Verify public trusted HTTPS, advertised media address, firewall/UDP reachability and TURN fallback. The optional TURN configuration has isolated local protocol evidence below; public deployment remains unverified. The HTTP smoke override cannot prove these properties.
 2. Complete a fresh-install scenario with two real clients exchanging text and speaking with real microphones. Exercise mute/deafen, denied permissions, network interruption and reconnect without duplicate voice sessions.
 3. Test the packaged Electron client on Windows and macOS, including OS encryption, server-origin changes, login/session persistence and microphone permissions. Apple signing/notarization is not configured; Windows signing is unavailable.
 4. Stale voice-leave/reconciliation versus replacement sessions and active registered-user revocation now have regression evidence below. Real client interruption/reconnect scenarios still require platform testing.
-5. Complete code review and record the required local checks for this PR. Further rate limits, recovery, diagnostics, operational readiness and load gates remain Stage 3 work, not delivered production guarantees.
+5. The PR was still under review at this checkpoint. Its merge and the later checks are reflected in the current status above. Further rate limits, recovery, diagnostics and load tests are Stage 3 work.
 
 Open admission controls, channel/category management, moderator provisioning, message edit/delete/retention, full device controls and saved-server management remain Stage 2. The local client is not yet the complete first private release.
 

@@ -1,6 +1,6 @@
 # Initial protocol contract
 
-Status: initial conversation endpoints are implemented for Stage 1 review. The authoritative HTTP schema is [`packages/api/openapi.json`](../packages/api/openapi.json); generated TypeScript types are checked with `pnpm check:api`. Protocol version is `v1`. A successful identity probe does not grant community permissions.
+The initial conversation endpoints are implemented in Stage 1. The authoritative HTTP schema is [`packages/api/openapi.json`](../packages/api/openapi.json). `pnpm check:api` checks the generated TypeScript types. The protocol version is `v1`. A successful identity probe does not grant community permissions.
 
 ## Implemented HTTP boundary
 
@@ -20,3 +20,7 @@ A message send includes a client-generated UUID request ID. The unique key is `(
 WebSocket envelopes use `{ "version": 1, "type": "...", "payload": {...} }`. Implemented events are `ready` and `message.created`; revocation closes the connection. Participant-change events remain planned. Durable message state is reconciled from HTTP history on reconnect; presence is replaced by a fresh snapshot. Bound frames, write queues and idle time. Disconnect slow consumers instead of accumulating unbounded buffers.
 
 The shared API package exports generated transport types. Web and Go workspace dependencies include the contract in Turbo invalidation. `POST /api/v1/voice/leave` accepts an optional media identity so stale cleanup does not revoke a replacement session.
+
+## Planned Rust desktop conformance
+
+The Windows and Linux GPUI client uses the same public HTTP resources, WebSocket event version, and Go-gated LiveKit signaling as Web and macOS Electron. The Stage 2 prototype defines and verifies native session and origin handling, including guest admission, AUTH login/logout, WebSocket tickets, and signaling. Document compatibility changes and verify them across those clients, preserving browser origin protections and server-side authorization.

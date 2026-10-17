@@ -10,8 +10,8 @@ if (generated.status !== 0) {
   process.exit(1);
 }
 const formatted = spawnSync(
-  "pnpm",
-  ["exec", "oxfmt", "--stdin-filepath", "packages/api/src/generated.ts"],
+  "bun",
+  ["fmt", "--flavor", "oxfmt", "--stdin-filepath", "packages/api/src/generated.ts"],
   { input: generated.stdout, encoding: "utf8" },
 );
 if (formatted.status !== 0) {

@@ -11,14 +11,14 @@
   "scripts": {
     "build": "tsc --noEmit false --outDir dist && tsc -p tsconfig.scripts.json --noEmit false && node scripts/copy-renderer.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
-    "start": "electron .",
+    "start": "node scripts/start.ts",
     "test": "tsc --noEmit false --outDir .test-build && node --test .test-build/gateway.test.js .test-build/preview.test.js"
   },
   "dependencies": {
-    "tough-cookie": "6.0.2"
+    "tough-cookie": "6.1.0"
   },
   "devDependencies": {
     "@yapper/web": "workspace:*",
-    "electron": "44.4.5"
+    "electron": "45.4.1"
   }
 }

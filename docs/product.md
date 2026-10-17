@@ -13,7 +13,7 @@ The initial acceptance workload is 100 stored participant identities/accounts, 3
 ## Joining and identity
 
 - The browser client is served by the community's own installation and already knows its server address.
-- Electron accepts a domain or IP address with an optional port. Address entry does not imply that insecure HTTP or invalid TLS certificates are supported. Public deployment uses a trusted HTTPS endpoint.
+- The desktop client accepts a domain or IP address with an optional port. Public installations require trusted HTTPS, including valid certificates for the address users enter.
 - A participant enters a nickname without creating an account or password. The client receives a persistent identity scoped to this installation.
 - Nicknames are changeable display labels, not identity proofs. Messages and permissions reference immutable server-side identifiers.
 - Losing client data creates a new guest identity. Reusing the same nickname does not restore message ownership or permissions. The application explains this limitation.
@@ -50,7 +50,7 @@ Bans target persistent identities. Optional IP blocking and admission/message ra
 
 The first release includes voice channels, microphone/device selection where supported by the platform, per-participant volume, self-mute, deafen, speaking indicators, foreground push-to-talk, and reconnect after short network interruptions.
 
-Global push-to-talk in Electron is a separate platform verification item. Do not advertise it as supported until tested on both Windows and macOS, including relevant OS permissions. Any device-control limitation must be represented in the UI and platform support report.
+Global push-to-talk is verified separately on each desktop platform, including relevant OS permissions. Document support where testing proves it works. Any device-control limitation must be represented in the UI and platform support report.
 
 One client has at most one active voice conversation. Joining a different conversation leaves the previous one. Saved servers use independent identities. Persistent background chat connections to other servers are outside the initial release.
 
@@ -65,12 +65,13 @@ Code, documentation, branch names, and commit titles are English. Application UI
 The initial supported products are:
 
 - Responsive Web on desktop and mobile, including desktop Safari, Chrome/Edge, Firefox, Safari on iOS/iPadOS, and Chrome on Android.
-- Electron on Windows and macOS, sharing the React application with Web.
+- A native Rust application with a GPUI interface on Windows and Linux, using the same server contract as Web.
+- Electron on macOS, using the shared React interface for the first private release.
 - An independent Astro project landing page containing product information, installation guidance, and download links. A self-hosted community opens the communicator directly.
 
-Exact OS/browser versions and CPU architectures are pinned in the first release matrix during platform validation. Unverified combinations are not claimed as supported.
+Record supported OS/browser versions, CPU architectures, and Linux distributions or desktop sessions in the first-release platform matrix after validation.
 
-After stabilization, the roadmap is native Swift clients for iOS/iPadOS and Kotlin/Jetpack Compose clients for Android phones/tablets, then Rust/Ratatui TUI, then a dedicated Swift macOS client. GPUI and Electron Linux are not current delivery commitments. The TUI's precise voice and accessibility capabilities are scoped when that stage starts.
+After stabilization, the roadmap is native Swift clients for iOS/iPadOS and Kotlin/Jetpack Compose clients for Android phones/tablets, then a Rust/Ratatui terminal client, then a dedicated Swift macOS client to replace Electron. The terminal client's precise voice and accessibility capabilities are scoped when that stage starts.
 
 ## Privacy and distribution
 

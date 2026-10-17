@@ -2,7 +2,7 @@
 
 Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
 
-**Status:** foundation merged in PR #27 with recorded local verification; Stage 1 conversation implementation is under review and acceptance testing. Real-device voice, public network deployment and native Electron behavior remain unverified. See [Stage 1 evidence](docs/evidence/stage-1.md).
+**Stage 1 is complete.** The foundation and first conversation are implemented. Stage 2 is in progress on its feature branch. See the [Stage 1 acceptance record](docs/evidence/stage-1.md#acceptance-run--2026-11-21).
 
 Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
 
@@ -16,13 +16,13 @@ Each installation is an independent community, operated through one Docker Compo
 - [Approved toolchain](docs/toolchain.md): pnpm, Turborepo, standard Vite, Bun runtime boundaries, and multi-language integration.
 - [Operations](docs/operations.md): planned installation, updates, backups, diagnostics, and history reset procedure.
 
-The plan was approved on 2026-09-28. Stages are based on completion criteria, without weekly deadlines. Technical defaults are implementation proposals within the approved architecture; changes to product scope, trust boundaries, or hosting requirements must be recorded explicitly.
+The initial plan was approved on 2026-09-28. The [native desktop decision](docs/architecture.md#native-desktop-direction) updates that plan. Each stage has explicit completion criteria. Record changes to product scope, trust boundaries, or hosting requirements in the relevant specification.
 
-## First release
+## Planned first private release
 
-The first private release provides text and voice channels, persistent message history, invitations, moderation, and local administration. A responsive React client supports desktop and mobile browsers; Electron supports Windows and macOS. An Astro landing page supports Polish and English.
+The first private release is planned to include text and voice channels, persistent message history, invitations, moderation, and local administration. The target clients are desktop and mobile browsers, Rust/GPUI on Windows and Linux, and Electron on macOS. The Astro landing currently has Polish and English status pages. Download links and installation guidance are part of release preparation.
 
-Native mobile clients, a Rust terminal client, and a native macOS client follow after the first release is stabilized. Additional communication features are prioritized from real usage.
+Native mobile clients, a Rust terminal client, and a dedicated Swift macOS client follow after the first release is stabilized. Additional communication features are prioritized from real usage.
 
 ## Local development
 

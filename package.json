@@ -10,8 +10,8 @@
     "typecheck": "pnpm typecheck:scripts && node scripts/tasks.ts typecheck",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "lint": "oxlint --deny-warnings .",
-    "format": "oxfmt --write . && prettier --plugin=prettier-plugin-astro --write \"apps/landing/**/*.astro\"",
-    "format:check": "oxfmt --check . && prettier --plugin=prettier-plugin-astro --check \"apps/landing/**/*.astro\"",
+    "format": "bun fmt --flavor oxfmt . && prettier --plugin=prettier-plugin-astro --write \"apps/landing/**/*.astro\"",
+    "format:check": "bun fmt --flavor oxfmt --check . && prettier --plugin=prettier-plugin-astro --check \"apps/landing/**/*.astro\"",
     "check": "pnpm format:check && pnpm lint && pnpm check:api && pnpm typecheck && pnpm test && pnpm build",
     "test:integration": "bun --env-file=.env apps/auth/test/integration.ts && pnpm test:server",
     "setup:dev": "node scripts/setup-dev.ts",
@@ -26,19 +26,18 @@
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
-    "@shadcn/lint": "0.2.0",
-    "@types/bun": "1.4.2",
-    "@types/node": "24.10.1",
-    "oxfmt": "0.70.0",
-    "oxlint": "1.85.0",
-    "prettier": "3.9.9",
-    "prettier-plugin-astro": "1.1.0",
-    "turbo": "2.11.4",
+    "@shadcn/lint": "0.2.5",
+    "@types/bun": "1.4.5",
+    "@types/node": "26.6.6",
+    "oxlint": "1.94.0",
+    "prettier": "3.10.1",
+    "prettier-plugin-astro": "1.1.2",
+    "turbo": "2.11.13",
     "typescript": "7.0.2"
   },
   "engines": {
-    "node": ">=24.20.0 <25",
-    "pnpm": "12.6.0"
+    "node": ">=26.13.1 <27",
+    "pnpm": "12.21.0"
   },
-  "packageManager": "pnpm@12.6.0"
+  "packageManager": "pnpm@12.21.0"
 }

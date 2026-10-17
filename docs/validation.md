@@ -1,6 +1,8 @@
 # Validation and release evidence
 
-Status: acceptance scenarios below remain requirements. Executed foundation checks and limitations are recorded in [Stage 0 evidence](evidence/stage-0.md). The [Stage 1 checkpoint](evidence/stage-1.md) records conversation tests and outstanding real-device/network gates. Do not interpret this checklist as proof of product completion.
+Stages 0 and 1 have passed their acceptance gates. The first private release covers GPUI on Windows and Linux and Electron on macOS. See the [Stage 0 evidence](evidence/stage-0.md) and the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21).
+
+The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the current version baseline and compatibility exceptions. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
 
 ## Evidence format
 
@@ -11,7 +13,7 @@ For each implementation gate, record the source revision, image/package versions
 | Area          | Required evidence                                                                                                                   |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Owner setup   | Host-obtained setup token creates one owner; expired/reused tokens and unauthorized setup fail                                      |
-| Accounts      | Owner/moderator login, logout, recovery, and revoked sessions behave consistently in Web and Electron                               |
+| Accounts      | Owner/moderator login, logout, recovery, and revoked sessions behave consistently in Web and all first-release desktop clients      |
 | JWT/JWKS      | Valid token accepted; wrong issuer/audience/algorithm, expiry, unknown key rejected; rotation and cache behavior tested             |
 | Guests        | Nickname admission creates stable per-server identity; reopening preserves it; clearing client data cannot recover it by nickname   |
 | Invitations   | Closed mode rejects uninvited admission; concurrent redemption respects use limits; expiry/revocation prevent new admission         |
@@ -48,20 +50,27 @@ Before executing the acceptance run, set quantitative latency/reconnect/resource
 
 At Stage 0, populate exact versions, CPU architectures, and available test devices. At Stage 4, every claimed platform needs recorded evidence.
 
-| Surface                                   | Required checks                                                                                      |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Desktop Web: Chrome/Edge, Firefox, Safari | Joining, accounts, chat, foreground voice, permissions, reconnect, EN/PL                             |
-| iPhone/iPad Safari                        | Responsive layouts, touch controls, keyboard behavior, foreground chat/voice, microphone permissions |
-| Android phone/tablet Chrome               | Same mobile scenarios, including real microphone and output routing behavior                         |
-| Electron Windows                          | Clean install/start, per-server credentials, microphone, foreground PTT, updates, uninstall behavior |
-| Electron macOS                            | Same desktop scenarios plus signing/notarization status and OS permission handling                   |
+| Surface                                   | Required checks                                                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Desktop Web: Chrome/Edge, Firefox, Safari | Joining, accounts, chat, foreground voice, permissions, reconnect, EN/PL                                       |
+| iPhone/iPad Safari                        | Responsive layouts, touch controls, keyboard behavior, foreground chat/voice, microphone permissions           |
+| Android phone/tablet Chrome               | Same mobile scenarios, including real microphone and output routing behavior                                   |
+| GPUI on Windows                           | Clean install, per-server credentials, microphone, recovery, keyboard navigation, EN/PL, updates and uninstall |
+| GPUI on Linux                             | Same desktop scenarios on supported distributions and desktop sessions, with package and audio routing checks  |
+| Electron on macOS                         | Same desktop scenarios plus signing/notarization status and OS permission handling                             |
 
-Global Electron push-to-talk and mobile background audio are separately reported capabilities. Global push-to-talk is not claimed without platform evidence; uninterrupted mobile background audio is outside the first release guarantee. Browser-specific inability to select an audio output must be surfaced rather than hidden behind a nonfunctional control.
+Record global desktop push-to-talk and mobile background audio separately. Foreground push-to-talk is the release baseline. Document which platforms support global push-to-talk and surface audio output selection limitations in the client. The first release targets mobile voice while the page is active.
+
+## Desktop acceptance
+
+- At Stage 2, record GPUI and Rust versions, OS and architecture, native session and origin handling, and a two-way test call through the Go signaling endpoint on Windows and Linux. Record the tested Linux distribution and desktop session, along with any build or audio limitations.
+- At Stage 4, validate the installed GPUI packages on Windows and Linux and the Electron package on macOS against the same server contract as Web. Verify foreground push-to-talk, microphone permission denial and recovery, device selection where supported, direct media and TURN/TLS, reconnect, and moderation during a call.
+- Switch between two saved servers and restart each app. Verify that credentials and participant identities stay isolated and that the previous voice session closes. On Windows and Linux, exercise the documented transition from Electron development profiles and verify any claimed guest identity preservation.
 
 ## First private release checklist
 
 - [ ] Stages 0–3 have evidence for all mandatory gates.
-- [ ] Windows/macOS packages and required Web/device combinations have been tested.
+- [ ] GPUI packages on Windows and Linux and the Electron package on macOS pass desktop acceptance. Required Web/device combinations have been tested.
 - [ ] Core conversation has been tested with real participants, not only simulated media.
 - [ ] Installation, upgrade, backup, and restore instructions match the delivered artifacts.
 - [ ] EN and PL are complete for the application and landing.

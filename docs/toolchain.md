@@ -4,20 +4,26 @@ Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH
 
 ## Tool ownership
 
-| Layer                 | Tool                                   | Responsibility                                             |
-| --------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| JS/TS dependencies    | pnpm                                   | Workspace linking, installation, lockfile                  |
-| Repository tasks      | Turborepo                              | Ordering, parallelism, filtering, task-result cache        |
-| React client          | Vite                                   | Development server and production browser/renderer bundles |
-| Landing               | Astro CLI                              | Astro development/build pipeline                           |
-| AUTH execution        | Bun                                    | Elysia 2 Beta and Better Auth runtime                      |
-| Tooling execution     | Pinned supported Node.js               | Frontend tooling and desktop packaging where expected      |
-| Desktop execution     | Electron                               | Its bundled Chromium/Node runtime                          |
-| Quality               | Oxlint, Oxfmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy            |
-| Backend/native builds | Go, later Cargo, Xcode and Gradle      | Language-specific compilation and dependencies             |
-| Deployed services     | Docker Compose                         | Runtime lifecycle and networking                           |
+| Layer                 | Tool                                     | Responsibility                                             |
+| --------------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| JS/TS dependencies    | pnpm                                     | Workspace linking, installation, lockfile                  |
+| Repository tasks      | Turborepo                                | Ordering, parallelism, filtering, task-result cache        |
+| React client          | Vite                                     | Development server and production browser/renderer bundles |
+| Landing               | Astro CLI                                | Astro development/build pipeline                           |
+| AUTH execution        | Bun                                      | Elysia 2 RC and Better Auth runtime                        |
+| Tooling execution     | Pinned supported Node.js                 | Frontend tooling and repository scripts                    |
+| Electron desktop      | Electron                                 | Stage 1 development and first release on macOS             |
+| Planned Rust desktop  | Rust, Cargo, GPUI                        | Native desktop builds and UI on Windows and Linux          |
+| Planned Swift desktop | Swift, Xcode                             | Native macOS client in Stage 8                             |
+| Quality               | Oxlint, Bun fmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy            |
+| Backend/mobile builds | Go, later Xcode and Gradle               | Language-specific compilation and dependencies             |
+| Deployed services     | Docker Compose                           | Runtime lifecycle and networking                           |
 
-pnpm's `run`/`exec` may launch a local command; that does not make pnpm an application runtime. Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser, and Electron does not become a Bun application.
+Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser. The current desktop development client uses the Electron runtime.
+
+## Planned Rust desktop toolchain
+
+At the Stage 2 prototype, pin the Rust toolchain and GPUI dependency, commit the application's Cargo lockfile, and record the Windows and Linux build prerequisites. Cargo owns Rust dependencies and compilation. Choose any Turbo integration after verifying task discovery, cache invalidation, and artifact restoration on the target platforms. Include the Rust toolchain and target in the cache identity. Select Windows and Linux packaging commands during Stage 4.
 
 Pin pnpm, Node, Bun, Go, and build-tool versions independently. Use `pnpm-workspace.yaml` with `apps/*`, `packages/*`, and `server` when using its wrapper described below. Use `workspace:*` for local JS/TS dependencies. Commit one pnpm lockfile; retain language-native manifests such as `go.mod`/`go.sum`. Do not run `bun install` or generate a second JS lockfile. Disable Bun runtime auto-install so missing dependencies fail instead of bypassing pnpm's resolved graph. Reproducible local verification installs through `pnpm install --frozen-lockfile`.
 
@@ -29,11 +35,11 @@ Its `vp run` supports workspace dependency ordering and caching. That overlaps w
 
 | Option                                    | Assessment for Yapper                                                                                                           |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Vite + standalone Oxc tools + Turbo       | Selected: explicit roles and independent upgrades; more configuration to maintain                                               |
+| Vite + standalone Oxc tools + Turbo       | Selected at Stage 0 for explicit roles and independent upgrades                                                                 |
 | Vite+ as local frontend toolchain + Turbo | Not selected: integrated commands require additional compatibility checks and separation of repository caching responsibilities |
 | Vite+ replacing Turbo                     | Not selected for the requested mixed-language orchestration                                                                     |
 
-The decision is based on integration cost, not a measured speed advantage. Adopting Vite+ would require a separate documented toolchain decision and compatibility verification for Astro, Electron, TypeScript checks, and `@shadcn/lint`. The current implementation uses standard Vite and standalone Oxc tools, with Turbo as the repository task scheduler.
+The decision is based on integration cost. Adopting Vite+ would require a separate documented toolchain decision and compatibility verification for the JS/TS workspace, including Astro, TypeScript checks, and `@shadcn/lint`. Stage 1 switches formatting to Bun. The repository uses standalone Oxlint for linting, Vite for Web builds, and Turbo for task scheduling.
 
 ## Turborepo and other languages
 
@@ -41,7 +47,7 @@ Turborepo 2.11, released September 18, 2026, adds experimental native discovery 
 
 For the initial single Go module, use a small private `server/package.json` task adapter, included in pnpm's workspace. It exposes commands such as `go test ./...`, `go vet ./...`, and an explicit binary build to a declared output directory. Go still owns compilation and module dependencies. This uses the documented generic integration mechanism. [Multi-language guide](https://turborepo.dev/docs/guides/multi-language)
 
-Alternatively, Stage 0 can evaluate native Go discovery with a root `go.work` and `experimentalGoWorkspaces` on a pinned release. Validate package discovery, artifact restoration, filtering, and cross-language dependencies first. Choose one discovery mechanism per project; avoid registering the same module through both mechanisms. Revisit Cargo integration when the TUI stage starts. Swift and Kotlin tasks can later call native build tools on appropriate local build machines without requiring native graph discovery.
+Alternatively, Stage 0 can evaluate native Go discovery with a root `go.work` and `experimentalGoWorkspaces` on a pinned release. Validate package discovery, artifact restoration, filtering, and cross-language dependencies first. Choose one discovery mechanism per project. Evaluate Cargo integration with the GPUI prototype. Swift and Kotlin tasks can later call native build tools on appropriate local build machines.
 
 ## Task graph and cache correctness
 

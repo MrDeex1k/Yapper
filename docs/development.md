@@ -8,8 +8,8 @@ Current monorepo layout; exact packages are listed by pnpm:
 
 ```text
 apps/web/          React application and administration UI
-apps/desktop/      Electron main/preload processes and packaging
-apps/auth/         Bun, Elysia 2 Beta, Better Auth
+apps/desktop/      Electron client and smoke tooling (macOS release target)
+apps/auth/         Bun, Elysia 2 RC, Better Auth
 apps/landing/      Astro project website
 packages/ui/      Shared design-system components
 packages/i18n/    Shared UI translations and locale helpers
@@ -20,16 +20,16 @@ scripts/          Development and operational commands
 docs/             Specifications, plans, and decision records
 ```
 
-Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun remains the AUTH runtime, not the package manager. Turborepo orchestrates repository tasks; standard Vite builds the React client. See [Approved toolchain](toolchain.md) for tool ownership, runtime boundaries, and Go integration. Add future native clients only when their stage starts.
+Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun runs AUTH, Turborepo orchestrates repository tasks, and Vite builds the React client. Consult the [approved toolchain](toolchain.md#planned-rust-desktop-toolchain) when adding the Rust desktop prototype or its build tasks. Add native client source when its implementation stage starts.
 
-Repository scripts and Astro configuration use TypeScript. Node 24 executes `.ts` scripts through native type stripping; `pnpm typecheck:scripts` checks them with strict types and `erasableSyntaxOnly`, and is included in `pnpm typecheck`/`pnpm check`. Type stripping does not perform type checking. Preload and native Electron smoke sources use `.cts` and are compiled to CommonJS for Electron. The smoke harness is emitted into ignored `.test-tools/`, outside the application's package allowlist; the preload is emitted into `dist/preload.cjs`. Both are checked by the desktop type-check command. Do not commit generated JavaScript.
+Repository scripts and Astro configuration use TypeScript. Node 26 executes `.ts` scripts through native type stripping; `pnpm typecheck:scripts` checks them with strict types and `erasableSyntaxOnly`, and is included in `pnpm typecheck`/`pnpm check`. Type stripping does not perform type checking. Preload and native Electron smoke sources use `.cts` and are compiled to CommonJS for Electron. The smoke harness is emitted into ignored `.test-tools/`, outside the application's package allowlist; the preload is emitted into `dist/preload.cjs`. Both are checked by the desktop type-check command. Do not commit generated JavaScript.
 
 ## Required skills and documentation
 
 These workflow requirements were requested by the owner on 2026-09-29. Resolve skills through the current agent skill catalog rather than hard-coding one machine's plugin-cache paths.
 
-- **Interfaces — `frontend-skill`:** read and apply it before creating or substantially changing the Web client, Electron renderer, administration UI, or Astro landing. Before implementation, state a visual thesis, content/layout plan, and interaction thesis. Use its application-specific guidance for working surfaces and landing-specific guidance for the marketing page. Preserve Base UI components, EN/PL copy, keyboard accessibility, and reduced-motion preferences.
-- **Current library documentation — Context7:** resolve the library ID, then query the relevant API or integration for the project's pinned version. Verify version coverage, particularly for Elysia 2 Beta; a returned example is not proof that it applies to the installed version. If coverage is missing or outdated, consult official documentation, release notes, or source and record the gap. Keep secrets and private project data out of external documentation queries.
+- **Interfaces — `frontend-skill`:** apply it before creating or substantially changing an application interface or the Astro landing. Before implementation, state a visual thesis, content/layout plan, and interaction thesis. Use the relevant guidance for application interfaces or the landing page. Preserve EN/PL copy, keyboard accessibility, and reduced-motion preferences across clients. Preserve Base UI components in React.
+- **Current library documentation — Context7:** resolve the library ID, then query the relevant API or integration for the project's pinned version. Verify version coverage, particularly for Elysia 2 RC. If coverage is missing or outdated, consult official documentation, release notes, or source and record the gap. Keep secrets and private project data out of external documentation queries.
 - **Go idioms — `modern-go-guidelines:use-modern-go`:** before writing, modifying, fixing, or refactoring Go code, run the skill wrapper's `list` command for the target file or established Go version. Read its complete, unfiltered output. Use `explain` for specific guideline IDs when needed, including before skipping an apparently relevant guideline. Follow the version-specific guidance; this check does not replace compilation and tests.
 - **Go engineering — `engineering-skills-for-go`:** read the skill matching the actual work before applying its workflow. Use the routing table below rather than loading all skills for every Go edit.
 
@@ -65,8 +65,8 @@ When repository configuration is implemented, enable squash merging, disable mer
 
 ## JavaScript and TypeScript quality
 
-- Oxlint is the JS/TS linter for AUTH, Web, Electron, shared packages, and applicable landing source.
-- Oxfmt is the formatter for supported source/configuration files. Verify `.astro` support in the pinned version; document any narrowly scoped Astro formatter instead of claiming unsupported coverage.
+- Run `pnpm lint` for AUTH, Web, Electron, shared packages, and supported landing source. It runs Oxlint with warnings treated as errors. See the [Stage 1 tooling evidence](evidence/dependency-refresh-2026-11-21.md#bun-tooling-follow-up) for the Bun lint evaluation.
+- Run `pnpm format` to format files and `pnpm format:check` to check them. Both use `bun fmt` with the repository's existing formatting style. Prettier with the Astro plugin handles `.astro` files.
 - `@shadcn/lint` enforces UI design-system rules through Oxlint. It applies to UI consumers, not unrelated AUTH backend code.
 - Begin with centralized tokens, static classes, and component variants. Enable rules such as `no-restyle`, `no-raw-colors`, `no-arbitrary-values`, and `require-static-classes` after verifying compatible configuration. Scope exceptions to design-system internals where necessary.
 - Use shadcn/ui's Base UI variant consistently. Keep application-specific variants in the shared UI package.
@@ -85,15 +85,15 @@ Local JS/TS verification checks formatting, lint, types, translation parity, and
 
 Use browser end-to-end tests for setup, joining, chat, roles, and language switching. Media verification includes real devices and actual microphone/network behavior; fake media and browser automation alone are insufficient.
 
-Build container images and validate Compose configuration. Build Electron packages on the corresponding Windows and macOS machines. Publish artifacts only through an explicitly authorized release procedure. Versions and image references are pinned; runtime manifests must not depend on a moving `latest` tag.
+Build container images and validate Compose configuration. For desktop packaging work, build GPUI for Windows and Linux and Electron for macOS. Verify clean installation using the [desktop acceptance criteria](validation.md#desktop-acceptance). Publish artifacts only through an explicitly authorized release procedure. Pin versions and image references.
 
 For each PR, state the resulting behavior, relevant tests and evidence, migration impact, and any remaining platform limits. A skipped or unavailable check is reported as unverified.
 
-## Native desktop smoke test
+## Current Electron smoke test
 
 After `pnpm build` and installing the pinned Electron runtime, run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.ts`.
 
-The command starts the actual Electron entry point twice with an isolated temporary profile. It checks sandbox/context isolation, lack of renderer Node access, guest admission, cookie isolation, encrypted on-disk state, selected-server/identity restoration across process restart, and the rendered conversation after reload. Each process has a 30-second hard deadline. Temporary local credentials/profile files are removed on completion or failure; the admitted test participant remains on the disposable server.
+The command starts the actual Electron entry point twice with an isolated temporary profile. The harness uses an Electron-version-specific application name so unsigned development runtimes do not share the generic Electron Keychain entry. It checks sandbox/context isolation, lack of renderer Node access, guest admission, cookie isolation, encrypted on-disk state, selected-server/identity restoration across process restart, and the rendered conversation after reload. Each process has a 30-second hard deadline. Temporary local credentials/profile files are removed on completion or failure; the admitted test participant remains on the disposable server.
 
 This explicit local test is not a cached Turbo task and is not part of `pnpm check`. It does not capture a microphone or prove packaging, signing, public HTTPS, real voice or Windows behavior when run on macOS. The test harness is outside the desktop package's `files` allowlist.
 
