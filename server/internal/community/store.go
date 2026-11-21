@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	ErrMessageGone   = errors.New("message unavailable")
 	ErrDenied        = errors.New("access denied")
 	ErrConflict      = errors.New("conflict")
 	ErrNotConfigured = errors.New("not configured")
@@ -41,14 +42,16 @@ type Channel struct {
 	Archived   bool   `json:"archived"`
 }
 type Message struct {
-	ID        string    `json:"id"`
-	Sequence  int64     `json:"sequence"`
-	ChannelID string    `json:"channelId"`
-	AuthorID  string    `json:"authorId"`
-	Nickname  string    `json:"nickname"`
-	RequestID string    `json:"requestId"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        string     `json:"id"`
+	Sequence  int64      `json:"sequence"`
+	ChannelID string     `json:"channelId"`
+	AuthorID  string     `json:"authorId"`
+	Nickname  string     `json:"nickname"`
+	RequestID string     `json:"requestId"`
+	Body      string     `json:"body"`
+	CreatedAt time.Time  `json:"createdAt"`
+	EditedAt  *time.Time `json:"editedAt,omitempty"`
+	Revision  int64      `json:"revision"`
 }
 type State struct {
 	Name          string `json:"name"`
@@ -184,62 +187,4 @@ func owner(ctx context.Context, tx pgx.Tx, id string) error {
 		return ErrDenied
 	}
 	return err
-}
-func (s *Store) Send(ctx context.Context, actor, channel, requestID, body string) (Message, bool, error) {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return Message{}, false, err
-	}
-	defer tx.Rollback(ctx)
-	var nickname string
-	if err = tx.QueryRow(ctx, "SELECT nickname FROM participants WHERE id=$1 AND NOT banned FOR SHARE", actor).Scan(&nickname); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			err = ErrDenied
-		}
-		return Message{}, false, err
-	}
-	// Serialize sends within a channel so a committed cursor cannot skip a later
-	// commit with a previously allocated smaller sequence number.
-	var channelID string
-	if err = tx.QueryRow(ctx, "SELECT id::text FROM channels WHERE id=$1 AND kind='text' AND NOT archived FOR UPDATE", channel).Scan(&channelID); err != nil {
-		return Message{}, false, ErrDenied
-	}
-	var m Message
-	row := tx.QueryRow(ctx, "INSERT INTO messages(id,channel_id,author_id,request_id,body) VALUES($1,$2,$3,$4,$5) ON CONFLICT(author_id,request_id) DO NOTHING RETURNING id::text,sequence,channel_id::text,author_id::text,request_id::text,body,created_at", uuid.New().String(), channel, actor, requestID, body)
-	fresh := true
-	err = scanMessage(row, &m)
-	if errors.Is(err, pgx.ErrNoRows) {
-		fresh = false
-		err = scanMessage(tx.QueryRow(ctx, "SELECT id::text,sequence,channel_id::text,author_id::text,request_id::text,body,created_at FROM messages WHERE author_id=$1 AND request_id=$2", actor, requestID), &m)
-	}
-	if err != nil {
-		return Message{}, false, err
-	}
-	if m.ChannelID != channel || m.Body != body {
-		return Message{}, false, ErrConflict
-	}
-	m.Nickname = nickname
-	if err = tx.Commit(ctx); err != nil {
-		return Message{}, false, err
-	}
-	return m, fresh, nil
-}
-func scanMessage(row pgx.Row, m *Message) error {
-	return row.Scan(&m.ID, &m.Sequence, &m.ChannelID, &m.AuthorID, &m.RequestID, &m.Body, &m.CreatedAt)
-}
-func (s *Store) History(ctx context.Context, channel string, after int64) ([]Message, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT m.id::text,m.sequence,m.channel_id::text,m.author_id::text,m.request_id::text,m.body,m.created_at,p.nickname FROM messages m JOIN participants p ON p.id=m.author_id WHERE m.channel_id=$1 AND m.sequence>$2 ORDER BY m.sequence LIMIT 100`, channel, after)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := []Message{}
-	for rows.Next() {
-		var m Message
-		if err = rows.Scan(&m.ID, &m.Sequence, &m.ChannelID, &m.AuthorID, &m.RequestID, &m.Body, &m.CreatedAt, &m.Nickname); err != nil {
-			return nil, err
-		}
-		result = append(result, m)
-	}
-	return result, rows.Err()
 }

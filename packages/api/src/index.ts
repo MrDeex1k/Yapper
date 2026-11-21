@@ -20,3 +20,7 @@ export type ModerationAction = components["schemas"]["ModerationAction"];
 export type ModeratorInput = components["schemas"]["ModeratorInput"];
 export type ModerationAudit = components["schemas"]["ModerationAudit"];
 export type VoiceGrant = components["schemas"]["VoiceGrant"];
+export type HistoryPage = components["schemas"]["HistoryPage"];
+export type MessageChanges = components["schemas"]["MessageChanges"];
+export type MessageEdit = components["schemas"]["MessageEdit"];
+export type MessageRetention = components["schemas"]["MessageRetention"];

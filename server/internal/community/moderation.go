@@ -58,6 +58,7 @@ type AuditEvent struct {
 	TargetID  string    `json:"targetId"`
 	IPBlocked bool      `json:"ipBlocked"`
 	CreatedAt time.Time `json:"createdAt"`
+	MessageID *string   `json:"messageId,omitempty"`
 }
 
 func staff(ctx context.Context, tx pgx.Tx, id string) (string, error) {
@@ -101,7 +102,7 @@ func (s *Store) Audit(ctx context.Context, actor string) ([]AuditEvent, error) {
 		if _, err := staff(ctx, tx, actor); err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, `SELECT action,actor_id::text,target_id::text,ip_blocked,created_at
+		rows, err := tx.Query(ctx, `SELECT action,actor_id::text,target_id::text,ip_blocked,created_at,message_id::text
 			FROM moderation_audit ORDER BY sequence DESC LIMIT 100`)
 		if err != nil {
 			return err

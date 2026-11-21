@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -82,8 +81,7 @@ func NewCommunity(store *community.Store, verifier *identity.Verifier, auth *ide
 	a.mux.HandleFunc("POST /api/v1/invitations", a.invite)
 	a.mux.HandleFunc("POST /api/v1/invitations/{id}/revoke", a.revokeInvitation)
 	a.moderationRoutes()
-	a.mux.HandleFunc("GET /api/v1/channels/{id}/messages", a.history)
-	a.mux.HandleFunc("POST /api/v1/channels/{id}/messages", a.send)
+	a.messageRoutes()
 	a.mux.HandleFunc("POST /api/v1/events/ticket", a.issueTicket)
 	a.mux.HandleFunc("GET /api/v1/events", a.events)
 	a.mux.Handle("/", New(verifier))
@@ -131,6 +129,8 @@ func resultError(w http.ResponseWriter, err error) {
 		fail(w, 403, "access_denied")
 	case errors.Is(err, community.ErrConflict), errors.Is(err, identity.ErrAccountConflict):
 		fail(w, 409, "conflict")
+	case errors.Is(err, community.ErrMessageGone):
+		fail(w, 410, "message_gone")
 	case errors.Is(err, community.ErrNotConfigured):
 		fail(w, 409, "not_configured")
 	default:
@@ -290,13 +290,8 @@ func (a *CommunityAPI) history(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	after, err := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-	if r.URL.Query().Get("after") == "" {
-		after = 0
-		err = nil
-	}
-	if !validID(id) || err != nil || after < 0 {
-		fail(w, 400, "invalid_request")
+	after, ok := historyCursor(w, r, "after")
+	if !ok {
 		return
 	}
 	messages, err := a.store.History(r.Context(), id, after)

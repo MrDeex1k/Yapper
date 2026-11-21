@@ -89,3 +89,15 @@ CREATE TABLE IF NOT EXISTS moderation_audit (
  ip_blocked boolean NOT NULL DEFAULT false,
  created_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE SEQUENCE IF NOT EXISTS message_revisions;
+ALTER TABLE messages
+ ALTER COLUMN body DROP NOT NULL,
+ ADD COLUMN IF NOT EXISTS original_body_hash bytea,
+ ADD COLUMN IF NOT EXISTS edited_at timestamptz,
+ ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS messages_channel_revision ON messages(channel_id,revision);
+CREATE INDEX IF NOT EXISTS messages_live_age ON messages(created_at,channel_id) WHERE body IS NOT NULL;
+ALTER TABLE installation ADD COLUMN IF NOT EXISTS message_retention_days integer NOT NULL DEFAULT 0
+ CHECK(message_retention_days BETWEEN 0 AND 36500);
+ALTER TABLE moderation_audit ADD COLUMN IF NOT EXISTS message_id uuid REFERENCES messages(id);

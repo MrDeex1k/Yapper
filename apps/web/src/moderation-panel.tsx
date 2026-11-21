@@ -24,6 +24,7 @@ const actionLabel = {
   grant_moderator: "grantModerator",
   revoke_moderator: "revokeModerator",
   provision_moderator: "provisionModerator",
+  delete_message: "deleteMessage",
 } as const;
 
 export function ModerationPanel({

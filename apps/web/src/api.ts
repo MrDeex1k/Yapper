@@ -6,6 +6,10 @@ import type {
   GuestInput,
   SetupInput,
   Message,
+  HistoryPage,
+  MessageChanges,
+  MessageEdit,
+  MessageRetention,
   SendInput,
   AdmissionSettings,
   InvitationInput,
@@ -58,7 +62,9 @@ export async function request<T>(path: string, body?: unknown, signal?: AbortSig
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: signal ?? AbortSignal.timeout(10000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+      : AbortSignal.timeout(10000),
   });
   const result = (await response.json()) as T & { code?: string };
   if (!response.ok) throw new APIError(result.code ?? "service_unavailable", response.status);
@@ -105,12 +111,26 @@ export const api = {
   moveChannel: (id: string, direction: -1 | 1) =>
     request(`/api/v1/channels/${id}/move`, { direction }),
   archiveChannel: (id: string) => request(`/api/v1/channels/${id}/archive`, {}),
-  history: (channel: string, after: number, signal?: AbortSignal) =>
-    request<{ messages: Message[] }>(
-      `/api/v1/channels/${channel}/messages?after=${after}`,
+  timeline: (channel: string, before: number, signal: AbortSignal) =>
+    request<HistoryPage>(
+      `/api/v1/channels/${channel}/timeline?before=${before}`,
       undefined,
       signal,
     ),
+  messageChanges: (channel: string, after: number, signal: AbortSignal) =>
+    request<MessageChanges>(
+      `/api/v1/channels/${channel}/messages/changes?after=${after}`,
+      undefined,
+      signal,
+    ),
+  editMessage: (channel: string, id: string, input: MessageEdit) =>
+    request(`/api/v1/channels/${channel}/messages/${id}/edit`, input),
+  deleteMessage: (channel: string, id: string) =>
+    request(`/api/v1/channels/${channel}/messages/${id}/delete`, {}),
+  messageRetention: (signal: AbortSignal) =>
+    request<MessageRetention>("/api/v1/message-retention", undefined, signal),
+  setMessageRetention: (input: MessageRetention) =>
+    request<MessageRetention>("/api/v1/message-retention", input),
   send: (channel: string, body: SendInput) =>
     request<Message>(`/api/v1/channels/${channel}/messages`, body),
   ticket: () => request<{ ticket: string }>("/api/v1/events/ticket", {}),

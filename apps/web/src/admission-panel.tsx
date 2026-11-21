@@ -5,6 +5,7 @@ import { messages, type Locale } from "@yapper/i18n";
 import type { InvitationSummary } from "@yapper/api";
 import { api } from "./api";
 import { errorText } from "./errors";
+import { MessageRetention } from "./message-retention";
 
 export function AdmissionPanel({
   openAdmission,
@@ -203,6 +204,7 @@ export function AdmissionPanel({
           </li>
         ))}
       </ul>
+      <MessageRetention locale={locale} />
     </section>
   );
 }

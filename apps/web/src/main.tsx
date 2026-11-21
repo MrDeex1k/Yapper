@@ -23,13 +23,14 @@ import {
 } from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
-import type { CommunityState, CurrentUser, Message } from "@yapper/api";
+import type { CommunityState, CurrentUser } from "@yapper/api";
 import { api, APIError, login, logout, restoreAccount } from "./api";
 import { useConversation } from "./use-conversation";
 import { useVoice } from "./use-voice";
 import { errorText } from "./errors";
 import { CatalogPanel, groupedChannels } from "./catalog-panel";
 import { ModerationPanel, isStaff } from "./moderation-panel";
+import { MessageHistory } from "./message-history";
 import { AdmissionPanel } from "./admission-panel";
 import "./style.css";
 
@@ -455,7 +456,14 @@ function Conversation({
           memberRevision={conversation.memberRevision}
         />
         <MessageHistory
+          key={channel}
           items={conversation.messages}
+          hasOlder={conversation.hasOlder}
+          loadingOlder={conversation.loadingOlder}
+          onLoadOlder={conversation.loadOlder}
+          onChanged={conversation.refresh}
+          archived={current?.archived ?? false}
+          locked={conversation.status === "kicked"}
           user={user}
           locale={locale}
           onModerate={moderate}
@@ -473,7 +481,7 @@ function Conversation({
               channel={channel}
               name={current.name}
               locale={locale}
-              onSent={conversation.append}
+              onSent={conversation.refresh}
               disabled={conversation.status === "kicked"}
             />
           )}
@@ -569,7 +577,7 @@ function MessageComposer({
   channel: string;
   name: string;
   locale: Locale;
-  onSent: (message: Message) => void;
+  onSent: (channel: string) => void;
   disabled: boolean;
 }) {
   const t = messages[locale];
@@ -588,8 +596,8 @@ function MessageComposer({
     setSending(true);
     setError(null);
     try {
-      const message = await api.send(channel, input);
-      onSent(message);
+      await api.send(channel, input);
+      onSent(channel);
       setDraft("");
       setPending(null);
     } catch (e) {
@@ -847,70 +855,6 @@ function VoicePanel({
         </p>
       )}
     </>
-  );
-}
-
-const timeFormatters = {
-  en: new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }),
-  pl: new Intl.DateTimeFormat("pl", { hour: "2-digit", minute: "2-digit" }),
-};
-function MessageHistory({
-  items,
-  user,
-  locale,
-  onModerate,
-}: {
-  items: Message[];
-  user: CurrentUser;
-  locale: Locale;
-  onModerate: (id: string) => void;
-}) {
-  const t = messages[locale];
-  return (
-    <section
-      className="message-history"
-      aria-label={t.channels}
-      aria-live="polite"
-      aria-relevant="additions"
-    >
-      {items.length === 0 ? (
-        <div className="empty-chat">
-          <div className="empty-symbol">
-            <Hash size={32} />
-          </div>
-          <h2>{t.emptyChat}</h2>
-          <p>{t.emptyChatDescription}</p>
-        </div>
-      ) : (
-        items.map((message) => (
-          <article className="message-row" key={message.id}>
-            <span className="person-avatar">{message.nickname.slice(0, 1).toUpperCase()}</span>
-            <div className="message-content">
-              <header>
-                <strong>{message.nickname}</strong>
-                {message.authorId === user.participant.id && (
-                  <span className="you-label">{t.you}</span>
-                )}
-                <time dateTime={message.createdAt}>
-                  {timeFormatters[locale].format(new Date(message.createdAt))}
-                </time>
-                {isStaff(user.participant) && message.authorId !== user.participant.id && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={`${t.moderateParticipant}: ${message.nickname}`}
-                    onClick={() => onModerate(message.authorId)}
-                  >
-                    <Shield size={14} />
-                  </Button>
-                )}
-              </header>
-              <p>{message.body}</p>
-            </div>
-          </article>
-        ))
-      )}
-    </section>
   );
 }
 

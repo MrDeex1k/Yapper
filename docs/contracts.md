@@ -45,6 +45,16 @@ Only owners may change admission or manage invitations. `POST /api/v1/admission`
 - A kick increments the participant's connection generation and invalidates earlier WebSocket tickets and the active voice grant. A live WebSocket closes with code `4001`. A fresh ticket is available when the user reconnects. A ban refuses the credential and replayed grants, including admission retries using the banned cookie.
 - Forced mute and its removal invalidate the current media session. Rejoining obtains a new grant, with `canPublish: false` while forced mute is active. Those grants retain subscribe permission. The Go signaling gate rejects earlier revoked identities even when self-hosted LiveKit would accept their signed tokens directly.
 
+## Message lifecycle
+
+The original `GET /channels/{id}/messages?after={sequence}` returns live messages. Use `GET /channels/{id}/timeline` for the newest 50 in chronological order. Pass its `before` sequence to load older messages exclusively of that item. A zero `before` means there is no older page. The initial page and its concurrent-safe `revision` are read together.
+
+After the initial page, fetch `/channels/{id}/messages/changes?after={revision}` on `ready`, `message.created`, or `messages.changed` for that channel. The latter event contains only `channelId`. Each change carries the current message or a `null` tombstone. Consume batches of 100 until there are fewer and advance to the last revision. Read older pages and changes in sequence to prevent a stale page from resurrecting a deletion. The feed collapses multiple changes to the same message into its latest state.
+
+Authors edit via `POST /channels/{id}/messages/{message}/edit` with the edited body and the last read revision. Authors and current staff delete via `.../delete`. Archived channels accept authorized deletions and reject edits and new sends. Edits preserve the message ID and creation sequence. An identical send retry after an edit returns the current message with the original ID. A retry after deletion or expiry returns `410 message_gone`. Staff deletions of other participants' messages add an audit record with the target message ID.
+
+The owner reads or sets `/message-retention` with `days` from 0 to 36500. Zero keeps messages indefinitely. The server erases expired bodies across all text channels in bounded batches from startup and once per minute. A change to the limit takes effect on the next pass. IDs, ordering data and retry keys are retained after erasure. Coordinated backups can still contain older content until the backup expires.
+
 ## Planned Rust desktop conformance
 
 The Windows and Linux GPUI client uses the same public HTTP resources, WebSocket event version, and Go-gated LiveKit signaling as Web and macOS Electron. The Stage 2 prototype defines and verifies native session and origin handling, including guest admission, AUTH login/logout, WebSocket tickets, and signaling. Document compatibility changes and verify them across those clients, preserving browser origin protections and server-side authorization.

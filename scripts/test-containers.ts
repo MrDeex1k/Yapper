@@ -419,6 +419,94 @@ expect(
   200,
   "lift forced mute",
 );
+const timelinePath = `/api/v1/channels/${channel}/timeline`;
+const latest = (await call<Schemas["HistoryPage"]>(timelinePath, { cookie: firstGuest.cookie }))
+  .data;
+expect(latest.messages.length, 1, "initial timeline");
+const lifecycleInput = { requestId: randomUUID(), body: "Message lifecycle smoke" };
+const draftMessage = (
+  await call<Schemas["Message"]>(`/api/v1/channels/${channel}/messages`, {
+    body: lifecycleInput,
+    cookie: firstGuest.cookie,
+  })
+).data;
+const mutation = `/api/v1/channels/${channel}/messages/${draftMessage.id}`;
+const edit = { body: "Edited lifecycle smoke", revision: draftMessage.revision };
+expect(
+  (await call(`${mutation}/edit`, { body: edit, token: modToken })).response.status,
+  403,
+  "moderator cannot edit someone else's message",
+);
+expect(
+  (await call(`${mutation}/edit`, { body: edit, cookie: firstGuest.cookie })).response.status,
+  200,
+  "author edit",
+);
+const changesPath = `/api/v1/channels/${channel}/messages/changes?after=${latest.revision}`;
+const updates = (await call<Schemas["MessageChanges"]>(changesPath, { cookie: secondGuest.cookie }))
+  .data.changes;
+expect(updates.at(-1)?.message?.body, edit.body, "edited message reconciles");
+const retry = (
+  await call<Schemas["Message"]>(`/api/v1/channels/${channel}/messages`, {
+    body: lifecycleInput,
+    cookie: firstGuest.cookie,
+  })
+).data;
+expect(retry.id, draftMessage.id, "retry after edit keeps identifier");
+expect(
+  (await call(`${mutation}/delete`, { body: {}, token: modToken })).response.status,
+  200,
+  "moderator deletion",
+);
+const deletions = (
+  await call<Schemas["MessageChanges"]>(changesPath, { cookie: secondGuest.cookie })
+).data.changes;
+expect(deletions.at(-1)?.message, null, "reconcile deletion without body");
+expect(
+  (
+    await call(`/api/v1/channels/${channel}/messages`, {
+      body: lifecycleInput,
+      cookie: firstGuest.cookie,
+    })
+  ).response.status,
+  410,
+  "deleted send retry",
+);
+expect(
+  (await call<Schemas["HistoryPage"]>(timelinePath, { cookie: firstGuest.cookie })).data.messages
+    .length,
+  1,
+  "deleted body absent from history",
+);
+expect(
+  (await call("/api/v1/message-retention", { body: { days: 30 }, token: modToken })).response
+    .status,
+  403,
+  "moderator cannot set retention",
+);
+expect(
+  (
+    await call<Schemas["MessageRetention"]>("/api/v1/message-retention", {
+      body: { days: 30 },
+      token,
+    })
+  ).data.days,
+  30,
+  "set retention",
+);
+expect(
+  (
+    await call<Schemas["MessageRetention"]>("/api/v1/message-retention", {
+      body: { days: 0 },
+      token,
+    })
+  ).data.days,
+  0,
+  "disable retention",
+);
+console.info(
+  "PASS: timeline, send retry after edit, owner retention and moderator deletion with durable reconciliation.",
+);
 const listMembers = (await call<Schemas["MemberPage"]>("/api/v1/participants", { token: modToken }))
   .data;
 assert(listMembers.members.some((member) => member.id === secondGuest.id && member.canBlockIp));
