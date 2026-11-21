@@ -1,10 +1,9 @@
 use crate::server::{Failure, Session};
 use livekit::{options::TrackPublishOptions, prelude::*};
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 pub enum Command {
-    ToggleMicrophone,
     Leave,
 }
 
@@ -23,7 +22,8 @@ pub enum Event {
 pub async fn run(
     session: Session,
     channel: String,
-    mut commands: mpsc::Receiver<Command>,
+    commands: mpsc::Receiver<Command>,
+    desired_microphone: watch::Receiver<bool>,
     events: mpsc::UnboundedSender<Event>,
 ) {
     let grant = match session.grant(&channel).await {
@@ -38,7 +38,8 @@ pub async fn run(
             &grant.url,
             &grant.token,
             grant.can_publish,
-            &mut commands,
+            commands,
+            desired_microphone,
             &events,
         )
         .await
@@ -53,7 +54,8 @@ async fn call(
     url: &str,
     token: &str,
     can_publish: bool,
-    commands: &mut mpsc::Receiver<Command>,
+    mut commands: mpsc::Receiver<Command>,
+    mut desired_microphone: watch::Receiver<bool>,
     events: &mpsc::UnboundedSender<Event>,
 ) -> Result<(), Failure> {
     let audio = PlatformAudio::new().map_err(|_| Failure::Voice)?;
@@ -74,28 +76,31 @@ async fn call(
 
     let result = loop {
         tokio::select! {
-            command = commands.recv() => match command {
-                Some(Command::ToggleMicrophone) if can_publish && connected => {
-                    if let Some(track) = &microphone {
-                        if enabled {
-                            track.mute();
-                        } else {
-                            track.unmute();
-                        }
-                    } else {
-                        let track = LocalAudioTrack::create_audio_track("microphone", audio.rtc_source());
-                        let options = TrackPublishOptions { source: TrackSource::Microphone, ..Default::default() };
-                        if room.local_participant().publish_track(LocalTrack::Audio(track.clone()), options).await.is_err() {
-                            let _ = events.send(Event::Failed(Failure::Microphone));
-                            continue;
-                        }
-                        microphone = Some(track);
+            _ = commands.recv() => break Ok(()),
+            changed = desired_microphone.changed() => {
+                if changed.is_err() {
+                    break Ok(());
+                }
+                let wanted = *desired_microphone.borrow_and_update() && connected && can_publish;
+                if wanted && microphone.is_none() {
+                    let track = LocalAudioTrack::create_audio_track("microphone", audio.rtc_source());
+                    // Publishing can outlast a space-bar press. Start muted and reread intent.
+                    track.mute();
+                    let options = TrackPublishOptions { source: TrackSource::Microphone, ..Default::default() };
+                    if room.local_participant().publish_track(LocalTrack::Audio(track.clone()), options).await.is_err() {
+                        let _ = events.send(Event::Failed(Failure::Microphone));
+                        continue;
                     }
-                    enabled = !enabled;
+                    microphone = Some(track);
+                }
+                let next = wanted && *desired_microphone.borrow() && desired_microphone.has_changed().is_ok();
+                if let Some(track) = &microphone {
+                    if next { track.unmute(); } else { track.mute(); }
+                }
+                if next != enabled {
+                    enabled = next;
                     let _ = events.send(Event::Microphone(enabled));
                 }
-                Some(Command::ToggleMicrophone) => {}
-                Some(Command::Leave) | None => break Ok(()),
             },
             event = room_events.recv() => match event {
                 Some(RoomEvent::ParticipantConnected(_) | RoomEvent::ParticipantDisconnected(_)) => {
@@ -129,7 +134,7 @@ fn peers(room: &Room) -> Vec<String> {
     let mut names: Vec<_> = room
         .remote_participants()
         .values()
-        .map(|peer| peer.name())
+        .map(RemoteParticipant::name)
         .collect();
     names.sort();
     names

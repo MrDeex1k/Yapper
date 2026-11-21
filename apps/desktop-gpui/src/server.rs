@@ -43,6 +43,20 @@ pub struct Channel {
     pub id: String,
     pub name: String,
     pub kind: String,
+    #[serde(default)]
+    pub archived: bool,
+}
+
+#[derive(Deserialize, PartialEq, Eq)]
+pub struct Message {
+    pub id: String,
+    pub nickname: String,
+    pub body: String,
+}
+
+#[derive(Deserialize)]
+struct Timeline {
+    messages: Vec<Message>,
 }
 
 #[derive(Deserialize)]
@@ -222,6 +236,38 @@ impl Session {
         self.server
             .request(Method::GET, "/api/v1/me", Some(&self.cookie), None)
             .await
+    }
+
+    pub async fn timeline(&self, channel: &str) -> Result<Vec<Message>, Failure> {
+        let id = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
+        let page: Timeline = self
+            .server
+            .request(
+                Method::GET,
+                &format!("/api/v1/channels/{id}/timeline"),
+                Some(&self.cookie),
+                None,
+            )
+            .await?;
+        Ok(page.messages)
+    }
+
+    pub async fn send_message(
+        &self,
+        channel: &str,
+        body: &str,
+        request_id: uuid::Uuid,
+    ) -> Result<(), Failure> {
+        let id = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
+        self.server
+            .send(
+                Method::POST,
+                &format!("/api/v1/channels/{id}/messages"),
+                Some(&self.cookie),
+                Some(json!({ "body": body, "requestId": request_id.to_string() })),
+            )
+            .await?;
+        Ok(())
     }
 
     pub async fn grant(&self, channel_id: &str) -> Result<Grant, Failure> {
