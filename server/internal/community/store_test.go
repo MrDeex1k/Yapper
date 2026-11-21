@@ -349,3 +349,48 @@ func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
 		t.Fatal("acknowledged removal not cleared")
 	}
 }
+
+func TestVoiceResumeRetriesSameReplacementAfterRemovalFailure(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	channels, err := s.Channels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var voice string
+	for _, channel := range channels {
+		if channel.Kind == "voice" {
+			voice = channel.ID
+		}
+	}
+	var removed []string
+	remove := func(_ context.Context, session MediaSession) error {
+		removed = append(removed, session.Identity)
+		return nil
+	}
+	start := func(resume string, cleanup func(context.Context, MediaSession) error) (MediaSession, error) {
+		return s.StartVoice(ctx, owner, voice, "owner-subject", "session", resume, netip.Addr{}, cleanup)
+	}
+	previous, err := start("", remove)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := errors.New("transient media removal failure")
+	if _, err := start(previous.Identity, func(context.Context, MediaSession) error { return failed }); !errors.Is(err, failed) {
+		t.Fatalf("expected transient cleanup error: %v", err)
+	}
+	pending, err := s.AllVoiceSessions(ctx)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("pending replacement: %v %v", pending, err)
+	}
+	if _, err := s.VoiceSession(ctx, pending[0].Identity); !errors.Is(err, ErrDenied) {
+		t.Fatalf("replacement usable before cleanup: %v", err)
+	}
+	grant, err := start(previous.Identity, remove)
+	if err != nil || grant.Identity != pending[0].Identity || len(removed) != 1 || removed[0] != previous.Identity {
+		t.Fatalf("resume did not reuse the pending replacement: %v %v %v", grant, removed, err)
+	}
+	if _, err := start(previous.Identity, remove); !errors.Is(err, ErrDenied) {
+		t.Fatalf("completed predecessor was reusable: %v", err)
+	}
+}

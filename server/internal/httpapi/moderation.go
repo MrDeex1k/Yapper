@@ -64,7 +64,7 @@ func (a *CommunityAPI) provisionModerator(w http.ResponseWriter, r *http.Request
 	if !decode(w, r, &input) {
 		return
 	}
-	if !accountName.MatchString(input.Username) || len(input.Password) < 12 || len(input.Password) > 128 {
+	if !accountName.MatchString(input.Username) || !validPassword(input.Password) {
 		fail(w, 400, "invalid_request")
 		return
 	}

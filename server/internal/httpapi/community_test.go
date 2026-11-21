@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -193,7 +195,7 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 		}
 		return next.Ticket
 	}
-	dial := func(ticket string) (*websocket.Conn, error) {
+	dial := func(ctx context.Context, ticket string) (*websocket.Conn, error) {
 		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/events",
 			&websocket.DialOptions{HTTPHeader: header, Subprotocols: []string{"yapper.v1", "yapper.ticket." + ticket}})
 		return conn, err
@@ -205,24 +207,34 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 	if _, _, err = ws.Read(ctx); websocket.CloseStatus(err) != kickedCloseCode {
 		t.Fatalf("kick close status=%v", err)
 	}
-	if closed, err := dial(staleTicket); err == nil {
+	if closed, err := dial(ctx, staleTicket); err == nil {
 		closed.CloseNow()
 		t.Fatal("ticket issued before kick survived")
 	}
-	ws, err = dial(issue())
+	reconnect, finishReconnect := context.WithTimeout(t.Context(), 5*time.Second)
+	defer finishReconnect()
+	ws, err = dial(reconnect, issue())
 	if err != nil {
 		t.Fatalf("fresh reconnect after kick: %v", err)
 	}
 	defer ws.CloseNow()
-	if _, _, err = ws.Read(ctx); err != nil {
+	if _, _, err = ws.Read(reconnect); err != nil {
 		t.Fatal("no ready after kick", err)
 	}
 	if _, err = store.Moderate(t.Context(), owner.ID, participant.ID, community.Ban, false); err != nil {
 		t.Fatal(err)
 	}
 	api.broadcast("members.changed", struct{}{})
-	if _, _, err = ws.Read(ctx); err == nil {
-		t.Fatal("banned socket remained open")
+	ban, finishBan := context.WithTimeout(t.Context(), 5*time.Second)
+	defer finishBan()
+	for {
+		_, _, err = ws.Read(ban)
+		if err != nil {
+			if ban.Err() != nil || (websocket.CloseStatus(err) < 0 && !errors.Is(err, io.EOF)) {
+				t.Fatal("server did not close the banned socket:", err)
+			}
+			break
+		}
 	}
 	res, _ = request("/api/v1/events/ticket", map[string]string{}, cookie, origin)
 	if res.StatusCode != 403 {

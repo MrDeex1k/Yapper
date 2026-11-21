@@ -25,6 +25,11 @@ func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subj
 		return MediaSession{}, err
 	}
 	defer tx.Rollback(ctx)
+	if subject == "" {
+		if err := lockGuestAddresses(ctx, tx, false); err != nil {
+			return MediaSession{}, err
+		}
+	}
 	id := actor.ID
 	var nickname string
 	var muted bool
@@ -50,22 +55,31 @@ func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subj
 	}
 	var old MediaSession
 	var revoked bool
-	err = tx.QueryRow(ctx, "SELECT participant_id::text,identity,channel_id::text,revoked FROM media_sessions WHERE participant_id=$1 FOR UPDATE", id).
-		Scan(&old.ParticipantID, &old.Identity, &old.ChannelID, &revoked)
+	var pendingResume, oldSubject, oldSession string
+	err = tx.QueryRow(ctx, "SELECT participant_id::text,identity,channel_id::text,revoked,resume_from,auth_subject,auth_session_id FROM media_sessions WHERE participant_id=$1 FOR UPDATE", id).
+		Scan(&old.ParticipantID, &old.Identity, &old.ChannelID, &revoked, &pendingResume, &oldSubject, &oldSession)
 	hadOld := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return MediaSession{}, err
 	}
-	// Automatic recovery may replace only the still-authorized grant that failed.
-	if resumeIdentity != "" && (!hadOld || revoked || old.Identity != resumeIdentity || old.ChannelID != channel) {
+	// Retry the same pending replacement until the earlier grant has been removed.
+	retrying := resumeIdentity != "" && pendingResume == resumeIdentity
+	if resumeIdentity != "" && (!hadOld || revoked || old.ChannelID != channel ||
+		oldSubject != subject || oldSession != sessionID || !retrying && old.Identity != resumeIdentity) {
 		return MediaSession{}, ErrDenied
 	}
 	session := MediaSession{ParticipantID: id, Identity: id + ":" + uuid.New().String(), ChannelID: channel, AuthSubject: subject, AuthSessionID: sessionID, Nickname: nickname, MicMuted: muted}
-	_, err = tx.Exec(ctx, `INSERT INTO media_sessions(participant_id,identity,channel_id,auth_subject,auth_session_id,client_ip) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(participant_id) DO UPDATE SET identity=EXCLUDED.identity,channel_id=EXCLUDED.channel_id,auth_subject=EXCLUDED.auth_subject,auth_session_id=EXCLUDED.auth_session_id,client_ip=EXCLUDED.client_ip,revoked=false`, id, session.Identity, channel, subject, sessionID, address)
+	if retrying {
+		session.Identity = old.Identity
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO media_sessions(participant_id,identity,channel_id,auth_subject,auth_session_id,client_ip,resume_from)
+		VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(participant_id) DO UPDATE SET identity=EXCLUDED.identity,
+		channel_id=EXCLUDED.channel_id,auth_subject=EXCLUDED.auth_subject,auth_session_id=EXCLUDED.auth_session_id,
+		client_ip=EXCLUDED.client_ip,resume_from=EXCLUDED.resume_from,revoked=false`, id, session.Identity, channel, subject, sessionID, address, resumeIdentity)
 	if err != nil {
 		return MediaSession{}, err
 	}
-	if hadOld {
+	if hadOld && !retrying {
 		_, err = tx.Exec(ctx, "INSERT INTO media_removals(participant_id,identity,channel_id) VALUES($1,$2,$3) ON CONFLICT(identity) DO NOTHING", old.ParticipantID, old.Identity, old.ChannelID)
 		if err != nil {
 			return MediaSession{}, err
@@ -86,12 +100,22 @@ func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subj
 			return MediaSession{}, err
 		}
 	}
-	return session, nil
+	// A moderation action or a newer join can win while cleanup is in flight.
+	tag, err := s.Pool.Exec(ctx, `UPDATE media_sessions SET resume_from=''
+		WHERE identity=$1 AND NOT revoked AND resume_from=$2
+		AND NOT EXISTS (SELECT FROM media_removals WHERE participant_id=$3)`, session.Identity, resumeIdentity, id)
+	if err != nil {
+		return MediaSession{}, err
+	}
+	if tag.RowsAffected() != 1 {
+		return MediaSession{}, ErrDenied
+	}
+	return s.VoiceSession(ctx, session.Identity)
 }
 func (s *Store) VoiceSession(ctx context.Context, identity string) (MediaSession, error) {
 	var m MediaSession
 	err := s.Pool.QueryRow(ctx, `SELECT m.participant_id::text,m.identity,m.channel_id::text,m.auth_subject,m.auth_session_id,p.nickname,p.mic_muted FROM media_sessions m JOIN participants p ON p.id=m.participant_id WHERE m.identity=$1 AND NOT m.revoked AND NOT p.banned
- AND (m.auth_subject!='' OR NOT EXISTS(SELECT FROM ip_blocks b WHERE b.address=m.client_ip))`, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID, &m.AuthSubject, &m.AuthSessionID, &m.Nickname, &m.MicMuted)
+ AND m.resume_from='' AND (m.auth_subject!='' OR NOT EXISTS(SELECT FROM ip_blocks b WHERE b.address=m.client_ip))`, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID, &m.AuthSubject, &m.AuthSessionID, &m.Nickname, &m.MicMuted)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrDenied
 	}
@@ -103,12 +127,17 @@ func (s *Store) RecordVoiceAddress(ctx context.Context, mediaIdentity string, ad
 	if !address.IsValid() {
 		return nil
 	}
-	tag, err := s.Pool.Exec(ctx, `UPDATE media_sessions SET client_ip=$2
-		WHERE identity=$1 AND NOT revoked AND NOT EXISTS(SELECT FROM ip_blocks WHERE address=$2)`, mediaIdentity, address)
-	if err == nil && tag.RowsAffected() != 1 {
-		return ErrDenied
-	}
-	return err
+	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		if err := lockGuestAddresses(ctx, tx, false); err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, `UPDATE media_sessions SET client_ip=$2
+			WHERE identity=$1 AND NOT revoked AND NOT EXISTS(SELECT FROM ip_blocks WHERE address=$2)`, mediaIdentity, address)
+		if err == nil && tag.RowsAffected() != 1 {
+			return ErrDenied
+		}
+		return err
+	})
 }
 
 func (s *Store) RevokeVoice(ctx context.Context, id string) (MediaSession, error) {
@@ -145,7 +174,7 @@ func (s *Store) RevokeVoiceIdentity(ctx context.Context, identity string) (Media
 
 func (s *Store) RevokeOwnedVoice(ctx context.Context, id, identity string) (MediaSession, error) {
 	var m MediaSession
-	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 AND identity=$2 RETURNING participant_id::text,identity,channel_id::text", id, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
+	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 AND (identity=$2 OR resume_from=$2) RETURNING participant_id::text,identity,channel_id::text", id, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
 	return m, err
 }
 

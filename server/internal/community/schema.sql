@@ -72,8 +72,11 @@ ALTER TABLE channels
 ALTER TABLE participants
  ADD COLUMN IF NOT EXISTS kick_generation bigint NOT NULL DEFAULT 0,
  ADD COLUMN IF NOT EXISTS mic_muted boolean NOT NULL DEFAULT false,
- ADD COLUMN IF NOT EXISTS last_ip inet;
-ALTER TABLE media_sessions ADD COLUMN IF NOT EXISTS client_ip inet;
+ ADD COLUMN IF NOT EXISTS last_ip inet,
+ ADD COLUMN IF NOT EXISTS last_ip_observed_at timestamptz;
+ALTER TABLE media_sessions
+ ADD COLUMN IF NOT EXISTS client_ip inet,
+ ADD COLUMN IF NOT EXISTS resume_from text NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS ip_blocks (
  participant_id uuid NOT NULL REFERENCES participants(id),

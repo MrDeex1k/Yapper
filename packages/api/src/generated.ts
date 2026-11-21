@@ -273,7 +273,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    patch: operations["patchChannel"];
     trace?: never;
   };
   "/api/v1/channels/{id}/move": {
@@ -395,6 +395,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** @description Returns up to 100 changes in ascending revision order. Apply each batch and use its last revision as the next after cursor. Continue until a batch contains fewer than 100 changes. */
     get: operations["messageChanges"];
     put?: never;
     post?: never;
@@ -505,6 +506,7 @@ export interface components {
     SetupInput: {
       token: string;
       username: string;
+      /** @description Password length is measured in Unicode code points. */
       password: string;
       name: string;
     };
@@ -531,6 +533,8 @@ export interface components {
     };
     Invitation: {
       token: string;
+      /** Format: uuid */
+      id: string;
     };
     VoiceGrant: {
       url: string;
@@ -543,16 +547,10 @@ export interface components {
       openAdmission: boolean;
     };
     InvitationInput: {
-      /**
-       * @description Zero removes the expiration.
-       * @default 24
-       */
-      expiresInHours: number;
-      /**
-       * @description Zero removes the usage limit.
-       * @default 1
-       */
-      maxUses: number;
+      /** @description Zero removes the expiration. Defaults to 24 when omitted. */
+      expiresInHours?: number;
+      /** @description Zero removes the usage limit. Defaults to 1 when omitted. */
+      maxUses?: number;
     };
     InvitationSummary: {
       /** Format: uuid */
@@ -623,6 +621,7 @@ export interface components {
     };
     ModeratorInput: {
       username: string;
+      /** @description Password length is measured in Unicode code points. */
       password: string;
     };
     AuditEvent: {
@@ -679,6 +678,11 @@ export interface components {
       days: number;
     };
     EmptyInput: Record<string, never>;
+    ChannelPatch: {
+      name?: string;
+      /** @description Omit to keep the current category. Send an empty string to remove it. */
+      categoryId?: string;
+    };
   };
   responses: never;
   parameters: never;
@@ -1182,7 +1186,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1224,7 +1230,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1266,7 +1274,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1306,7 +1316,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1348,7 +1360,53 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  patchChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChannelPatch"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1390,7 +1448,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1428,7 +1488,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1467,7 +1529,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1507,7 +1571,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1549,7 +1615,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {
@@ -1585,7 +1653,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
       /** @description Stable error code. */
       default: {

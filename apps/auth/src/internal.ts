@@ -14,6 +14,7 @@ export function internalHandler(
   database: Pool,
   secret: string,
 ) {
+  let provisioning = false;
   return async (request: Request): Promise<Response> => {
     const supplied = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
     if (
@@ -52,50 +53,74 @@ export function internalHandler(
       typeof body.username !== "string" ||
       !/^[a-zA-Z0-9_]{3,32}$/.test(body.username) ||
       typeof body.password !== "string" ||
-      body.password.length < 12 ||
-      body.password.length > 128
+      !validPassword(body.password)
     ) {
       return Response.json({ code: "invalid_credentials" }, { status: 400 });
     }
-    if (path === "/internal/moderators") {
-      return provisionModerator(auth, database, body.username, body.password);
+    // Take the process slot before acquiring a connection. Better Auth may
+    // need a second connection while the transaction holds its advisory lock.
+    if (provisioning) {
+      return Response.json({ code: "provision_failed" }, { status: 503 });
     }
-    const connection = await database.connect();
-    let created: string | undefined;
+    provisioning = true;
     try {
-      await connection.query("BEGIN");
-      await connection.query("SELECT pg_advisory_xact_lock(743211)");
-      const existing = await connection.query<{ subject: string }>(
-        "SELECT subject FROM yapper_bootstrap WHERE singleton = true",
-      );
-      if (existing.rows[0]) {
-        await connection.query("COMMIT");
-        return Response.json({ subject: existing.rows[0].subject });
-      }
-      const account = await auth.api.signUpEmail({
-        body: {
-          name: body.username,
-          username: body.username,
-          email: `${body.username.toLowerCase()}@owner.invalid`,
-          password: body.password,
-        },
-      });
-      created = account.user.id;
-      await connection.query("INSERT INTO yapper_bootstrap (subject) VALUES ($1)", [created]);
-      await connection.query("COMMIT");
-      return Response.json({ subject: created });
+      const provision = path === "/internal/moderators" ? provisionModerator : bootstrapOwner;
+      return await provision(auth, database, body.username, body.password);
     } catch {
-      await connection.query("ROLLBACK");
-      if (created)
-        await database.query(
-          'DELETE FROM "user" WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM yapper_bootstrap WHERE subject = $1)',
-          [created],
-        );
-      return Response.json({ code: "bootstrap_failed" }, { status: 409 });
+      return Response.json({ code: "provision_failed" }, { status: 503 });
     } finally {
-      connection.release();
+      provisioning = false;
     }
   };
+}
+
+function validPassword(password: string) {
+  const length = Array.from(password).length;
+  return length >= 12 && length <= 128;
+}
+
+async function bootstrapOwner(
+  auth: ReturnType<typeof createAuth>,
+  database: Pool,
+  username: string,
+  password: string,
+): Promise<Response> {
+  const connection = await database.connect();
+  let created: string | undefined;
+  try {
+    await connection.query("BEGIN");
+    await connection.query("SET LOCAL lock_timeout = '3s'");
+    await connection.query("SELECT pg_advisory_xact_lock(743211)");
+    const existing = await connection.query<{ subject: string }>(
+      "SELECT subject FROM yapper_bootstrap WHERE singleton = true",
+    );
+    if (existing.rows[0]) {
+      await connection.query("COMMIT");
+      return Response.json({ subject: existing.rows[0].subject });
+    }
+    const account = await auth.api.signUpEmail({
+      body: {
+        name: username,
+        username: username,
+        email: `${username.toLowerCase()}@owner.invalid`,
+        password: password,
+      },
+    });
+    created = account.user.id;
+    await connection.query("INSERT INTO yapper_bootstrap (subject) VALUES ($1)", [created]);
+    await connection.query("COMMIT");
+    return Response.json({ subject: created });
+  } catch {
+    await connection.query("ROLLBACK");
+    if (created)
+      await database.query(
+        'DELETE FROM "user" WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM yapper_bootstrap WHERE subject = $1)',
+        [created],
+      );
+    return Response.json({ code: "bootstrap_failed" }, { status: 409 });
+  } finally {
+    connection.release();
+  }
 }
 
 async function provisionModerator(
@@ -107,6 +132,7 @@ async function provisionModerator(
   const connection = await database.connect();
   try {
     await connection.query("BEGIN");
+    await connection.query("SET LOCAL lock_timeout = '3s'");
     await connection.query("SELECT pg_advisory_xact_lock(743211)");
     const email = `${username.toLowerCase()}@moderator.invalid`;
     const existing = await connection.query<{ id: string; email: string; password: string | null }>(

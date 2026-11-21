@@ -71,14 +71,14 @@ func (a *CommunityAPI) invite(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "invalid_request")
 		return
 	}
-	token, err := a.store.Invite(r.Context(), p.participant.ID, community.InvitationOptions{
+	invitation, err := a.store.CreateInvitation(r.Context(), p.participant.ID, community.InvitationOptions{
 		ExpiresInHours: *body.ExpiresInHours, MaxUses: *body.MaxUses,
 	})
 	if err != nil {
 		resultError(w, err)
 		return
 	}
-	writeJSON(w, 201, map[string]string{"token": token})
+	writeJSON(w, 201, invitation)
 }
 
 func (a *CommunityAPI) revokeInvitation(w http.ResponseWriter, r *http.Request) {

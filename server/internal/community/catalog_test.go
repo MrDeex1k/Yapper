@@ -58,6 +58,13 @@ func TestCatalogPreservesHistoryAndRevokesArchivedVoice(t *testing.T) {
 	if err != nil || len(after.Categories) != 3 {
 		t.Fatalf("categories: %+v, %v", after.Categories, err)
 	}
+	missing := uuid.New().String()
+	if err := s.MoveCategory(ctx, owner.ID, missing, -1); !errors.Is(err, ErrDenied) {
+		t.Fatalf("missing category move: %v", err)
+	}
+	if err := s.MoveChannel(ctx, owner.ID, missing, -1); !errors.Is(err, ErrDenied) {
+		t.Fatalf("missing channel move: %v", err)
+	}
 	category := after.Categories[2].ID
 	if err := s.MoveCategory(ctx, owner.ID, category, -1); err != nil {
 		t.Fatal(err)
@@ -65,7 +72,11 @@ func TestCatalogPreservesHistoryAndRevokesArchivedVoice(t *testing.T) {
 	if err := s.SaveCategory(ctx, owner.ID, category, "Projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SaveChannel(ctx, owner.ID, text.ID, "updates", "", category); err != nil {
+	if err := s.SaveChannel(ctx, owner.ID, text.ID, text.Name, "", category); err != nil {
+		t.Fatal(err)
+	}
+	name := "updates"
+	if err := s.PatchChannel(ctx, owner.ID, text.ID, &name, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SaveChannel(ctx, owner.ID, "", "lobby", "text", category); err != nil {

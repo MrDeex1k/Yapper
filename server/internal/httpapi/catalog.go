@@ -13,6 +13,7 @@ func (a *CommunityAPI) catalogRoutes() {
 	a.mux.HandleFunc("POST /api/v1/categories/{id}/move", a.moveCategory)
 	a.mux.HandleFunc("POST /api/v1/channels", a.saveChannel)
 	a.mux.HandleFunc("POST /api/v1/channels/{id}", a.saveChannel)
+	a.mux.HandleFunc("PATCH /api/v1/channels/{id}", a.patchChannel)
 	a.mux.HandleFunc("POST /api/v1/channels/{id}/move", a.moveChannel)
 	a.mux.HandleFunc("POST /api/v1/channels/{id}/archive", a.archiveChannel)
 }
@@ -60,6 +61,28 @@ func (a *CommunityAPI) saveChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.catalogResult(w, a.store.SaveChannel(r.Context(), p.participant.ID, id, body.Name, body.Kind, body.CategoryID))
+}
+
+func (a *CommunityAPI) patchChannel(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.require(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("id")
+	var body struct {
+		Name       *string `json:"name"`
+		CategoryID *string `json:"categoryId"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if !validID(id) || body.Name == nil && body.CategoryID == nil ||
+		body.Name != nil && !validCatalogName(*body.Name) ||
+		body.CategoryID != nil && *body.CategoryID != "" && !validID(*body.CategoryID) {
+		fail(w, 400, "invalid_request")
+		return
+	}
+	a.catalogResult(w, a.store.PatchChannel(r.Context(), p.participant.ID, id, body.Name, body.CategoryID))
 }
 
 func moveInput(w http.ResponseWriter, r *http.Request) (int, bool) {

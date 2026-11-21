@@ -146,6 +146,11 @@ func (s *Store) Moderate(ctx context.Context, actor, target string, action Moder
 	}
 	var revoked []MediaSession
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		if blockIP || action == Unban {
+			if err := lockGuestAddresses(ctx, tx, true); err != nil {
+				return err
+			}
+		}
 		role, err := staff(ctx, tx, actor)
 		if err != nil {
 			return err
@@ -227,6 +232,16 @@ func (s *Store) Moderate(ctx context.Context, actor, target string, action Moder
 		return recordModeration(ctx, tx, actor, target, string(action), blockIP)
 	})
 	return revoked, err
+}
+
+// Guest address writes share a transaction lock with changes to the IP block list.
+func lockGuestAddresses(ctx context.Context, tx pgx.Tx, exclusive bool) error {
+	if exclusive {
+		_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(743213)")
+		return err
+	}
+	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock_shared(743213)")
+	return err
 }
 
 type addressQuerier interface {

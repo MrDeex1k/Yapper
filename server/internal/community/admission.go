@@ -32,21 +32,31 @@ func (s *Store) SetOpenAdmission(ctx context.Context, actor string, open bool) e
 	})
 }
 
+type CreatedInvitation struct {
+	ID    string `json:"id"`
+	Token string `json:"token"`
+}
+
 func (s *Store) Invite(ctx context.Context, actor string, options InvitationOptions) (string, error) {
-	token := newSecret()
+	invitation, err := s.CreateInvitation(ctx, actor, options)
+	return invitation.Token, err
+}
+
+func (s *Store) CreateInvitation(ctx context.Context, actor string, options InvitationOptions) (CreatedInvitation, error) {
+	invitation := CreatedInvitation{ID: uuid.New().String(), Token: newSecret()}
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		if err := owner(ctx, tx, actor); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO invitations(id,token_hash,remaining,expires_at)
 			VALUES($1,$2,NULLIF($3::integer,0),now()+make_interval(hours => NULLIF($4::integer,0)))`,
-			uuid.New().String(), digest(token), options.MaxUses, options.ExpiresInHours)
+			invitation.ID, digest(invitation.Token), options.MaxUses, options.ExpiresInHours)
 		return err
 	})
 	if err != nil {
-		return "", err
+		return CreatedInvitation{}, err
 	}
-	return token, nil
+	return invitation, nil
 }
 
 func (s *Store) Invitations(ctx context.Context, actor string) ([]Invitation, error) {

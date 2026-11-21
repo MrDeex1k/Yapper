@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -22,11 +23,14 @@ func (a *CommunityAPI) messageRoutes() {
 }
 
 func historyCursor(w http.ResponseWriter, r *http.Request, name string) (int64, bool) {
-	raw := r.URL.Query().Get(name)
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil || len(query[name]) > 1 {
+		fail(w, 400, "invalid_request")
+		return 0, false
+	}
 	var cursor int64
-	var err error
-	if raw != "" {
-		cursor, err = strconv.ParseInt(raw, 10, 64)
+	if query.Has(name) {
+		cursor, err = strconv.ParseInt(query.Get(name), 10, 64)
 	}
 	if !validID(r.PathValue("id")) || err != nil || cursor < 0 {
 		fail(w, 400, "invalid_request")

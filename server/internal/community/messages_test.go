@@ -129,6 +129,12 @@ func TestMessageLifecycle(t *testing.T) {
 	if _, err := s.EditMessage(ctx, author.ID, channel, older.Messages[0].ID, "archive edit", older.Messages[0].Revision); !errors.Is(err, ErrDenied) {
 		t.Fatalf("archive edit: %v", err)
 	}
+	if _, err := s.DeleteMessage(ctx, guest.ID, channel, newest.Messages[0].ID); !errors.Is(err, ErrDenied) {
+		t.Fatalf("unauthorized archive deletion: %v", err)
+	}
+	if changed, err := s.DeleteMessage(ctx, mod.ID, channel, newest.Messages[0].ID); err != nil || !changed {
+		t.Fatalf("authorized archive deletion: %v %v", changed, err)
+	}
 	if expired, err := s.ExpireMessages(ctx); err != nil || expired != "" {
 		t.Fatalf("default retention erased history: %s %v", expired, err)
 	}
@@ -142,7 +148,7 @@ func TestMessageLifecycle(t *testing.T) {
 		t.Fatalf("retained archive cleanup: %s %v", expired, err)
 	}
 	history, err := s.History(ctx, channel, 0)
-	if err != nil || len(history) != pageSize+7 || history[0].ID == older.Messages[0].ID {
+	if err != nil || len(history) != pageSize+6 || history[0].ID == older.Messages[0].ID {
 		t.Fatalf("history after retention: %d %v", len(history), err)
 	}
 }

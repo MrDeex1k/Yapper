@@ -5,7 +5,11 @@ import { readConfig } from "./config";
 import { internalHandler } from "./internal";
 
 const config = readConfig(process.env);
-const database = new Pool({ connectionString: config.databaseURL, max: 10 });
+const database = new Pool({
+  connectionString: config.databaseURL,
+  max: 10,
+  connectionTimeoutMillis: 3000,
+});
 const auth = createAuth(config, database);
 const internalSecret = process.env.AUTH_INTERNAL_SECRET ?? "";
 if (internalSecret.length < 32) throw new Error("AUTH_INTERNAL_SECRET is required");

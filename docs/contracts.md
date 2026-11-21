@@ -57,9 +57,9 @@ The owner reads or sets `/message-retention` with `days` from 0 to 36500. Zero k
 
 ## Voice switching and recovery
 
-A manual join sends the channel ID to `POST /api/v1/voice/grant`. The service invalidates the old identity and finishes pending LiveKit removals for that participant before returning the new grant. Leave requests with a media identity affect only that identity.
+A manual join sends the channel ID to `POST /api/v1/voice/grant`. The service invalidates the old identity and finishes pending LiveKit removals for that participant before returning the new grant. Leave requests with a media identity affect that identity or its still-pending automatic replacement.
 
-After an established room's SDK reconnect attempts end with a transient disconnect, clients can attempt one fresh grant with the previous `resumeIdentity` and the same `channelId`. Go checks both against the current unrevoked media session while rotating the grant. A kick, ban, forced mute, archival, stale identity, or manual leave prevents that automatic recovery. Clients use a manual join to return to an available room with current permissions. An automatic replacement starts muted.
+After an established room's SDK reconnect attempts end with a transient disconnect, clients can request a fresh grant with the previous `resumeIdentity` and the same `channelId`. Go checks both against the current unrevoked media session while rotating the grant. If LiveKit cleanup fails, the same resume request can retry that pending replacement. A kick, ban, forced mute, archival, stale identity, or manual leave prevents that automatic recovery. Clients use a manual join to return to an available room with current permissions. An automatic replacement starts muted.
 
 ## Planned Rust desktop conformance
 

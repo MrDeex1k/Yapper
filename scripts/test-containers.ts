@@ -5,16 +5,22 @@ import type { components } from "../packages/api/src/generated.ts";
 type Schemas = components["schemas"];
 type Guest = { id: string; cookie: string };
 type SmokeState = { channel: string; guest: Guest };
-type RequestOptions = { body?: unknown; cookie?: string; token?: string; clientIpHeader?: string };
+type RequestOptions = {
+  method?: string;
+  body?: unknown;
+  cookie?: string;
+  token?: string;
+  clientIpHeader?: string;
+};
 await mkdir(".tmp", { recursive: true });
 const base = "http://127.0.0.1:8090";
 const password = randomBytes(24).toString("hex");
 const call = async <T = Record<string, unknown>>(
   path: string,
-  { body, cookie, token, clientIpHeader }: RequestOptions = {},
+  { body, cookie, token, clientIpHeader, method }: RequestOptions = {},
 ) => {
   const response = await fetch(base + path, {
-    method: body === undefined ? "GET" : "POST",
+    method: method ?? (body === undefined ? "GET" : "POST"),
     headers: {
       Origin: base,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
@@ -266,6 +272,36 @@ const added = (await call<Schemas["Me"]>("/api/v1/me", { token })).data.channels
   (item) => item.name === "updates",
 );
 assert(added && added.categoryId === category.id);
+const addedPath = "/api/v1/channels/" + added.id;
+expect(
+  (
+    await call(addedPath, {
+      method: "PATCH",
+      body: { name: "renamed updates" },
+      token,
+    })
+  ).response.status,
+  200,
+  "partial channel update",
+);
+const changedChannel = (await call<Schemas["Me"]>("/api/v1/me", { token })).data.channels.find(
+  (item) => item.id === added.id,
+);
+assert.equal(changedChannel?.name, "renamed updates");
+assert.equal(changedChannel?.categoryId, category.id);
+for (const cursor of ["no", "-1", "1&before=2", "%", "9223372036854775808"]) {
+  expect(
+    (await call(addedPath + "/timeline?before=" + cursor, { token })).response.status,
+    400,
+    "malformed timeline cursor",
+  );
+}
+expect(
+  (await call(addedPath + "/timeline?before=2147483648", { token })).response.status,
+  200,
+  "a timeline cursor wider than an integer is valid",
+);
+
 expect(
   (await call(`/api/v1/channels/${added.id}/archive`, { body: {}, token })).response.status,
   200,
@@ -351,10 +387,37 @@ expect(
   403,
   "moderator protection of owner",
 );
+const eligible = { username: "smokerolecandidate", password };
 expect(
-  (await moderate(secondGuest.id, { action: "grant_moderator" }, modToken)).response.status,
+  (await call(provision, { body: eligible, token })).response.status,
+  200,
+  "provision role candidate",
+);
+const candidateLogin = await call("/api/auth/sign-in/username", { body: eligible });
+expect(candidateLogin.response.status, 200, "role candidate login");
+const candidateCookie = candidateLogin.response.headers
+  .getSetCookie()
+  .map((c) => c.split(";")[0])
+  .join("; ");
+const candidateToken = (
+  await call<{ token: string }>("/api/auth/token", { cookie: candidateCookie })
+).data.token;
+const candidate = (await call<Schemas["Me"]>("/api/v1/me", { token: candidateToken })).data
+  .participant;
+expect(
+  (await moderate(candidate.id, { action: "revoke_moderator" }, token)).response.status,
+  200,
+  "prepare eligible registered member",
+);
+expect(
+  (await moderate(candidate.id, { action: "grant_moderator" }, modToken)).response.status,
   403,
-  "moderator cannot assign roles",
+  "moderator cannot promote an eligible registered member",
+);
+expect(
+  (await moderate(candidate.id, { action: "grant_moderator" }, token)).response.status,
+  200,
+  "owner can promote the same eligible registered member",
 );
 expect(
   (await call("/api/v1/participants", { cookie: firstGuest.cookie })).response.status,
@@ -553,7 +616,7 @@ assert(
 );
 expect(
   audit.filter((event) => event.action === "provision_moderator").length,
-  1,
+  2,
   "provision audit deduplication",
 );
 expect(

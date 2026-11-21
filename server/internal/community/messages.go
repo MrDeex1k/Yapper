@@ -136,7 +136,7 @@ func (s *Store) HistoryPage(ctx context.Context, channel string, before int64) (
 			return err
 		}
 		rows, err := tx.Query(ctx, "SELECT "+messageFields+messageRows+`
-			WHERE m.channel_id=$1 AND m.body IS NOT NULL AND ($2=0 OR m.sequence<$2)
+			WHERE m.channel_id=$1 AND m.body IS NOT NULL AND ($2::bigint=0 OR m.sequence<$2)
 			ORDER BY m.sequence DESC LIMIT $3`, channel, before, pageSize+1)
 		if err != nil {
 			return err

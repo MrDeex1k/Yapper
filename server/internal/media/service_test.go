@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/livekit/protocol/livekit"
+	"github.com/twitchtv/twirp"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -118,9 +119,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		}
 	}
 	cancelClose()
-	if _, err = service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: grant.Identity}); err == nil {
-		t.Fatal("revoked participant remains in LiveKit")
-	}
+	requireRemoved(t, ctx, service, channel, grant.Identity)
 
 	replay, response, err := websocket.Dial(ctx, address, &websocket.DialOptions{HTTPHeader: header})
 	if err == nil {
@@ -203,9 +202,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		if _, err := store.VoiceSession(ctx, ownerGrant.Identity); !errors.Is(err, community.ErrDenied) {
 			t.Fatal("revoked account retained voice")
 		}
-		if _, err := registered.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: ownerGrant.Identity}); err == nil {
-			t.Fatal("revoked account remains in LiveKit")
-		}
+		requireRemoved(t, ctx, registered, channel, ownerGrant.Identity)
 		denied, response, err := websocket.Dial(ctx, ownerAddress, &websocket.DialOptions{HTTPHeader: header})
 		if err == nil {
 			denied.CloseNow()
@@ -263,9 +260,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		}
 
 		replacement := enter(nextChannel)
-		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: previous.Identity}); err == nil {
-			t.Fatal("old room still held the switched participant")
-		}
+		requireRemoved(t, ctx, service, channel, previous.Identity)
 		if replay, res, err := connect(previous); err == nil || res == nil || res.StatusCode != 403 {
 			if replay != nil {
 				_ = replay.CloseNow()
@@ -338,51 +333,89 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			}
 			service.FinishRevocations(ctx, sessions)
 		}
-		requestTrack := func(ws *websocket.Conn, wait time.Duration) bool {
+		requestTrack := func(ws *websocket.Conn, wantPublished bool) {
 			t.Helper()
-			probe, cancel := context.WithTimeout(ctx, wait)
-			defer cancel()
 			data, err := proto.Marshal(&livekit.SignalRequest{Message: &livekit.SignalRequest_AddTrack{
 				AddTrack: &livekit.AddTrackRequest{Cid: "test-mic", Name: "test-mic", Type: livekit.TrackType_AUDIO, Source: livekit.TrackSource_MICROPHONE},
 			}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := ws.Write(probe, websocket.MessageBinary, data); err != nil {
+			if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
 				t.Fatal(err)
 			}
-			for {
-				_, data, err := ws.Read(probe)
+			probe, stop := context.WithCancel(ctx)
+			t.Cleanup(stop)
+			read := make(chan error, 1)
+			go func() {
+				for {
+					_, data, err := ws.Read(probe)
+					if err != nil {
+						read <- err
+						return
+					}
+					var response livekit.SignalResponse
+					if err := proto.Unmarshal(data, &response); err != nil {
+						read <- err
+						return
+					}
+					if response.GetTrackPublished() != nil {
+						read <- nil
+						return
+					}
+				}
+			}()
+			wait := 2 * time.Second
+			if !wantPublished {
+				wait = 750 * time.Millisecond
+			}
+			select {
+			case err := <-read:
 				if err != nil {
-					return false
+					t.Fatal("signaling probe failed:", err)
 				}
-				var response livekit.SignalResponse
-				if proto.Unmarshal(data, &response) == nil && response.GetTrackPublished() != nil {
-					return true
+				if !wantPublished {
+					t.Fatal("LiveKit accepted a microphone track from a listen-only participant")
 				}
+			case <-time.After(wait):
+				if wantPublished {
+					t.Fatal("control publication was not accepted")
+				}
+				// LiveKit can deny AddTrack silently. Require a live peer to answer.
+				ping, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				if err := ws.Ping(ping); err != nil {
+					t.Fatal("listener stopped responding during the publication probe:", err)
+				}
+				select {
+				case err := <-read:
+					t.Fatalf("listener probe ended unexpectedly: %v", err)
+				default:
+				}
+			case <-ctx.Done():
+				t.Fatal("publication probe exceeded the test deadline:", ctx.Err())
 			}
 		}
 		before := grantFor(true)
 		active := join(before, true)
-		if !requestTrack(active, 2*time.Second) {
-			t.Fatal("control publication was not accepted")
-		}
+		requestTrack(active, true)
 		apply(community.Mute)
 		if _, err := service.Grant(ctx, speaker, channel, "", "", before.Identity); !errors.Is(err, community.ErrDenied) {
 			t.Fatalf("moderated grant authorized automatic recovery: %v", err)
 		}
-		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: before.Identity}); err == nil {
-			t.Fatal("forced mute left the old publisher active")
-		}
+		requireRemoved(t, ctx, service, channel, before.Identity)
 		if replay, response, err := dial(before); err == nil || response == nil || response.StatusCode != 403 {
 			if replay != nil {
 				_ = replay.CloseNow()
 			}
 			t.Fatalf("forced mute did not deny old publishing grant: %v", err)
 		}
-		listener := join(grantFor(false), false)
-		if requestTrack(listener, 750*time.Millisecond) {
-			t.Fatal("LiveKit accepted a microphone track from a listen-only participant")
+		listenerGrant := grantFor(false)
+		listener := join(listenerGrant, false)
+		requestTrack(listener, false)
+		member, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: listenerGrant.Identity})
+		if err != nil || len(member.GetTracks()) != 0 {
+			t.Fatalf("listen-only participant state after publication probe: tracks=%d, err=%v", len(member.GetTracks()), err)
 		}
 		apply(community.Unmute)
 		restored := grantFor(true)
@@ -391,12 +424,18 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatal(err)
 		}
 		service.reconcileOnce(ctx)
-		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: restored.Identity}); err == nil {
-			t.Fatal("archived voice channel retained an active participant")
-		}
+		requireRemoved(t, ctx, service, channel, restored.Identity)
 		if _, err := service.Grant(ctx, speaker, channel, "", "", ""); !errors.Is(err, community.ErrDenied) {
 			t.Fatalf("archived channel admitted a grant: %v", err)
 		}
 	})
 	t.Log("Real LiveKit accepts a revoked token directly; Yapper ingress rejects it and closes the previous connection.")
+}
+
+func requireRemoved(t *testing.T, ctx context.Context, service *Service, room, identity string) {
+	t.Helper()
+	_, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: room, Identity: identity})
+	if rpc, ok := errors.AsType[twirp.Error](err); !ok || rpc.Code() != twirp.NotFound {
+		t.Fatalf("LiveKit did not confirm participant removal: %v", err)
+	}
 }

@@ -186,8 +186,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return errors.New("invalid media upgrade")
 			}
-			// Register and recheck under the same lock used by moderation. A handshake
-			// authorized before a concurrent ban cannot become an untracked live socket.
+			// Serialize tracking with connection removal. The store separately orders
+			// guest addresses and IP blocks inside PostgreSQL transactions.
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			if _, err := s.current(r.Context(), m.Identity); err != nil {

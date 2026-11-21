@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/netip"
 	"testing"
+	"time"
 )
 
 func TestModerationRolesAndSharedIP(t *testing.T) {
@@ -55,6 +56,17 @@ func TestModerationRolesAndSharedIP(t *testing.T) {
 	}
 	if _, err := s.Moderate(ctx, mod.ID, target.ID, GrantModerator, false); !errors.Is(err, ErrDenied) {
 		t.Fatalf("moderator assigned a role: %v", err)
+	}
+	observed := time.Now().Add(time.Minute)
+	if err := s.RecordGuestAddress(ctx, target, ip, observed); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordGuestAddress(ctx, target, otherIP, observed.Add(-time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var lastIP netip.Addr
+	if err := s.Pool.QueryRow(ctx, "SELECT last_ip FROM participants WHERE id=$1", target.ID).Scan(&lastIP); err != nil || lastIP != ip {
+		t.Fatalf("older request replaced the most recently verified address: %v %v", lastIP, err)
 	}
 	if _, err := s.Moderate(ctx, owner.ID, target.ID, GrantModerator, false); !errors.Is(err, ErrDenied) {
 		t.Fatalf("guest promoted without account: %v", err)

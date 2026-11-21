@@ -81,34 +81,67 @@ func (s *Store) SaveCategory(ctx context.Context, actor, id, name string) error 
 
 func (s *Store) SaveChannel(ctx context.Context, actor, id, name, kind, category string) error {
 	return s.editCatalog(ctx, actor, func(tx pgx.Tx) error {
-		if category != "" {
-			var exists bool
-			if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT FROM categories WHERE id=$1)", category).Scan(&exists); err != nil {
-				return err
-			}
-			if !exists {
-				return ErrDenied
-			}
+		return saveChannel(ctx, tx, id, name, kind, category)
+	})
+}
+
+// PatchChannel applies supplied fields to the catalog state under the write lock.
+func (s *Store) PatchChannel(ctx context.Context, actor, id string, name, category *string) error {
+	return s.editCatalog(ctx, actor, func(tx pgx.Tx) error {
+		var currentName, currentCategory string
+		err := tx.QueryRow(ctx, "SELECT name,COALESCE(category_id::text,'') FROM channels WHERE id=$1", id).Scan(&currentName, &currentCategory)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrDenied
 		}
-		if id == "" {
-			_, err := tx.Exec(ctx, `INSERT INTO channels(id,name,kind,category_id,position)
-				SELECT $1,$2,$3,NULLIF($4,'')::uuid,COALESCE(max(position)+1,0) FROM channels
-				WHERE kind=$3 AND category_id IS NOT DISTINCT FROM NULLIF($4,'')::uuid`, uuid.New().String(), name, kind, category)
+		if err != nil {
 			return err
 		}
-		tag, err := tx.Exec(ctx, `UPDATE channels c SET name=$2,category_id=NULLIF($3,'')::uuid,
-			position=CASE WHEN category_id IS NOT DISTINCT FROM NULLIF($3,'')::uuid THEN position ELSE
-			 (SELECT COALESCE(max(peer.position)+1,0) FROM channels peer WHERE peer.kind=c.kind
-			  AND peer.category_id IS NOT DISTINCT FROM NULLIF($3,'')::uuid) END WHERE id=$1`, id, name, category)
-		if err == nil && tag.RowsAffected() == 0 {
-			err = ErrDenied
+		if name != nil {
+			currentName = *name
 		}
-		return err
+		if category != nil {
+			currentCategory = *category
+		}
+		return saveChannel(ctx, tx, id, currentName, "", currentCategory)
 	})
+}
+
+func saveChannel(ctx context.Context, tx pgx.Tx, id, name, kind, category string) error {
+	if category != "" {
+		var exists bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT FROM categories WHERE id=$1)", category).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return ErrDenied
+		}
+	}
+	if id == "" {
+		_, err := tx.Exec(ctx, `INSERT INTO channels(id,name,kind,category_id,position)
+			SELECT $1,$2,$3,NULLIF($4,'')::uuid,COALESCE(max(position)+1,0) FROM channels
+			WHERE kind=$3 AND category_id IS NOT DISTINCT FROM NULLIF($4,'')::uuid`, uuid.New().String(), name, kind, category)
+		return err
+	}
+	tag, err := tx.Exec(ctx, `UPDATE channels c SET name=$2,category_id=NULLIF($3,'')::uuid,
+		position=CASE WHEN category_id IS NOT DISTINCT FROM NULLIF($3,'')::uuid THEN position ELSE
+		 (SELECT COALESCE(max(peer.position)+1,0) FROM channels peer WHERE peer.kind=c.kind
+		  AND peer.category_id IS NOT DISTINCT FROM NULLIF($3,'')::uuid) END WHERE id=$1`, id, name, category)
+	if err == nil && tag.RowsAffected() == 0 {
+		err = ErrDenied
+	}
+	return err
 }
 
 func (s *Store) MoveCategory(ctx context.Context, actor, id string, direction int) error {
 	return s.editCatalog(ctx, actor, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT FROM categories WHERE id=$1)", id).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return ErrDenied
+		}
+
 		_, err := tx.Exec(ctx, `WITH ordered AS (
 			SELECT id, row_number() OVER (ORDER BY position,id) AS rank FROM categories
 		), selected AS (SELECT rank FROM ordered WHERE id=$1)
@@ -122,6 +155,14 @@ func (s *Store) MoveCategory(ctx context.Context, actor, id string, direction in
 
 func (s *Store) MoveChannel(ctx context.Context, actor, id string, direction int) error {
 	return s.editCatalog(ctx, actor, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT FROM channels WHERE id=$1)", id).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return ErrDenied
+		}
+
 		_, err := tx.Exec(ctx, `WITH ordered AS (
 			SELECT c.id, row_number() OVER (ORDER BY c.position,c.id) AS rank FROM channels c JOIN channels target
 			 ON target.id=$1 AND c.kind=target.kind AND c.category_id IS NOT DISTINCT FROM target.category_id

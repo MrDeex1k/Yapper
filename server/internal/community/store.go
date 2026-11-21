@@ -113,11 +113,15 @@ func (s *Store) Setup(ctx context.Context, name, nickname string, provision func
 func newSecret() string        { var b [32]byte; _, _ = rand.Read(b[:]); return hex.EncodeToString(b[:]) }
 func digest(raw string) []byte { d := sha256.Sum256([]byte(raw)); return d[:] }
 func (s *Store) Guest(ctx context.Context, nickname, invite string, address netip.Addr) (Participant, string, error) {
+	observedAt := time.Now()
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return Participant{}, "", err
 	}
 	defer tx.Rollback(ctx)
+	if err := lockGuestAddresses(ctx, tx, false); err != nil {
+		return Participant{}, "", err
+	}
 	var configured, open bool
 	if err = tx.QueryRow(ctx, "SELECT configured,open_admission FROM installation WHERE singleton FOR SHARE").Scan(&configured, &open); err != nil {
 		return Participant{}, "", err
@@ -141,7 +145,7 @@ func (s *Store) Guest(ctx context.Context, nickname, invite string, address neti
 	}
 	p := Participant{ID: uuid.New().String(), Nickname: nickname, Role: "participant"}
 	secret := newSecret()
-	if _, err = tx.Exec(ctx, "INSERT INTO participants(id,nickname,role,credential_hash,last_ip) VALUES($1,$2,$3,$4,$5)", p.ID, p.Nickname, p.Role, digest(secret), address); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO participants(id,nickname,role,credential_hash,last_ip,last_ip_observed_at) VALUES($1,$2,$3,$4,$5,$6)", p.ID, p.Nickname, p.Role, digest(secret), address, observedAt); err != nil {
 		return Participant{}, "", err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -150,6 +154,7 @@ func (s *Store) Guest(ctx context.Context, nickname, invite string, address neti
 	return p, secret, nil
 }
 func (s *Store) GuestIdentity(ctx context.Context, secret string, address netip.Addr) (Participant, error) {
+	observedAt := time.Now()
 	if len(secret) != 64 {
 		return Participant{}, ErrDenied
 	}
@@ -160,8 +165,40 @@ func (s *Store) GuestIdentity(ctx context.Context, secret string, address netip.
 	if err != nil || !address.IsValid() {
 		return p, err
 	}
-	_, err = s.Pool.Exec(ctx, "UPDATE participants SET last_ip=$2 WHERE id=$1 AND NOT banned AND last_ip IS DISTINCT FROM $2", p.ID, address)
-	return p, err
+	return p, s.RecordGuestAddress(ctx, p, address, observedAt)
+}
+
+// RecordGuestAddress verifies a guest and preserves the newest address observation.
+func (s *Store) RecordGuestAddress(ctx context.Context, guest Participant, address netip.Addr, observedAt time.Time) error {
+	if !address.IsValid() {
+		return nil
+	}
+	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		if err := lockGuestAddresses(ctx, tx, false); err != nil {
+			return err
+		}
+		if err := checkGuestAddress(ctx, tx, address); err != nil {
+			return err
+		}
+		var banned bool
+		var kickGeneration int64
+		err := tx.QueryRow(ctx, "SELECT banned,kick_generation FROM participants WHERE id=$1 AND auth_subject IS NULL FOR UPDATE", guest.ID).Scan(&banned, &kickGeneration)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrDenied
+		}
+		if err != nil {
+			return err
+		}
+		if banned {
+			return ErrBanned
+		}
+		if kickGeneration != guest.KickGeneration {
+			return ErrConflict
+		}
+		_, err = tx.Exec(ctx, `UPDATE participants SET last_ip=$2,last_ip_observed_at=$3
+			WHERE id=$1 AND (last_ip_observed_at IS NULL OR last_ip_observed_at<$3)`, guest.ID, address, observedAt)
+		return err
+	})
 }
 func (s *Store) AccountIdentity(ctx context.Context, subject string) (Participant, error) {
 	return scanParticipant(s.Pool.QueryRow(ctx, "SELECT id::text,nickname,role,mic_muted,kick_generation,banned FROM participants WHERE auth_subject=$1", subject))

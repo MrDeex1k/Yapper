@@ -173,6 +173,11 @@ func validID(value string) bool {
 	u, err := uuid.Parse(value)
 	return err == nil && u.String() == value && u != uuid.Nil()
 }
+func validPassword(password string) bool {
+	length := utf8.RuneCountInString(password)
+	return length >= 12 && length <= 128
+}
+
 func (a *CommunityAPI) authenticate(r *http.Request) (principal, error) {
 	if raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 		account, err := a.verifier.VerifyAccount(r.Context(), raw)
@@ -229,7 +234,7 @@ func (a *CommunityAPI) setup(w http.ResponseWriter, r *http.Request) {
 		fail(w, 403, "setup_denied")
 		return
 	}
-	if !validText(body.Name, 1, 64) || !validText(body.Username, 3, 32) || len(body.Password) < 12 || len(body.Password) > 128 {
+	if !validText(body.Name, 1, 64) || !accountName.MatchString(body.Username) || !validPassword(body.Password) {
 		fail(w, 400, "invalid_request")
 		return
 	}
@@ -372,6 +377,7 @@ func (a *CommunityAPI) current(ctx context.Context, p principal) error {
 	return a.store.CheckGuestAddress(ctx, p.address)
 }
 func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
+	observedAt := time.Now()
 	if r.Header.Get("Origin") != a.config.Origin {
 		fail(w, 403, "origin_denied")
 		return
@@ -400,6 +406,12 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	if err := a.current(r.Context(), t.who); err != nil {
 		resultError(w, err)
 		return
+	}
+	if t.who.account == nil {
+		if err := a.store.RecordGuestAddress(r.Context(), t.who.participant, t.who.address, observedAt); err != nil {
+			resultError(w, err)
+			return
+		}
 	}
 	origin, _ := url.Parse(a.config.Origin)
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"yapper.v1"}, OriginPatterns: []string{origin.Host}})

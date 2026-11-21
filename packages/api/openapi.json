@@ -647,7 +647,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -692,7 +699,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -748,7 +762,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -804,7 +825,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -849,7 +877,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -888,6 +923,67 @@
             "accountJWT": []
           }
         ]
+      },
+      "patch": {
+        "operationId": "patchChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/channels/{id}/move": {
@@ -905,7 +1001,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -961,7 +1064,14 @@
             }
           },
           "403": {
-            "description": "Owner, resource or origin authorization failed."
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -1007,7 +1117,14 @@
             }
           },
           "403": {
-            "description": "Authorization, moderation, or origin check failed."
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -1062,7 +1179,14 @@
             }
           },
           "403": {
-            "description": "Authorization, moderation, or origin check failed."
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -1107,7 +1231,14 @@
             }
           },
           "403": {
-            "description": "Authorization, moderation, or origin check failed."
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -1163,7 +1294,14 @@
             }
           },
           "403": {
-            "description": "Authorization, moderation, or origin check failed."
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "default": {
             "description": "Stable error code.",
@@ -1292,7 +1430,8 @@
               "minimum": 0
             }
           }
-        ]
+        ],
+        "description": "Returns up to 100 changes in ascending revision order. Apply each batch and use its last revision as the next after cursor. Continue until a batch contains fewer than 100 changes."
       }
     },
     "/api/v1/channels/{id}/messages/{message}/edit": {
@@ -1639,7 +1778,8 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "Password length is measured in Unicode code points."
           },
           "name": {
             "type": "string"
@@ -1728,9 +1868,13 @@
         "properties": {
           "token": {
             "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
-        "required": ["token"]
+        "required": ["id", "token"]
       },
       "VoiceGrant": {
         "type": "object",
@@ -1771,15 +1915,13 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 876000,
-            "default": 24,
-            "description": "Zero removes the expiration."
+            "description": "Zero removes the expiration. Defaults to 24 when omitted."
           },
           "maxUses": {
             "type": "integer",
             "minimum": 0,
             "maximum": 2147483647,
-            "default": 1,
-            "description": "Zero removes the usage limit."
+            "description": "Zero removes the usage limit. Defaults to 1 when omitted."
           }
         }
       },
@@ -2016,7 +2158,8 @@
           "password": {
             "type": "string",
             "minLength": 12,
-            "maxLength": 128
+            "maxLength": 128,
+            "description": "Password length is measured in Unicode code points."
           }
         },
         "required": ["username", "password"]
@@ -2180,6 +2323,22 @@
         "additionalProperties": false,
         "properties": {},
         "required": []
+      },
+      "ChannelPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Omit to keep the current category. Send an empty string to remove it."
+          }
+        },
+        "minProperties": 1
       }
     },
     "securitySchemes": {
