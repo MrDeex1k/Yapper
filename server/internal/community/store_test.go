@@ -299,12 +299,12 @@ func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
 			channel = c.ID
 		}
 	}
-	old, err := s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", netip.Addr{}, func(context.Context, MediaSession) error { return nil })
+	old, err := s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", "", netip.Addr{}, func(context.Context, MediaSession) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
 	removalFailure := errors.New("LiveKit unavailable")
-	_, err = s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", netip.Addr{}, func(ctx context.Context, stale MediaSession) error {
+	_, err = s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", "", netip.Addr{}, func(ctx context.Context, stale MediaSession) error {
 		if stale.Identity != old.Identity {
 			t.Fatal("wrong identity removed")
 		}
@@ -334,8 +334,15 @@ func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
 	if _, err := s.VoiceSession(t.Context(), sessions[0].Identity); err != nil {
 		t.Fatal("replacement revoked by stale operation")
 	}
-	if err := s.ForgetVoiceRemoval(t.Context(), old.Identity); err != nil {
+	removed := map[string]bool{}
+	if _, err := s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", "", netip.Addr{}, func(_ context.Context, stale MediaSession) error {
+		removed[stale.Identity] = true
+		return nil
+	}); err != nil {
 		t.Fatal(err)
+	}
+	if !removed[old.Identity] || !removed[sessions[0].Identity] || len(removed) != 2 {
+		t.Fatalf("new grant skipped outstanding removals: %v", removed)
 	}
 	pending, err = s.PendingVoiceRemovals(t.Context())
 	if err != nil || len(pending) != 0 {

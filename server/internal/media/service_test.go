@@ -87,7 +87,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	defer service.Close()
 	proxy := httptest.NewServer(service)
 	defer proxy.Close()
-	grant, err := service.Grant(ctx, guest, channel, "", "")
+	grant, err := service.Grant(ctx, guest, channel, "", "", "")
 	if err != nil {
 		t.Fatal("grant failed", err)
 	}
@@ -130,7 +130,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	if response == nil || response.StatusCode != 403 {
 		t.Fatal("replay was not rejected at admission")
 	}
-	if _, err = service.Grant(ctx, guest, channel, "", ""); err == nil {
+	if _, err = service.Grant(ctx, guest, channel, "", "", ""); err == nil {
 		t.Fatal("banned participant obtained a new grant")
 	}
 	// Verify the premise against the pinned real server: its private endpoint
@@ -174,7 +174,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer registered.Close()
-		ownerGrant, err := registered.Grant(ctx, owner, channel, "owner", "session")
+		ownerGrant, err := registered.Grant(ctx, owner, channel, "owner", "session", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,6 +215,84 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatal("revoked account replay was not denied")
 		}
 	})
+	t.Run("switching rooms removes the old identity before admitting its replacement", func(t *testing.T) {
+		invitation, err := store.Invite(ctx, owner.ID, community.InvitationOptions{MaxUses: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		switcher, _, err := store.Guest(ctx, "switcher", invitation, netip.Addr{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.SaveChannel(ctx, owner.ID, "", "Second voice", "voice", ""); err != nil {
+			t.Fatal(err)
+		}
+		channels, err := store.Channels(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nextChannel string
+		for _, item := range channels {
+			if item.Name == "Second voice" {
+				nextChannel = item.ID
+			}
+		}
+		connect := func(grant Grant) (*websocket.Conn, *http.Response, error) {
+			address := "ws" + strings.TrimPrefix(proxy.URL, "http") + "/livekit/rtc?protocol=15&access_token=" + url.QueryEscape(grant.Token)
+			return websocket.Dial(ctx, address, &websocket.DialOptions{HTTPHeader: header})
+		}
+		enter := func(channelID string) Grant {
+			t.Helper()
+			grant, err := service.Grant(ctx, switcher, channelID, "", "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ws, _, err := connect(grant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = ws.CloseNow() })
+			if _, _, err := ws.Read(ctx); err != nil {
+				t.Fatal(err)
+			}
+			return grant
+		}
+		previous := enter(channel)
+		if _, err := service.Grant(ctx, switcher, nextChannel, "", "", previous.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("automatic recovery switched rooms: %v", err)
+		}
+
+		replacement := enter(nextChannel)
+		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: previous.Identity}); err == nil {
+			t.Fatal("old room still held the switched participant")
+		}
+		if replay, res, err := connect(previous); err == nil || res == nil || res.StatusCode != 403 {
+			if replay != nil {
+				_ = replay.CloseNow()
+			}
+			t.Fatalf("old grant was not rejected: %v", err)
+		}
+		if err := service.Leave(ctx, switcher.ID, previous.Identity); err != nil {
+			t.Fatal(err)
+		}
+		if m, err := store.VoiceSession(ctx, replacement.Identity); err != nil || m.ChannelID != nextChannel {
+			t.Fatalf("stale leave changed the replacement grant: %+v %v", m, err)
+		}
+		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: nextChannel, Identity: replacement.Identity}); err != nil {
+			t.Fatal("replacement missing in LiveKit", err)
+		}
+		recovered, err := service.Grant(ctx, switcher, nextChannel, "", "", replacement.Identity)
+		if err != nil || recovered.Identity == replacement.Identity {
+			t.Fatalf("automatic recovery did not rotate the media grant: %+v %v", recovered, err)
+		}
+		if _, err := service.Grant(ctx, switcher, nextChannel, "", "", replacement.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("replaced media identity authorized automatic recovery: %v", err)
+		}
+		if err := service.Leave(ctx, switcher.ID, recovered.Identity); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("force mute removes the publishing session and preserves listen access", func(t *testing.T) {
 		invite, err := store.Invite(ctx, owner.ID, community.InvitationOptions{MaxUses: 1})
 		if err != nil {
@@ -246,7 +324,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		}
 		grantFor := func(publish bool) Grant {
 			t.Helper()
-			grant, err := service.Grant(ctx, speaker, channel, "", "")
+			grant, err := service.Grant(ctx, speaker, channel, "", "", "")
 			if err != nil || grant.CanPublish != publish {
 				t.Fatalf("grant permission=%v err=%v, publish wanted=%v", grant.CanPublish, err, publish)
 			}
@@ -290,6 +368,9 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatal("control publication was not accepted")
 		}
 		apply(community.Mute)
+		if _, err := service.Grant(ctx, speaker, channel, "", "", before.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("moderated grant authorized automatic recovery: %v", err)
+		}
 		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: before.Identity}); err == nil {
 			t.Fatal("forced mute left the old publisher active")
 		}
@@ -313,7 +394,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: restored.Identity}); err == nil {
 			t.Fatal("archived voice channel retained an active participant")
 		}
-		if _, err := service.Grant(ctx, speaker, channel, "", ""); !errors.Is(err, community.ErrDenied) {
+		if _, err := service.Grant(ctx, speaker, channel, "", "", ""); !errors.Is(err, community.ErrDenied) {
 			t.Fatalf("archived channel admitted a grant: %v", err)
 		}
 	})

@@ -35,7 +35,7 @@ func (s *Store) Catalog(ctx context.Context) (Catalog, error) {
 	return Catalog{Categories: categories, Channels: channels}, err
 }
 
-type channelQuerier interface {
+type rowQuerier interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
@@ -43,7 +43,7 @@ func (s *Store) Channels(ctx context.Context) ([]Channel, error) {
 	return channels(ctx, s.Pool)
 }
 
-func channels(ctx context.Context, db channelQuerier) ([]Channel, error) {
+func channels(ctx context.Context, db rowQuerier) ([]Channel, error) {
 	rows, err := db.Query(ctx, `SELECT id::text,name,kind,COALESCE(category_id::text,''),archived
 		FROM channels ORDER BY position,id`)
 	if err != nil {

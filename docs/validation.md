@@ -10,7 +10,7 @@ For each implementation gate, record the source revision, image/package versions
 
 ## Functional and authorization scenarios
 
-See the Stage 2 reports for [admission controls](evidence/stage-2-admission.md), [channel management](evidence/stage-2-channels.md), [moderation](evidence/stage-2-moderation.md), and [message lifecycle](evidence/stage-2-messages.md).
+See the Stage 2 reports for [admission controls](evidence/stage-2-admission.md), [channel management](evidence/stage-2-channels.md), [moderation](evidence/stage-2-moderation.md), [message lifecycle](evidence/stage-2-messages.md), and [voice controls](evidence/stage-2-voice.md).
 
 | Area          | Required evidence                                                                                                                                                  |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -8,25 +8,14 @@ import {
   type FormEvent,
 } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  Mic,
-  MicOff,
-  VolumeX,
-  PhoneOff,
-  Hash,
-  Headphones,
-  LogOut,
-  Send,
-  Shield,
-  Volume2,
-  ArrowRight,
-} from "lucide-react";
+import { Hash, Headphones, LogOut, Send, Shield, Volume2, ArrowRight } from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
 import type { CommunityState, CurrentUser } from "@yapper/api";
 import { api, APIError, login, logout, restoreAccount } from "./api";
 import { useConversation } from "./use-conversation";
 import { useVoice } from "./use-voice";
+import { VoicePanel } from "./voice-panel";
 import { errorText } from "./errors";
 import { CatalogPanel, groupedChannels } from "./catalog-panel";
 import { ModerationPanel, isStaff } from "./moderation-panel";
@@ -397,7 +386,7 @@ function Conversation({
     if (!signal?.aborted && refreshRevision.current === revision) setUser(next);
   }, []);
   const conversation = useConversation(channel, refreshCommunity);
-  const voice = useVoice();
+  const voice = useVoice(user.participant.micMuted, conversation.status === "kicked");
   const [error, setError] = useState<unknown>(null);
   const [panel, setPanel] = useState<ConversationPanel | null>(null);
   const [moderationTarget, setModerationTarget] = useState("");
@@ -694,13 +683,16 @@ function ConversationSidebar({
                       key={item.id}
                       variant="ghost"
                       className={
-                        item.id === channel ? "channel-button channel-active" : "channel-button"
+                        item.id === (kind === "voice" ? voice.channel : channel)
+                          ? "channel-button channel-active"
+                          : "channel-button"
                       }
                       aria-current={item.id === channel ? "page" : undefined}
+                      aria-pressed={kind === "voice" ? item.id === voice.channel : undefined}
                       onClick={
                         kind === "text" ? () => onChannel(item.id) : () => void voice.join(item.id)
                       }
-                      disabled={kind === "voice" && (kicked || voice.status === "connecting")}
+                      disabled={kind === "voice" && kicked}
                       title={kind === "voice" ? t.joinVoice : undefined}
                     >
                       {kind === "text" ? <Hash size={18} /> : <Volume2 size={18} />}
@@ -717,10 +709,10 @@ function ConversationSidebar({
       <div className="sidebar-bottom">
         <VoicePanel
           voice={voice}
-          voiceChannels={voiceChannels}
+          channels={voiceChannels}
           forcedMuted={user.participant.micMuted}
           locale={locale}
-          onError={onError}
+          kicked={kicked}
         />
         {user.participant.role === "owner" && (
           <Button
@@ -777,84 +769,6 @@ function ConversationSidebar({
         </div>
       </div>
     </aside>
-  );
-}
-
-function VoicePanel({
-  voice,
-  voiceChannels,
-  forcedMuted,
-  locale,
-  onError,
-}: {
-  voice: ReturnType<typeof useVoice>;
-  voiceChannels: CurrentUser["channels"];
-  locale: Locale;
-  forcedMuted: boolean;
-  onError: (error: unknown) => void;
-}) {
-  const t = messages[locale];
-  return (
-    <>
-      {forcedMuted && <output className="voice-moderation-notice">{t.micModerated}</output>}
-      {voice.channel && (
-        <section className="voice-panel" aria-label={t.voice}>
-          <div className="voice-panel-title">
-            <Volume2 size={15} />
-            <strong>{voiceChannels.find((c) => c.id === voice.channel)?.name}</strong>
-            <span>{t[voice.status]}</span>
-          </div>
-          {voice.participants.map((p) => (
-            <div
-              key={p.identity}
-              className={p.speaking ? "voice-person voice-speaking" : "voice-person"}
-            >
-              <span className="status-dot" />
-              {p.name}
-            </div>
-          ))}
-          <div className="voice-controls">
-            <Button
-              size="icon"
-              variant="ghost"
-              disabled={forcedMuted || !voice.canPublish}
-              aria-label={voice.muted ? t.unmute : t.mute}
-              aria-pressed={!voice.muted}
-              onClick={() => void voice.toggleMute()}
-            >
-              {voice.muted ? <MicOff size={17} /> : <Mic size={17} />}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={voice.deafened ? t.undeafen : t.deafen}
-              aria-pressed={voice.deafened}
-              onClick={voice.toggleDeafen}
-            >
-              {voice.deafened ? <VolumeX size={17} /> : <Headphones size={17} />}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={t.leaveVoice}
-              onClick={() => void voice.leave().catch(onError)}
-            >
-              <PhoneOff size={17} />
-            </Button>
-          </div>
-          {voice.audioBlocked && (
-            <Button variant="outline" onClick={() => void voice.startAudio()}>
-              {t.undeafen}
-            </Button>
-          )}
-        </section>
-      )}
-      {voice.error && (
-        <p role="alert" className="error-message">
-          {t.voiceError}
-        </p>
-      )}
-    </>
   );
 }
 

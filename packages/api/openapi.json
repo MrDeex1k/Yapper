@@ -561,6 +561,11 @@
                   "channelId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "resumeIdentity": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "Only replace this current, unrevoked media identity in the same channel."
                   }
                 }
               }

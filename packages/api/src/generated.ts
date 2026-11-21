@@ -1091,6 +1091,8 @@ export interface operations {
         "application/json": {
           /** Format: uuid */
           channelId: string;
+          /** @description Only replace this current, unrevoked media identity in the same channel. */
+          resumeIdentity?: string;
         };
       };
     };

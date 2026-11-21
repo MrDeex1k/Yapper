@@ -82,7 +82,7 @@ Go coordinates kick, ban, room departure, channel archival and forced mute with 
 
 Go stores the latest verified guest address for optional IP blocking. The ingress reconstructs that address from the actual connection. A block supplements credential bans and applies to new and existing guest connections from the address. IP addresses stay out of the participant and audit responses. Live WebSocket connections check current membership and kick generation. Role changes take effect at the permission check regardless of token issue time.
 
-Chat history is stored in PostgreSQL and transported by the application protocol, not treated as durable LiveKit room data. Audio is not recorded. Limit a client to one active conversation, including switching between saved installations.
+Chat history is stored in PostgreSQL and transported by the application protocol, not treated as durable LiveKit room data. Audio is not recorded. The Web and Electron renderer serializes active room replacement, and every leave identifies its own grant. A network recovery request can replace its previous grant only while it is still current and unrevoked. PostgreSQL tracks pending LiveKit removals so a replacement grant does not start voice alongside a stale session.
 
 Evaluate the LiveKit Rust SDK for the GPUI client. Verify that native signaling works through the public Go endpoint and that the client handles microphone permissions, audio input/output, direct media, TURN/TLS fallback, reconnect, and revocation. Choose and pin the media dependencies after the prototype validates the integration.
 

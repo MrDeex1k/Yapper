@@ -19,7 +19,7 @@ type MediaSession struct {
 	MicMuted      bool
 }
 
-func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subject, sessionID string, address netip.Addr, remove func(context.Context, MediaSession) error) (MediaSession, error) {
+func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subject, sessionID, resumeIdentity string, address netip.Addr, remove func(context.Context, MediaSession) error) (MediaSession, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return MediaSession{}, err
@@ -49,10 +49,16 @@ func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subj
 		return MediaSession{}, err
 	}
 	var old MediaSession
-	err = tx.QueryRow(ctx, "SELECT participant_id::text,identity,channel_id::text FROM media_sessions WHERE participant_id=$1", id).Scan(&old.ParticipantID, &old.Identity, &old.ChannelID)
+	var revoked bool
+	err = tx.QueryRow(ctx, "SELECT participant_id::text,identity,channel_id::text,revoked FROM media_sessions WHERE participant_id=$1 FOR UPDATE", id).
+		Scan(&old.ParticipantID, &old.Identity, &old.ChannelID, &revoked)
 	hadOld := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return MediaSession{}, err
+	}
+	// Automatic recovery may replace only the still-authorized grant that failed.
+	if resumeIdentity != "" && (!hadOld || revoked || old.Identity != resumeIdentity || old.ChannelID != channel) {
+		return MediaSession{}, ErrDenied
 	}
 	session := MediaSession{ParticipantID: id, Identity: id + ":" + uuid.New().String(), ChannelID: channel, AuthSubject: subject, AuthSessionID: sessionID, Nickname: nickname, MicMuted: muted}
 	_, err = tx.Exec(ctx, `INSERT INTO media_sessions(participant_id,identity,channel_id,auth_subject,auth_session_id,client_ip) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(participant_id) DO UPDATE SET identity=EXCLUDED.identity,channel_id=EXCLUDED.channel_id,auth_subject=EXCLUDED.auth_subject,auth_session_id=EXCLUDED.auth_session_id,client_ip=EXCLUDED.client_ip,revoked=false`, id, session.Identity, channel, subject, sessionID, address)
@@ -65,14 +71,18 @@ func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subj
 			return MediaSession{}, err
 		}
 	}
+	pending, err := pendingVoiceRemovals(ctx, tx, id)
+	if err != nil {
+		return MediaSession{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MediaSession{}, err
 	}
-	if hadOld {
-		if err = remove(ctx, old); err != nil {
+	for _, stale := range pending {
+		if err = remove(ctx, stale); err != nil {
 			return MediaSession{}, err
 		}
-		if err = s.ForgetVoiceRemoval(ctx, old.Identity); err != nil {
+		if err = s.ForgetVoiceRemoval(ctx, stale.Identity); err != nil {
 			return MediaSession{}, err
 		}
 	}
@@ -140,7 +150,12 @@ func (s *Store) RevokeOwnedVoice(ctx context.Context, id, identity string) (Medi
 }
 
 func (s *Store) PendingVoiceRemovals(ctx context.Context) ([]MediaSession, error) {
-	rows, err := s.Pool.Query(ctx, "SELECT participant_id::text,identity,channel_id::text FROM media_removals")
+	return pendingVoiceRemovals(ctx, s.Pool, "")
+}
+
+func pendingVoiceRemovals(ctx context.Context, db rowQuerier, participant string) ([]MediaSession, error) {
+	rows, err := db.Query(ctx, `SELECT participant_id::text,identity,channel_id::text FROM media_removals
+		WHERE NULLIF($1,'') IS NULL OR participant_id=NULLIF($1,'')::uuid`, participant)
 	if err != nil {
 		return nil, err
 	}

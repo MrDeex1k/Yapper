@@ -88,7 +88,7 @@ func TestCatalogPreservesHistoryAndRevokesArchivedVoice(t *testing.T) {
 		t.Fatalf("moved channels: %+v", categorized)
 	}
 	removal := func(context.Context, MediaSession) error { return nil }
-	session, err := s.StartVoice(ctx, guest, voice.ID, "", "", netip.Addr{}, removal)
+	session, err := s.StartVoice(ctx, guest, voice.ID, "", "", "", netip.Addr{}, removal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestCatalogPreservesHistoryAndRevokesArchivedVoice(t *testing.T) {
 	if _, err := s.VoiceSession(ctx, session.Identity); !errors.Is(err, ErrDenied) {
 		t.Fatalf("archived session: %v", err)
 	}
-	if _, err := s.StartVoice(ctx, guest, voice.ID, "", "", netip.Addr{}, removal); !errors.Is(err, ErrDenied) {
+	if _, err := s.StartVoice(ctx, guest, voice.ID, "", "", "", netip.Addr{}, removal); !errors.Is(err, ErrDenied) {
 		t.Fatalf("archived grant: %v", err)
 	}
 	if _, _, err := s.Send(ctx, owner.ID, text.ID, uuid.New().String(), "denied"); !errors.Is(err, ErrDenied) {

@@ -58,7 +58,7 @@ Deliverables:
 
 **Completion gate:** the community feature acceptance scenarios pass, including concurrent invite redemption, role changes during active connections, reconnect after moderation, and retention. Document the limits of anonymous bans and lost guest credentials in the UI. Record the GPUI prototype results and resolve any blockers before the full desktop implementation.
 
-Target branch: `feat/stage-2-community`. See the [work sequence](stage-2-plan.md#change-sequence). Admission controls, the channel catalog, moderation, and message lifecycle have local verification reports. Voice controls and the GPUI prototype remain to be implemented.
+Target branch: `feat/stage-2-community`. See the [work sequence](stage-2-plan.md#change-sequence). Admission controls, the channel catalog, moderation, message lifecycle, and voice controls have local verification reports. The GPUI prototype remains to be implemented.
 
 ## Stage 3 — Operational reliability and capacity
 

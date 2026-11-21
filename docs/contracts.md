@@ -55,6 +55,12 @@ Authors edit via `POST /channels/{id}/messages/{message}/edit` with the edited b
 
 The owner reads or sets `/message-retention` with `days` from 0 to 36500. Zero keeps messages indefinitely. The server erases expired bodies across all text channels in bounded batches from startup and once per minute. A change to the limit takes effect on the next pass. IDs, ordering data and retry keys are retained after erasure. Coordinated backups can still contain older content until the backup expires.
 
+## Voice switching and recovery
+
+A manual join sends the channel ID to `POST /api/v1/voice/grant`. The service invalidates the old identity and finishes pending LiveKit removals for that participant before returning the new grant. Leave requests with a media identity affect only that identity.
+
+After an established room's SDK reconnect attempts end with a transient disconnect, clients can attempt one fresh grant with the previous `resumeIdentity` and the same `channelId`. Go checks both against the current unrevoked media session while rotating the grant. A kick, ban, forced mute, archival, stale identity, or manual leave prevents that automatic recovery. Clients use a manual join to return to an available room with current permissions. An automatic replacement starts muted.
+
 ## Planned Rust desktop conformance
 
 The Windows and Linux GPUI client uses the same public HTTP resources, WebSocket event version, and Go-gated LiveKit signaling as Web and macOS Electron. The Stage 2 prototype defines and verifies native session and origin handling, including guest admission, AUTH login/logout, WebSocket tickets, and signaling. Document compatibility changes and verify them across those clients, preserving browser origin protections and server-side authorization.

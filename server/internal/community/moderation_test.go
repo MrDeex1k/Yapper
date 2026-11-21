@@ -70,7 +70,7 @@ func TestModerationRolesAndSharedIP(t *testing.T) {
 		}
 	}
 	remove := func(context.Context, MediaSession) error { return nil }
-	session, err := s.StartVoice(ctx, neighbor, voice, "", "", ip, remove)
+	session, err := s.StartVoice(ctx, neighbor, voice, "", "", "", ip, remove)
 	if err != nil {
 		t.Fatal(err)
 	}

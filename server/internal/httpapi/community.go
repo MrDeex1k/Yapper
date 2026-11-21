@@ -488,12 +488,13 @@ func (a *CommunityAPI) voiceGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		ChannelID string `json:"channelId"`
+		ChannelID      string `json:"channelId"`
+		ResumeIdentity string `json:"resumeIdentity"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	if !validID(body.ChannelID) {
+	if !validID(body.ChannelID) || len(body.ResumeIdentity) > 128 {
 		fail(w, 400, "invalid_request")
 		return
 	}
@@ -502,7 +503,7 @@ func (a *CommunityAPI) voiceGrant(w http.ResponseWriter, r *http.Request) {
 		subject = p.account.Subject
 		sessionID = p.account.SessionID
 	}
-	grant, err := a.config.Media.Grant(r.Context(), p.participant, body.ChannelID, subject, sessionID)
+	grant, err := a.config.Media.Grant(r.Context(), p.participant, body.ChannelID, subject, sessionID, body.ResumeIdentity)
 	if err != nil {
 		resultError(w, err)
 		return

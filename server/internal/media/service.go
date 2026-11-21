@@ -66,8 +66,8 @@ func New(store *community.Store, auth *identity.AuthClient, endpoint, key, secre
 	}
 	return &Service{store: store, auth: auth, key: key, secret: secret, origin: origin, target: target, room: lksdk.NewRoomServiceClient(endpoint, key, secret), connections: map[string]map[*trackedBody]struct{}{}}, nil
 }
-func (s *Service) Grant(ctx context.Context, actor community.Participant, channel, subject, sessionID string) (Grant, error) {
-	m, err := s.store.StartVoice(ctx, actor, channel, subject, sessionID, identity.ClientAddress(ctx), s.remove)
+func (s *Service) Grant(ctx context.Context, actor community.Participant, channel, subject, sessionID, resumeIdentity string) (Grant, error) {
+	m, err := s.store.StartVoice(ctx, actor, channel, subject, sessionID, resumeIdentity, identity.ClientAddress(ctx), s.remove)
 	if err != nil {
 		return Grant{}, err
 	}

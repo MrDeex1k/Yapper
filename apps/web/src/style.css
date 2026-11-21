@@ -753,11 +753,6 @@ h1 {
   color: var(--accent);
   font-size: 11px;
 }
-.voice-panel-title span {
-  margin-left: auto;
-  font-size: 9px;
-  color: var(--muted);
-}
 .voice-person {
   display: flex;
   align-items: center;
@@ -941,4 +936,51 @@ h1 {
   display: grid;
   gap: 6px;
   font-size: 12px;
+}
+
+.voice-panel-title output,
+.voice-device-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.voice-person-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-person input {
+  width: 58px;
+  flex: none;
+  margin-left: auto;
+  accent-color: var(--accent);
+}
+.voice-push-mode {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.voice-device-settings {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.voice-device-settings summary {
+  cursor: pointer;
+}
+.voice-device-settings label {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0;
+}
+.voice-device-settings select {
+  width: 100%;
+  min-width: 0;
+}
+.voice-device-settings p {
+  color: var(--muted);
+}
+@media (max-width: 700px) {
+  .voice-panel:has(.voice-device-settings[open]) {
+    flex-basis: 100%;
+  }
 }
