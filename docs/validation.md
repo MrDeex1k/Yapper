@@ -1,6 +1,6 @@
 # Validation and release evidence
 
-Stage 0 has passed its foundation checks. Stage 1 acceptance still covers public media, real calls, network recovery and the macOS Electron development flow. Follow the [Stage 1 acceptance steps](evidence/stage-1.md#next-steps-for-stage-1) before moving to Stage 2. The first private release covers GPUI on Windows and Linux and Electron on macOS. Recorded results are in the [Stage 0 evidence](evidence/stage-0.md) and the [Stage 1 checkpoint](evidence/stage-1.md#current-status).
+Stage 0 has passed its foundation checks. Stage 1 acceptance still covers public media, real calls, network recovery and the macOS Electron development flow. The [Stage 1 acceptance run](evidence/stage-1.md#next-steps-for-stage-1) is separate from [Stage 2 feature work](stage-2-plan.md). The first private release covers GPUI on Windows and Linux and Electron on macOS. Recorded results are in the [Stage 0 evidence](evidence/stage-0.md) and the [Stage 1 checkpoint](evidence/stage-1.md#current-status).
 
 The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the current version baseline and compatibility exceptions. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
 
@@ -9,6 +9,8 @@ The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) r
 For each implementation gate, record the source revision, image/package versions, date, environment, steps, observed outcome, and remaining limitations. Use logs or screenshots only when they substantiate the result, and exclude secrets and private message content.
 
 ## Functional and authorization scenarios
+
+See the [Stage 2 admission controls report](evidence/stage-2-admission.md) for the current scope and local evidence.
 
 | Area          | Required evidence                                                                                                                   |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,6 +67,7 @@ Record global desktop push-to-talk and mobile background audio separately. Foreg
 
 - At Stage 2, record GPUI and Rust versions, OS and architecture, native session and origin handling, and a two-way test call through the Go signaling endpoint on Windows and Linux. Record the tested Linux distribution and desktop session, along with any build or audio limitations.
 - At Stage 4, validate the installed GPUI packages on Windows and Linux and the Electron package on macOS against the same server contract as Web. Verify foreground push-to-talk, microphone permission denial and recovery, device selection where supported, direct media and TURN/TLS, reconnect, and moderation during a call.
+- Compare the same screens and states in GPUI and Electron at matched window sizes and display scaling. Verify layout, typography, colors, icons, keyboard navigation, and responsive behavior as part of the Stage 4 desktop gate.
 - Switch between two saved servers and restart each app. Verify that credentials and participant identities stay isolated and that the previous voice session closes. On Windows and Linux, exercise the documented transition from Electron development profiles and verify any claimed guest identity preservation.
 
 ## First private release checklist

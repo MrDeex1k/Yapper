@@ -80,9 +80,122 @@ func TestConcurrentSetupCreatesOneOwner(t *testing.T) {
 		t.Fatalf("provisions=%d success=%d", calls.Load(), success.Load())
 	}
 }
+
+func TestAdmissionControls(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	if _, _, err := s.Guest(ctx, "uninvited", ""); !errors.Is(err, ErrDenied) {
+		t.Fatalf("closed admission: %v", err)
+	}
+	if err := s.SetOpenAdmission(ctx, owner.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	guest, credential, err := s.Guest(ctx, "walk in", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOpenAdmission(ctx, guest.ID, false); !errors.Is(err, ErrDenied) {
+		t.Fatalf("guest changed admission: %v", err)
+	}
+	if err := s.SetOpenAdmission(ctx, owner.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if restored, err := s.GuestIdentity(ctx, credential); err != nil || restored.ID != guest.ID {
+		t.Fatalf("closing admission removed membership: %v", err)
+	}
+	if _, _, err = s.Guest(ctx, "new guest", ""); !errors.Is(err, ErrDenied) {
+		t.Fatalf("closed admission allowed new guest: %v", err)
+	}
+
+	token, err := s.Invite(ctx, owner.ID, InvitationOptions{MaxUses: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wins atomic.Int32
+	var wg sync.WaitGroup
+	for range 12 {
+		wg.Go(func() {
+			if _, _, err := s.Guest(ctx, "friend", token); err == nil {
+				wins.Add(1)
+			} else if !errors.Is(err, ErrDenied) {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if wins.Load() != 3 {
+		t.Fatalf("admissions=%d, want 3", wins.Load())
+	}
+	token, err = s.Invite(ctx, owner.ID, InvitationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, _, err := s.Guest(ctx, "invited", token); err != nil {
+			t.Fatal("unlimited invitation failed", err)
+		}
+	}
+	items, err := s.Invitations(ctx, owner.ID)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("invitation list: %v, %v", items, err)
+	}
+	unlimited, exhausted := items[0], items[1]
+	if unlimited.Remaining != nil || unlimited.ExpiresAt != nil ||
+		exhausted.Remaining == nil || *exhausted.Remaining != 0 || exhausted.ExpiresAt != nil {
+		t.Fatalf("unexpected invitation settings: %+v", items)
+	}
+	if _, err := s.Invitations(ctx, guest.ID); !errors.Is(err, ErrDenied) {
+		t.Fatalf("guest listed invitations: %v", err)
+	}
+	if err := s.RevokeInvitation(ctx, guest.ID, unlimited.ID); !errors.Is(err, ErrDenied) {
+		t.Fatalf("guest revoked invitation: %v", err)
+	}
+	for range 2 {
+		if err := s.RevokeInvitation(ctx, owner.ID, unlimited.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := s.Guest(ctx, "late guest", token); !errors.Is(err, ErrDenied) {
+		t.Fatalf("revoked invitation allowed admission: %v", err)
+	}
+}
+
+func TestInvitationMigrationRetainsLegacyCodes(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	if _, err := s.Pool.Exec(ctx, `ALTER TABLE invitations ALTER COLUMN remaining SET NOT NULL,
+		ALTER COLUMN expires_at SET NOT NULL, DROP COLUMN created_at`); err != nil {
+		t.Fatal(err)
+	}
+	token := newSecret()
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO invitations(id,token_hash,remaining,expires_at)
+		VALUES($1,$2,1,now()+interval '24 hours')`, uuid.New().String(), digest(token)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.Invitations(ctx, owner.ID)
+	if err != nil || len(items) != 1 || items[0].CreatedAt.IsZero() || items[0].ExpiresAt == nil {
+		t.Fatalf("legacy invitation metadata: %v, %v", items, err)
+	}
+	if _, _, err := s.Guest(ctx, "legacy invite", token); err != nil {
+		t.Fatal(err)
+	}
+	expired, err := s.Invite(ctx, owner.ID, InvitationOptions{ExpiresInHours: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, "UPDATE invitations SET expires_at=now() WHERE token_hash=$1", digest(expired)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = s.Guest(ctx, "expired invite", expired); !errors.Is(err, ErrDenied) {
+		t.Fatalf("expired invitation allowed admission: %v", err)
+	}
+}
 func TestInviteConcurrencyIdentityAndBan(t *testing.T) {
 	s, owner := configuredStore(t)
-	token, err := s.Invite(t.Context(), owner.ID)
+	token, err := s.Invite(t.Context(), owner.ID, InvitationOptions{ExpiresInHours: 24, MaxUses: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +226,7 @@ func TestInviteConcurrencyIdentityAndBan(t *testing.T) {
 	if err != nil || restored.ID != winner.ID {
 		t.Fatal("identity not preserved", err)
 	}
-	if _, err = s.Invite(t.Context(), winner.ID); !errors.Is(err, ErrDenied) {
+	if _, err = s.Invite(t.Context(), winner.ID, InvitationOptions{ExpiresInHours: 24, MaxUses: 1}); !errors.Is(err, ErrDenied) {
 		t.Fatal("guest created invitation", err)
 	}
 	if err = s.Ban(t.Context(), winner.ID, owner.ID); !errors.Is(err, ErrDenied) {

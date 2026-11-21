@@ -8,14 +8,10 @@ import {
   Hash,
   Headphones,
   LogOut,
-  Plus,
   Send,
   Shield,
   Volume2,
-  X,
   ArrowRight,
-  Check,
-  Copy,
 } from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
@@ -24,6 +20,7 @@ import { api, APIError, login, logout, restoreAccount } from "./api";
 import { useConversation } from "./use-conversation";
 import { useVoice } from "./use-voice";
 import { errorText } from "./errors";
+import { AdmissionPanel } from "./admission-panel";
 import "./style.css";
 
 function initialLocale(): Locale {
@@ -156,6 +153,9 @@ function App() {
         state={state}
         locale={locale}
         language={language}
+        onAdmissionChange={(openAdmission) =>
+          setState((current) => current && { ...current, openAdmission })
+        }
         onSignOut={async () => {
           await logout();
           setUser(null);
@@ -357,12 +357,14 @@ function Conversation({
   locale,
   language,
   onSignOut,
+  onAdmissionChange,
 }: {
   user: CurrentUser;
   state: CommunityState;
   locale: Locale;
   language: React.ReactNode;
   onSignOut: () => Promise<void>;
+  onAdmissionChange: (openAdmission: boolean) => void;
 }) {
   const t = messages[locale];
   const textChannels = user.channels.filter((c) => c.kind === "text");
@@ -374,8 +376,7 @@ function Conversation({
   const [pending, setPending] = useState<{ requestId: string; body: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [invitation, setInvitation] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [showAdmission, setShowAdmission] = useState(false);
   const [banTarget, setBanTarget] = useState<Participant | null>(null);
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -396,15 +397,6 @@ function Conversation({
       setError(e);
     } finally {
       setSending(false);
-    }
-  }
-  async function invite() {
-    setError(null);
-    try {
-      setInvitation((await api.invite()).token);
-      setCopied(false);
-    } catch (e) {
-      setError(e);
     }
   }
   async function ban() {
@@ -432,7 +424,8 @@ function Conversation({
         channel={channel}
         voice={voice}
         onChannel={switchChannel}
-        onInvite={invite}
+        showAdmission={showAdmission}
+        onAdmission={() => setShowAdmission((visible) => !visible)}
         onSignOut={onSignOut}
         onError={setError}
       />
@@ -454,35 +447,16 @@ function Conversation({
           />
           <output>{t[conversation.status]}</output>
         </div>
-        {invitation && (
-          <section className="inline-panel" aria-label={t.inviteFriend}>
-            <div className="panel-heading">
-              <strong>{t.inviteFriend}</strong>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={t.close}
-                onClick={() => setInvitation(null)}
-              >
-                <X size={16} />
-              </Button>
-            </div>
-            <p>{t.inviteNotice}</p>
-            <div className="invite-code">
-              <Input aria-label={t.invitation} value={invitation} readOnly />
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(invitation)
-                    .then(() => setCopied(true))
-                    .catch(setError)
-                }
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? t.copied : t.copy}
-              </Button>
-            </div>
-          </section>
+        {showAdmission && (
+          <AdmissionPanel
+            openAdmission={state.openAdmission}
+            locale={locale}
+            onAdmissionChange={onAdmissionChange}
+            onClose={() => {
+              setShowAdmission(false);
+              document.getElementById("admission-toggle")?.focus();
+            }}
+          />
         )}
         {banTarget && (
           <section className="inline-panel" aria-labelledby="ban-title">
@@ -553,7 +527,8 @@ function ConversationSidebar({
   channel,
   voice,
   onChannel,
-  onInvite,
+  showAdmission,
+  onAdmission,
   onSignOut,
   onError,
 }: {
@@ -563,7 +538,8 @@ function ConversationSidebar({
   channel: string;
   voice: ReturnType<typeof useVoice>;
   onChannel: (id: string) => void;
-  onInvite: () => Promise<void>;
+  showAdmission: boolean;
+  onAdmission: () => void;
   onSignOut: () => Promise<void>;
   onError: (error: unknown) => void;
 }) {
@@ -616,9 +592,15 @@ function ConversationSidebar({
       <div className="sidebar-bottom">
         <VoicePanel voice={voice} voiceChannels={voiceChannels} locale={locale} onError={onError} />
         {user.participant.role === "owner" && (
-          <Button variant="outline" onClick={() => void onInvite()}>
-            <Plus size={16} />
-            {t.inviteFriend}
+          <Button
+            id="admission-toggle"
+            variant="outline"
+            aria-expanded={showAdmission}
+            aria-controls={showAdmission ? "admission-panel" : undefined}
+            onClick={onAdmission}
+          >
+            <Shield size={16} aria-hidden="true" />
+            {t.admissionSettings}
           </Button>
         )}
         <div className="self-row">

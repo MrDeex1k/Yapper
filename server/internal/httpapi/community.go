@@ -73,7 +73,10 @@ func NewCommunity(store *community.Store, verifier *identity.Verifier, auth *ide
 	a.mux.HandleFunc("POST /api/v1/setup", a.setup)
 	a.mux.HandleFunc("POST /api/v1/guests", a.join)
 	a.mux.HandleFunc("GET /api/v1/me", a.me)
+	a.mux.HandleFunc("POST /api/v1/admission", a.setAdmission)
+	a.mux.HandleFunc("GET /api/v1/invitations", a.invitations)
 	a.mux.HandleFunc("POST /api/v1/invitations", a.invite)
+	a.mux.HandleFunc("POST /api/v1/invitations/{id}/revoke", a.revokeInvitation)
 	a.mux.HandleFunc("POST /api/v1/participants/{id}/ban", a.ban)
 	a.mux.HandleFunc("GET /api/v1/channels/{id}/messages", a.history)
 	a.mux.HandleFunc("POST /api/v1/channels/{id}/messages", a.send)
@@ -249,18 +252,6 @@ func (a *CommunityAPI) me(w http.ResponseWriter, r *http.Request) {
 		Participant community.Participant `json:"participant"`
 		Channels    []community.Channel   `json:"channels"`
 	}{p.participant, channels})
-}
-func (a *CommunityAPI) invite(w http.ResponseWriter, r *http.Request) {
-	p, ok := a.require(w, r)
-	if !ok {
-		return
-	}
-	token, err := a.store.Invite(r.Context(), p.participant.ID)
-	if err != nil {
-		resultError(w, err)
-		return
-	}
-	writeJSON(w, 201, map[string]string{"token": token})
 }
 func (a *CommunityAPI) ban(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.require(w, r)

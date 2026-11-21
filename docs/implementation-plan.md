@@ -1,8 +1,8 @@
 # Implementation plan
 
-**Stage 0 is complete. Stage 1 implementation is merged and acceptance remains open. Work on Stages 2–8 has yet to begin.** The foundation and conversation changes landed in PRs #27 and #28. The next milestone is public media and real-device acceptance. The first private desktop release will use Rust and GPUI on Windows and Linux and Electron on macOS. See the [foundation evidence](evidence/stage-0.md) and the [Stage 1 evidence and remaining steps](evidence/stage-1.md#current-status).
+**Stage 0 is complete. Stage 1 acceptance remains open. Stage 2 is in progress on its own branch.** The foundation and conversation changes landed in PRs #27 and #28. Public media and real-device acceptance still apply to Stage 1. The first private desktop release will use Rust and GPUI on Windows and Linux and Electron on macOS. See the [Stage 1 evidence](evidence/stage-1.md#current-status) and [Stage 2 plan](stage-2-plan.md).
 
-Stages use completion gates rather than dates. Each stage depends on the preceding stage unless stated otherwise. Keep changes reviewable and use multiple feature branches within a stage when useful.
+Stages use completion gates rather than dates. Stage 2 feature work may proceed on its own branch while Stage 1 waits for the acceptance run. Stage 1 acceptance remains separate. Keep changes reviewable.
 
 ## Stage 0 — Repository and compatibility foundation
 
@@ -58,7 +58,7 @@ Deliverables:
 
 **Completion gate:** the community feature acceptance scenarios pass, including concurrent invite redemption, role changes during active connections, reconnect after moderation, and retention. Document the limits of anonymous bans and lost guest credentials in the UI. Record the GPUI prototype results and resolve any blockers before the full desktop implementation.
 
-Suggested branches: `feat/implement-moderation`, `feat/implement-message-retention`, `feat/implement-voice-controls`.
+Target branch: `feat/stage-2-community`. See the [work sequence](stage-2-plan.md#change-sequence).
 
 ## Stage 3 — Operational reliability and capacity
 
@@ -83,7 +83,7 @@ Suggested branches: `feat/implement-backup-restore`, `feat/implement-diagnostics
 
 Deliverables:
 
-- A native Rust/GPUI client on Windows and Linux and an Electron client on macOS. Verify the agreed community features, EN/PL UI, keyboard navigation, saved servers with independent identities, and one active voice conversation on each client.
+- A native Rust/GPUI client on Windows and Linux and an Electron client on macOS. Preserve one-to-one parity with the existing Electron interface in GPUI, including layout, colors, typography, component states, and keyboard and responsive behavior. Verify the agreed community features, EN/PL UI, saved servers with independent identities, and one active voice conversation on each client.
 - Release packages for Windows, supported Linux distributions, and macOS, with manual update instructions and clean installation tests. For Windows and Linux, decide how to handle Electron development profiles. Verify safe credential transfer if supported, or document re-login and the effect of rejoining as a guest on identity and message ownership.
 - Use available Apple signing and notarization for the macOS Electron package when credentials are configured. Record Windows signing status and the Linux package format and integrity verification.
 - Desktop and mobile Web verification on the agreed browser/device matrix.

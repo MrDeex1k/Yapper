@@ -120,6 +120,94 @@ expect(
   403,
   "guest admin boundary",
 );
+expect(
+  (await call("/api/v1/invitations", { cookie: firstGuest.cookie })).response.status,
+  403,
+  "guest cannot list invitations",
+);
+expect(
+  (await call("/api/v1/admission", { body: { openAdmission: true }, cookie: firstGuest.cookie }))
+    .response.status,
+  403,
+  "guest cannot open admission",
+);
+expect(
+  (await call("/api/v1/invitations", { body: { maxUses: -1 }, token })).response.status,
+  400,
+  "negative invitation limit",
+);
+const unlimited = await call<Schemas["Invitation"]>("/api/v1/invitations", {
+  body: { expiresInHours: 0, maxUses: 0 },
+  token,
+});
+expect(unlimited.response.status, 201, "create unlimited invitation");
+const list = await call<Schemas["Invitations"]>("/api/v1/invitations", { token });
+expect(list.response.status, 200, "list invitations");
+const invitation = list.data.invitations.find(
+  (item) => item.remaining === null && item.expiresAt === null,
+);
+assert(invitation, "Unlimited invitation is listed");
+assert(!("token" in invitation), "Invitation codes are never listed");
+const revokePath = `/api/v1/invitations/${invitation.id}/revoke`;
+expect(
+  (await call(revokePath, { body: {}, cookie: firstGuest.cookie })).response.status,
+  403,
+  "guest revoke denied",
+);
+const invited = await call("/api/v1/guests", {
+  body: { nickname: "Invited guest", invitation: unlimited.data.token },
+});
+expect(invited.response.status, 201, "unlimited invitation accepted");
+expect(
+  (await call(revokePath, { body: {}, token })).response.status,
+  200,
+  "owner revoked invitation",
+);
+expect(
+  (
+    await call("/api/v1/guests", {
+      body: { nickname: "Late guest", invitation: unlimited.data.token },
+    })
+  ).response.status,
+  403,
+  "revoked invitation denied",
+);
+expect(
+  (await call("/api/v1/admission", { body: { openAdmission: true }, token })).response.status,
+  200,
+  "open admission",
+);
+expect(
+  (await call<Schemas["State"]>("/api/v1/state")).data.openAdmission,
+  true,
+  "open mode is public",
+);
+const walkIn = await call<Schemas["Participant"]>("/api/v1/guests", {
+  body: { nickname: "Walk-in guest" },
+});
+expect(walkIn.response.status, 201, "open admission without a code");
+expect(
+  (await call("/api/v1/admission", { body: { openAdmission: false }, token })).response.status,
+  200,
+  "close admission",
+);
+const walkInCookie = walkIn.response.headers
+  .getSetCookie()
+  .map((cookie) => cookie.split(";")[0])
+  .join("; ");
+expect(
+  (await call<Schemas["Me"]>("/api/v1/me", { cookie: walkInCookie })).data.participant.id,
+  walkIn.data.id,
+  "existing membership survives closing",
+);
+expect(
+  (await call("/api/v1/guests", { body: { nickname: "Blocked guest" } })).response.status,
+  403,
+  "closed admission requires a code again",
+);
+console.info(
+  "PASS: owner-only admission settings, invitation listing and revocation, preserved memberships.",
+);
 const send = { requestId: randomUUID(), body: "Persisted through the container stack." };
 const results = await Promise.all(
   Array.from({ length: 5 }, () =>

@@ -25,10 +25,15 @@ CREATE TABLE IF NOT EXISTS channels (
 CREATE TABLE IF NOT EXISTS invitations (
   id uuid PRIMARY KEY,
   token_hash bytea UNIQUE NOT NULL,
-  remaining integer NOT NULL CHECK(remaining >= 0),
-  expires_at timestamptz NOT NULL,
+  remaining integer CHECK(remaining >= 0),
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
   revoked boolean NOT NULL DEFAULT false
 );
+ALTER TABLE invitations
+  ALTER COLUMN remaining DROP NOT NULL,
+  ALTER COLUMN expires_at DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 CREATE TABLE IF NOT EXISTS messages (
   sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   id uuid UNIQUE NOT NULL,

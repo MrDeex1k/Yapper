@@ -59,7 +59,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invite, err := store.Invite(ctx, owner.ID)
+	invite, err := store.Invite(ctx, owner.ID, community.InvitationOptions{ExpiresInHours: 24, MaxUses: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

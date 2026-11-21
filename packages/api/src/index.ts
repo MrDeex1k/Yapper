@@ -7,3 +7,7 @@ export type CurrentUser = components["schemas"]["Me"];
 export type SetupInput = components["schemas"]["SetupInput"];
 export type GuestInput = components["schemas"]["GuestInput"];
 export type SendInput = components["schemas"]["SendInput"];
+export type AdmissionSettings = components["schemas"]["AdmissionSettings"];
+export type InvitationInput = components["schemas"]["InvitationInput"];
+export type InvitationSummary = components["schemas"]["InvitationSummary"];
+export type Invitations = components["schemas"]["Invitations"];

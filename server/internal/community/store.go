@@ -118,7 +118,9 @@ func (s *Store) Guest(ctx context.Context, nickname, invite string) (Participant
 		return Participant{}, "", ErrNotConfigured
 	}
 	if !open {
-		tag, e := tx.Exec(ctx, "UPDATE invitations SET remaining=remaining-1 WHERE token_hash=$1 AND remaining>0 AND expires_at>now() AND NOT revoked", digest(invite))
+		tag, e := tx.Exec(ctx, `UPDATE invitations SET remaining=remaining-1
+			WHERE token_hash=$1 AND (remaining IS NULL OR remaining>0)
+			  AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND NOT revoked`, digest(invite))
 		if e != nil {
 			return Participant{}, "", e
 		}
@@ -171,21 +173,6 @@ func (s *Store) Channels(ctx context.Context) ([]Channel, error) {
 		result = append(result, c)
 	}
 	return result, rows.Err()
-}
-func (s *Store) Invite(ctx context.Context, actor string) (string, error) {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx)
-	if err = owner(ctx, tx, actor); err != nil {
-		return "", err
-	}
-	token := newSecret()
-	if _, err = tx.Exec(ctx, "INSERT INTO invitations(id,token_hash,remaining,expires_at) VALUES($1,$2,1,now()+interval '24 hours')", uuid.New().String(), digest(token)); err != nil {
-		return "", err
-	}
-	return token, tx.Commit(ctx)
 }
 func owner(ctx context.Context, tx pgx.Tx, id string) error {
 	var role string

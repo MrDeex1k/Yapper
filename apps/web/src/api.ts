@@ -5,6 +5,9 @@ import type {
   SetupInput,
   Message,
   SendInput,
+  AdmissionSettings,
+  InvitationInput,
+  Invitations,
 } from "@yapper/api";
 let token: string | null = null;
 let refreshedAt = 0;
@@ -82,7 +85,11 @@ export const api = {
   me: () => request<CurrentUser>("/api/v1/me"),
   setup: (body: SetupInput) => request<{ configured: boolean }>("/api/v1/setup", body),
   join: (body: GuestInput) => request("/api/v1/guests", body),
-  invite: () => request<{ token: string }>("/api/v1/invitations", {}),
+  setAdmission: (body: AdmissionSettings) => request<AdmissionSettings>("/api/v1/admission", body),
+  invitations: (signal?: AbortSignal) =>
+    request<Invitations>("/api/v1/invitations", undefined, signal),
+  invite: (body: InvitationInput) => request<{ token: string }>("/api/v1/invitations", body),
+  revokeInvitation: (id: string) => request(`/api/v1/invitations/${id}/revoke`, {}),
   history: (channel: string, after: number, signal?: AbortSignal) =>
     request<{ messages: Message[] }>(
       `/api/v1/channels/${channel}/messages?after=${after}`,

@@ -1,6 +1,6 @@
 # Stage 2 implementation proposal
 
-**Status:** awaiting approval. `feat/stage-2-community` is the target branch for Stage 2. The Stage 1 acceptance run is deferred. Before implementation, bring forward the approved Stage 1 baseline and product decisions from `main`. Keep the work items below as separate reviewable commits on the target branch.
+**Status:** implementation approved. `feat/stage-2-community` is the target branch. The Stage 1 baseline was brought forward from `main`, and its acceptance run is deferred. Keep the work items below as separate reviewable commits on the target branch.
 
 ## Change sequence
 
@@ -19,14 +19,14 @@ Each change includes the API and migration work it needs, the user-facing flow i
 
 - Go remains authoritative for community permissions and voice admission. Better Auth owns accounts and sessions. Preserve the existing browser origin checks and the Go-gated LiveKit signaling path when testing native clients.
 - Evolve the shared `v1` HTTP and WebSocket contracts with each change. Keep Stage 1 identities, chat history, and invitations usable after schema updates. Verify migrations with existing test data and fresh PostgreSQL 19 volumes.
-- The GPUI task is a prototype. The full Windows and Linux client and packages are part of the first private release in Stage 4. macOS uses Electron for that release and has a separate Swift client planned for Stage 8. Global push-to-talk and package validation belong to Stage 4.
+- The GPUI task is a prototype. Stage 4 delivers the full Windows and Linux client with one-to-one parity with the Electron UI. Preserve layout, colors, typography, icons, component states, keyboard behavior, and responsive behavior. Compare equivalent screens at matched window sizes and display scaling before accepting the port. macOS uses Electron for that release and has a separate Swift client planned for Stage 8. Global push-to-talk and package validation belong to Stage 4.
 - Explain the limits of anonymous bans and lost guest credentials in the applicable screens. Custom roles, attachments, direct messages, screen sharing, and camera remain later work.
 
 ## Technology stack
 
 ### Stage 1 baseline to carry forward
 
-These versions are from the current Stage 1 workspace. Its pending dependency and tooling changes still need to be brought into this branch. Use the manifests and lockfiles on the accepted baseline as the implementation source of truth.
+These versions are from the Stage 1 baseline carried into this branch. Use the manifests and lockfiles as the implementation source of truth.
 
 | Area                         | Technologies                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

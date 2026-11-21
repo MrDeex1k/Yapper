@@ -162,6 +162,48 @@
         ]
       }
     },
+    "/api/v1/admission": {
+      "post": {
+        "operationId": "setAdmission",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdmissionSettings"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/invitations": {
       "post": {
         "operationId": "invite",
@@ -189,10 +231,90 @@
         },
         "security": [
           {
-            "guestCookie": []
+            "accountJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationInput"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "invitations",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitations"
+                }
+              }
+            }
           },
+          "default": {
+            "description": "Stable error code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/invitations/{id}/revoke": {
+      "post": {
+        "operationId": "revokeInvitation",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationRevoked"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ]
       }
@@ -646,7 +768,7 @@
             "type": "string"
           }
         },
-        "required": ["nickname", "invitation"]
+        "required": ["nickname"]
       },
       "SendInput": {
         "type": "object",
@@ -728,6 +850,86 @@
             "type": "string"
           }
         }
+      },
+      "AdmissionSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "openAdmission": {
+            "type": "boolean"
+          }
+        },
+        "required": ["openAdmission"]
+      },
+      "InvitationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expiresInHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 876000,
+            "default": 24,
+            "description": "Zero removes the expiration."
+          },
+          "maxUses": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "default": 1,
+            "description": "Zero removes the usage limit."
+          }
+        }
+      },
+      "InvitationSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "remaining": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "createdAt", "expiresAt", "remaining", "revoked"]
+      },
+      "Invitations": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationSummary"
+            }
+          }
+        },
+        "required": ["invitations"]
+      },
+      "InvitationRevoked": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revoked": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["revoked"]
       }
     },
     "securitySchemes": {

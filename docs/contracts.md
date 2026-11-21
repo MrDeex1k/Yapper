@@ -21,6 +21,14 @@ WebSocket envelopes use `{ "version": 1, "type": "...", "payload": {...} }`. Imp
 
 The shared API package exports generated transport types. Web and Go workspace dependencies include the contract in Turbo invalidation. `POST /api/v1/voice/leave` accepts an optional media identity so stale cleanup does not revoke a replacement session.
 
+## Stage 2 admission controls
+
+Only owners may change admission or manage invitations. `POST /api/v1/admission` changes the mode and `GET /api/v1/state` reports it to joining clients. Changing the mode preserves previously admitted identities.
+
+`POST /api/v1/invitations` accepts optional `expiresInHours` and `maxUses` values. An empty request retains the Stage 1 defaults of 24 hours and one use. Zero disables the corresponding limit. Creation returns the opaque code once. The list returns IDs, creation times, expiry, remaining uses, and revocation state. Unlimited fields are `null`.
+
+`POST /api/v1/invitations/{id}/revoke` is idempotent for existing invitations. Revocation prevents future use in closed mode. Open mode admits guests without consuming an invitation, and existing memberships survive revocation and subsequent mode changes.
+
 ## Planned Rust desktop conformance
 
 The Windows and Linux GPUI client uses the same public HTTP resources, WebSocket event version, and Go-gated LiveKit signaling as Web and macOS Electron. The Stage 2 prototype defines and verifies native session and origin handling, including guest admission, AUTH login/logout, WebSocket tickets, and signaling. Document compatibility changes and verify them across those clients, preserving browser origin protections and server-side authorization.
