@@ -10,4 +10,6 @@ Local checks on 2026-11-21 used macOS arm64, Electron 45.4.1, LiveKit JS 2.25.0,
 
 The repository check passed for formatting, lint, API consistency, type checking, tests and builds. The full React Doctor scan reported the same seven warnings as the preceding message-lifecycle revision.
 
-The microphone, speaker device and audio quality checks on physical setups are pending. Test keyboard and touch interactions, mobile audio permissions, output routing, and two participants across public networks. The foreground shortcut applies to the Web/Electron renderer. Global push-to-talk and native GPUI client validation belong to later work.
+In the 2026-11-21 LAN run, Brave on macOS and Electron 45.4.1 on Windows x64 both published microphone tracks and joined the same LiveKit room over UDP. The maintainer confirmed microphone response, the device list, and the foreground hold-to-talk control, and subsequently confirmed the requested audio checks passed. The LAN server telemetry recorded connection and publication.
+
+Device and audio quality checks on the remaining browser and network combinations are pending. Test keyboard and touch interactions, mobile audio permissions, output routing, and two participants across public networks. The foreground shortcut applies to the Web/Electron renderer. Global push-to-talk and native GPUI client validation belong to later work.
