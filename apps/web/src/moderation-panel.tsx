@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
 import type {
@@ -8,7 +8,7 @@ import type {
   ModerationAudit,
   Participant,
 } from "@yapper/api";
-import { api } from "./api";
+import { APIError, api } from "./api";
 import { errorText } from "./errors";
 
 export function isStaff(participant: Participant) {
@@ -36,37 +36,65 @@ export function ModerationPanel({
 }: {
   actor: Participant;
   locale: Locale;
-  target: string;
+  target: { id: string; request: number };
   revision: number;
   onClose: () => void;
 }) {
   const t = messages[locale];
   const title = useRef<HTMLHeadingElement>(null);
-  const [directory, setDirectory] = useState<MemberPage | null>(null);
+  const [page, setDirectory] = useState<{ generation: string; data: MemberPage } | null>(null);
   const [events, setEvents] = useState<ModerationAudit["events"]>([]);
-  const [selected, setSelected] = useState(target);
+  const [selection, setSelection] = useState({ id: target.id, request: target.request, choice: 0 });
+  const selected = selection.request === target.request ? selection.id : target.id;
+  const selectionKey = [target.request, selection.choice].join("/");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [reload, setReload] = useState(0);
   const [saved, setSaved] = useState(false);
-  const [pinned, setPinned] = useState<Member | null>(null);
+  const [pinned, setPinned] = useState<{
+    generation: string;
+    selectionKey: string;
+    member: Member | null;
+  } | null>(null);
+  const [auditError, setAuditError] = useState<unknown>(null);
+  const [auditReload, setAuditReload] = useState(0);
+  const generation = [revision, reload].join("/");
+  const activeGeneration = useRef(generation);
+  useLayoutEffect(() => {
+    activeGeneration.current = generation;
+  }, [generation]);
+  const directory = page?.generation === generation ? page.data : null;
   useEffect(() => {
     title.current?.focus();
   }, []);
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
-    void Promise.all([api.members({ signal }), api.audit(signal)])
-      .then(([page, audit]) => {
-        if (signal.aborted) return;
-        setDirectory(page);
-        setEvents(audit.events);
+    void api
+      .members({ signal })
+      .then((data) => {
+        if (!signal.aborted) setDirectory({ generation, data });
       })
       .catch((e) => {
         if (!signal.aborted) setError(e);
       });
     return () => controller.abort();
-  }, [revision, reload]);
+  }, [generation]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    void api
+      .audit(signal)
+      .then((audit) => {
+        if (signal.aborted) return;
+        setEvents(audit.events);
+        setAuditError(null);
+      })
+      .catch((e) => {
+        if (!signal.aborted) setAuditError(e);
+      });
+    return () => controller.abort();
+  }, [generation, auditReload]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
@@ -74,13 +102,14 @@ export function ModerationPanel({
     void api
       .members({ target: selected, signal })
       .then((page) => {
-        if (!signal.aborted) setPinned(page.members[0] ?? null);
+        if (!signal.aborted)
+          setPinned({ generation, selectionKey, member: page.members[0] ?? null });
       })
       .catch((e) => {
         if (!signal.aborted) setError(e);
       });
     return () => controller.abort();
-  }, [selected, revision, reload]);
+  }, [selected, generation, selectionKey]);
 
   async function change(submit: () => Promise<unknown>) {
     if (busy) return;
@@ -103,20 +132,27 @@ export function ModerationPanel({
     setError(null);
     const { next } = directory;
     try {
-      const page = await api.members({ after: next });
+      const more = await api.members({ after: next });
+      if (activeGeneration.current !== generation) return;
       setDirectory((current) => {
-        if (current?.next !== next) return current;
-        return { members: [...current.members, ...page.members], next: page.next };
+        if (current?.generation !== generation || current.data.next !== next) return current;
+        return {
+          generation,
+          data: { members: [...current.data.members, ...more.members], next: more.next },
+        };
       });
     } catch (e) {
-      setError(e);
+      if (activeGeneration.current === generation) setError(e);
     } finally {
       setBusy(false);
     }
   }
-  const selectedMember =
-    pinned?.id === selected ? pinned : directory?.members.find((member) => member.id === selected);
   const members = directory?.members ?? [];
+  const confirmedPin =
+    pinned?.generation === generation && pinned.selectionKey === selectionKey
+      ? pinned.member
+      : null;
+  const selectedMember = members.find((member) => member.id === selected) ?? confirmedPin;
   const extra =
     selectedMember && !members.some((member) => member.id === selectedMember.id)
       ? selectedMember
@@ -142,7 +178,10 @@ export function ModerationPanel({
           <select
             value={selected}
             disabled={busy || !directory}
-            onChange={(e) => setSelected(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelection(({ choice }) => ({ id, request: target.request, choice: choice + 1 }));
+            }}
           >
             <option value="">{t.selectParticipant}</option>
             {(extra ? [extra, ...members] : members).map((member) => (
@@ -169,6 +208,16 @@ export function ModerationPanel({
         />
       )}
       <AuditList events={events} members={members} locale={locale} />
+      {auditError !== null && (
+        <div className="panel-actions">
+          <p className="error-message" role="alert">
+            {t.auditLoadFailed}
+          </p>
+          <Button variant="outline" onClick={() => setAuditReload((value) => value + 1)}>
+            {t.retryLoad}
+          </Button>
+        </div>
+      )}
       {error !== null && (
         <p className="error-message" role="alert">
           {errorText(error, locale)}
@@ -194,10 +243,10 @@ function ModeratorForm({
     const form = event.currentTarget;
     const data = new FormData(form);
     void onSubmit(async () => {
-      await api.provisionModerator({
-        username: String(data.get("username")),
-        password: String(data.get("password")),
-      });
+      const password = String(data.get("password"));
+      const length = Array.from(password).length;
+      if (length < 12 || length > 128) throw new APIError("invalid_request", 400);
+      await api.provisionModerator({ username: String(data.get("username")), password });
       form.reset();
     });
   }
@@ -221,8 +270,6 @@ function ModeratorForm({
           <Input
             name="password"
             type="password"
-            minLength={12}
-            maxLength={128}
             required
             autoComplete="new-password"
             disabled={busy}
@@ -355,8 +402,10 @@ function AuditList({
         <p>{t.noModerationEvents}</p>
       ) : (
         <ul className="admission-list">
-          {events.map((event, index) => (
-            <li key={`${event.createdAt}-${event.targetId}-${index}`}>
+          {events.map((event) => (
+            <li
+              key={`${event.createdAt}-${event.actorId}-${event.targetId}-${event.action}-${event.messageId ?? ""}`}
+            >
               <div>
                 <strong>{t[actionLabel[event.action]]}</strong>
                 <span title={`${event.actorId} → ${event.targetId}`}>

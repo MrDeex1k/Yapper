@@ -4,6 +4,7 @@ import { messages, type Locale } from "@yapper/i18n";
 import type { Channel, CurrentUser } from "@yapper/api";
 import { api } from "./api";
 import { ChannelEditor } from "./channel-editor";
+import { catalogName } from "./channel-form";
 import { errorText } from "./errors";
 
 type Catalog = Pick<CurrentUser, "categories" | "channels">;
@@ -35,21 +36,35 @@ export function CatalogPanel({
   const [categoryId, setCategoryId] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const locked = busy || refreshFailed;
+  const [nameInvalid, setNameInvalid] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const category = catalog.categories.find((item) => item.id === categoryId);
   const categoryIndex = catalog.categories.findIndex((item) => item.id === categoryId);
 
   async function change(action: () => Promise<unknown>) {
-    if (busy) return;
+    if (locked) return;
     setBusy(true);
     setSaved(false);
     setError(null);
     try {
       await action();
-      await onChanged();
       setSaved(true);
+      await refresh();
     } catch (e) {
       setError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function refresh() {
+    setBusy(true);
+    try {
+      await onChanged();
+      setRefreshFailed(false);
+    } catch {
+      setRefreshFailed(true);
     } finally {
       setBusy(false);
     }
@@ -57,9 +72,11 @@ export function CatalogPanel({
   function saveCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const name = String(new FormData(form).get("name")).trim();
+    const name = catalogName.safeParse(new FormData(form).get("name"));
+    setNameInvalid(!name.success);
+    if (!name.success) return;
     void change(async () => {
-      await api.saveCategory(categoryId, name);
+      await api.saveCategory(categoryId, name.data);
       if (!categoryId) form.reset();
     });
   }
@@ -81,8 +98,11 @@ export function CatalogPanel({
             {t.category}
             <select
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              disabled={busy}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setNameInvalid(false);
+              }}
+              disabled={locked}
             >
               <option value="">{t.newCategory}</option>
               {catalog.categories.map((item) => (
@@ -98,13 +118,20 @@ export function CatalogPanel({
               <Input
                 name="name"
                 required
-                maxLength={64}
+                aria-invalid={nameInvalid}
+                aria-describedby={nameInvalid ? "category-name-error" : undefined}
+                onChange={() => setNameInvalid(false)}
                 defaultValue={category?.name}
-                disabled={busy}
+                disabled={locked}
               />
             </label>
+            {nameInvalid && (
+              <p id="category-name-error" role="alert">
+                {t.channelNameError}
+              </p>
+            )}
             <div className="panel-actions">
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" disabled={locked}>
                 {category ? t.save : t.create}
               </Button>
               {category && (
@@ -112,7 +139,7 @@ export function CatalogPanel({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={busy || categoryIndex === 0}
+                    disabled={locked || categoryIndex === 0}
                     onClick={() => void change(() => api.moveCategory(category.id, -1))}
                   >
                     {t.moveUp}
@@ -120,7 +147,7 @@ export function CatalogPanel({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={busy || categoryIndex === catalog.categories.length - 1}
+                    disabled={locked || categoryIndex === catalog.categories.length - 1}
                     onClick={() => void change(() => api.moveCategory(category.id, 1))}
                   >
                     {t.moveDown}
@@ -130,7 +157,7 @@ export function CatalogPanel({
             </div>
           </form>
         </div>
-        <ChannelEditor catalog={catalog} locale={locale} busy={busy} change={change} />
+        <ChannelEditor catalog={catalog} locale={locale} busy={locked} change={change} />
       </div>
       {error !== null && (
         <p className="error-message" role="alert">
@@ -138,6 +165,14 @@ export function CatalogPanel({
         </p>
       )}
       {saved && <output>{t.catalogSaved}</output>}
+      {refreshFailed && (
+        <div className="panel-actions">
+          <p role="alert">{t.catalogRefreshFailed}</p>
+          <Button variant="outline" disabled={busy} onClick={() => void refresh()}>
+            {t.retryLoad}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

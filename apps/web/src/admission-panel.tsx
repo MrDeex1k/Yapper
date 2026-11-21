@@ -9,6 +9,10 @@ import { errorText } from "./errors";
 import { MessageRetention } from "./message-retention";
 
 const invitationsKey = ["owner", "invitations"] as const;
+const invitationDate = {
+  en: new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }),
+  pl: new Intl.DateTimeFormat("pl", { dateStyle: "medium", timeStyle: "short" }),
+};
 
 export function AdmissionPanel({
   openAdmission,
@@ -26,14 +30,14 @@ export function AdmissionPanel({
   const queryClient = useQueryClient();
   const invitations = useQuery({
     queryKey: invitationsKey,
-    queryFn: ({ signal }) => api.invitations(AbortSignal.any([signal, AbortSignal.timeout(10000)])),
+    queryFn: ({ signal }) => api.invitations(signal),
     gcTime: 0,
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     networkMode: "always",
   });
-  const [code, setCode] = useState<string | null>(null);
+  const [code, setCode] = useState<{ id: string; token: string } | null>(null);
   const [working, setWorking] = useState(false);
   const busy = working || invitations.isFetching;
   const [notice, setNotice] = useState<"admissionSaved" | "copied" | "invitationRevoked" | null>(
@@ -44,7 +48,7 @@ export function AdmissionPanel({
   const accessDenied =
     invitations.error instanceof APIError && [401, 403].includes(invitations.error.status);
   const items = accessDenied ? undefined : invitations.data?.invitations;
-  const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
+  const date = invitationDate[locale];
 
   useEffect(() => {
     heading.current?.focus();
@@ -72,11 +76,11 @@ export function AdmissionPanel({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     void run(async () => {
-      const { token } = await api.invite({
+      const invitation = await api.invite({
         expiresInHours: Number(data.get("expiresInHours")),
         maxUses: Number(data.get("maxUses")),
       });
-      setCode(token);
+      setCode(invitation);
       await refresh();
     });
   }
@@ -133,18 +137,18 @@ export function AdmissionPanel({
         </Button>
       </form>
       <p>{t.invitationUnlimitedHint}</p>
-      {code && (
+      {code && !accessDenied && !items?.some((item) => item.id === code.id && item.revoked) && (
         <>
           <p>{t.inviteNotice}</p>
           <div className="invite-code">
-            <Input aria-label={t.invitation} value={code} readOnly />
+            <Input aria-label={t.invitation} value={code.token} readOnly />
             <Button
               size="sm"
               variant="outline"
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  await navigator.clipboard.writeText(code);
+                  await navigator.clipboard.writeText(code.token);
                   setNotice("copied");
                 })
               }
@@ -192,6 +196,7 @@ export function AdmissionPanel({
                 onClick={() =>
                   void run(async () => {
                     await api.revokeInvitation(item.id);
+                    setCode((current) => (current?.id === item.id ? null : current));
                     queryClient.setQueryData<Invitations>(
                       invitationsKey,
                       (previous) =>

@@ -233,6 +233,8 @@ function Entry({
     setError(null);
     try {
       if (!state.configured) {
+        const length = Array.from(field("password")).length;
+        if (length < 12 || length > 128) throw new APIError("invalid_request", 400);
         await api.setup({
           token: field("token"),
           username: field("username"),
@@ -330,8 +332,6 @@ function EntryFields({
               name="password"
               type="password"
               required
-              minLength={12}
-              maxLength={128}
               autoComplete={state.configured ? "current-password" : "new-password"}
               aria-describedby={!state.configured ? "password-hint" : undefined}
             />
@@ -392,16 +392,24 @@ function Conversation({
   const channel = current?.id ?? "";
   const channelName = current?.name ?? state.name;
   const refreshRevision = useRef(0);
+  const appliedRevision = useRef(0);
   const refreshCommunity = useCallback(async (signal?: AbortSignal) => {
     const revision = ++refreshRevision.current;
-    const next = await api.me(signal);
-    if (!signal?.aborted && refreshRevision.current === revision) setUser(next);
+    try {
+      const next = await api.me(signal);
+      if (!signal?.aborted && revision > appliedRevision.current) {
+        appliedRevision.current = revision;
+        setUser(next);
+      }
+    } catch (error) {
+      if (revision > appliedRevision.current) throw error;
+    }
   }, []);
   const conversation = useConversation(channel, refreshCommunity);
   const voice = useVoice(user.participant.micMuted, conversation.status === "kicked");
   const [error, setError] = useState<unknown>(null);
   const [panel, setPanel] = useState<ConversationPanel | null>(null);
-  const [moderationTarget, setModerationTarget] = useState("");
+  const [moderationTarget, setModerationTarget] = useState({ id: "", request: 0 });
   const [channelsOpen, setChannelsOpen] = useState(false);
   const channelToggle = useRef<HTMLButtonElement>(null);
   const channelSidebar = useRef<HTMLElement>(null);
@@ -424,7 +432,7 @@ function Conversation({
   }, [channelsOpen, closeChannels]);
   function togglePanel(next: ConversationPanel) {
     closeChannels();
-    setModerationTarget("");
+    setModerationTarget((target) => ({ ...target, id: "" }));
     setPanel((visible) => (visible === next ? null : next));
   }
   function closePanel() {
@@ -436,7 +444,7 @@ function Conversation({
     }
   }
   function moderate(target: string) {
-    setModerationTarget(target);
+    setModerationTarget((previous) => ({ id: target, request: previous.request + 1 }));
     setPanel("moderation");
   }
   function switchChannel(id: string) {
@@ -486,6 +494,13 @@ function Conversation({
         panel={panel}
         onPanel={togglePanel}
         kicked={conversation.status === "kicked"}
+      />
+      <WorkspaceProfile
+        user={user}
+        locale={locale}
+        language={language}
+        onSignOut={onSignOut}
+        onError={setError}
       />
       <main className="conversation">
         <QueryClientProvider client={queryClient}>
@@ -540,13 +555,6 @@ function Conversation({
         locale={locale}
         kicked={conversation.status === "kicked"}
       />
-      <WorkspaceProfile
-        user={user}
-        locale={locale}
-        language={language}
-        onSignOut={onSignOut}
-        onError={setError}
-      />
     </div>
   );
 }
@@ -591,13 +599,12 @@ function ConversationPanels({
   onAdmissionChange: (open: boolean) => void;
   onCatalogChange: () => Promise<void>;
   onClose: () => void;
-  moderationTarget: string;
+  moderationTarget: { id: string; request: number };
   memberRevision: number;
 }) {
   if (panel === "moderation" && isStaff(user.participant)) {
     return (
       <ModerationPanel
-        key={moderationTarget}
         actor={user.participant}
         target={moderationTarget}
         revision={memberRevision}

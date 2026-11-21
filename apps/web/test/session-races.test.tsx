@@ -18,6 +18,8 @@ let grantNumber = 0;
 let activeRooms = new Set<TestRoom>();
 let peakRooms = 0;
 let canPublish = true;
+let audioStarts = 0;
+let failNextResume = false;
 const publications: boolean[] = [];
 class RawMicrophone extends EventTarget {
   enabled = true;
@@ -91,7 +93,9 @@ class TestRoom {
     this.cancel.resolve();
     this.emit("Disconnected", 1);
   }
-  async startAudio() {}
+  async startAudio() {
+    audioStarts++;
+  }
   async switchActiveDevice(kind: string, id: string) {
     voiceRequests.push(`device:${kind}:${id}`);
     return true;
@@ -153,7 +157,15 @@ const sample = {
   createdAt: new Date().toISOString(),
   revision: 1,
 };
+class TestAPIError extends Error {
+  constructor(public status: number) {
+    super("test API failure");
+  }
+}
 const calls: string[] = [];
+let readChangesOverride:
+  | ((channel: string, revision: number) => Promise<{ changes: typeof changes }>)
+  | undefined;
 let changes: { id: string; revision: number; message: typeof sample | null }[] = [];
 mock.module("../src/api", () => ({
   api: {
@@ -165,10 +177,11 @@ mock.module("../src/api", () => ({
     }),
     messageChanges: async (channel: string, revision: number) => {
       calls.push(channel);
+      if (readChangesOverride) return readChangesOverride(channel, revision);
       return { changes: changes.filter((change) => change.revision > revision) };
     },
   },
-  APIError: class extends Error {},
+  APIError: TestAPIError,
   request: async (
     path: string,
     input: { channelId?: string; identity?: string; resumeIdentity?: string },
@@ -178,6 +191,10 @@ mock.module("../src/api", () => ({
       voiceRequests.push(
         `grant:${identity}${input.resumeIdentity ? `/resume:${input.resumeIdentity}` : ""}`,
       );
+      if (input.resumeIdentity && failNextResume) {
+        failNextResume = false;
+        throw new TestAPIError(503);
+      }
       return {
         identity,
         channelId: input.channelId,
@@ -225,6 +242,51 @@ test("chat applies durable edits and reconnect deletions, ignoring a stale chann
     expect(calls).toEqual([]);
     expect(conversation.messages.map((message) => message.channelId)).toEqual(["b"]);
   } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+test("chat publishes a deletion before the next change batch and clears its recovered error", async () => {
+  const root = createRoot(document.createElement("div"));
+  let conversation!: ReturnType<typeof useConversation>;
+  function Harness() {
+    const value = useConversation("a", refreshCommunity);
+    useLayoutEffect(() => {
+      conversation = value;
+    });
+    return null;
+  }
+  const secondBatch = Promise.withResolvers<{ changes: typeof changes }>();
+  const requestedSecondBatch = Promise.withResolvers<void>();
+  const fault = new TestAPIError(503);
+  changes = [];
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    await act(async () => TestSocket.last.emit("ready"));
+    expect(conversation.messages).toHaveLength(1);
+    const batch = Array.from({ length: 100 }, (_, index) => ({
+      id: index === 0 ? sample.id : String(index),
+      revision: index + 2,
+      message: null,
+    }));
+    readChangesOverride = async (_channel, after) => {
+      if (after === 1) return { changes: batch };
+      requestedSecondBatch.resolve();
+      return secondBatch.promise;
+    };
+    await act(async () => {
+      TestSocket.last.emit("messages.changed", { channelId: "a" });
+      await requestedSecondBatch.promise;
+    });
+    expect(conversation.messages).toHaveLength(0);
+    await act(async () => secondBatch.reject(fault));
+    expect(conversation.error).toBe(fault);
+    readChangesOverride = undefined;
+    await act(async () => conversation.refresh("a"));
+    expect(conversation.error).toBeNull();
+    expect(conversation.messages).toHaveLength(0);
+  } finally {
+    readChangesOverride = undefined;
     await act(async () => root.unmount());
   }
 });
@@ -315,6 +377,47 @@ test("a terminal network failure requests one new grant and moderation never aut
     await controller.leave();
     expect(voiceRequests.filter((entry) => entry.startsWith("grant:"))).toHaveLength(2);
     expect(activeRooms.size).toBe(0);
+  } finally {
+    controller.dispose();
+  }
+});
+
+test("a transient grant failure retries the same predecessor without releasing it", async () => {
+  voiceRequests = [];
+  const reconnected = Promise.withResolvers<void>();
+  const controller = createVoiceController((state) => {
+    if (voiceRequests.length === 3 && state.status === "connected") reconnected.resolve();
+  });
+  try {
+    await controller.join("voice");
+    const predecessor = voiceRequests[0]?.slice("grant:".length);
+    failNextResume = true;
+    TestRoom.latest.emit("Disconnected", 9);
+    await reconnected.promise;
+    expect(voiceRequests.map((entry) => entry.split("/resume:")[1])).toEqual([
+      undefined,
+      predecessor,
+      predecessor,
+    ]);
+    expect(voiceRequests.every((entry) => entry.startsWith("grant:"))).toBe(true);
+    await controller.leave();
+  } finally {
+    failNextResume = false;
+    controller.dispose();
+  }
+});
+
+test("deafen blocks playback starts, including while a room is joining", async () => {
+  audioStarts = 0;
+  const controller = createVoiceController(() => {});
+  try {
+    controller.toggleDeafen();
+    await controller.join("voice");
+    await controller.startAudio();
+    expect(audioStarts).toBe(0);
+    controller.toggleDeafen();
+    expect(audioStarts).toBe(1);
+    await controller.leave();
   } finally {
     controller.dispose();
   }

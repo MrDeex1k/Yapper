@@ -23,6 +23,7 @@ export function useConversation(
   const [history, setHistory] = useState(emptyHistory);
   const [status, setStatus] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<unknown>(null);
+  const [timelineError, setTimelineError] = useState<unknown>(null);
   const [memberRevision, setMemberRevision] = useState(0);
   const paused = status === "kicked";
   const [previousChannel, setPreviousChannel] = useState(channel);
@@ -31,6 +32,7 @@ export function useConversation(
     setHistory(emptyHistory);
     if (!paused) setStatus("connecting");
     setError(null);
+    setTimelineError(null);
   }
   useEffect(() => {
     if (paused) return;
@@ -40,6 +42,7 @@ export function useConversation(
       },
       setStatus,
       setError,
+      setTimelineError,
       membersChanged: () => setMemberRevision((revision) => revision + 1),
     });
     subscription.current = next;
@@ -52,7 +55,7 @@ export function useConversation(
   return {
     ...history,
     status,
-    error,
+    error: error ?? timelineError,
     memberRevision,
     reconnect: () => setStatus("connecting"),
     refresh: (changedChannel: string) => {
@@ -70,6 +73,7 @@ type ConversationObserver = {
   setHistory: (page: HistoryState) => void;
   setStatus: (status: ConnectionState) => void;
   setError: (error: unknown) => void;
+  setTimelineError: (error: unknown) => void;
   membersChanged: () => void;
 };
 
@@ -178,7 +182,7 @@ function subscribeTimeline(channel: string, signal: AbortSignal, observer: Conve
         if (!signal.aborted) await action();
       })
       .catch((e) => {
-        if (!signal.aborted) observer.setError(e);
+        if (!signal.aborted) observer.setTimelineError(e);
       });
   }
   async function readPage(cursor: number) {
@@ -197,6 +201,7 @@ function subscribeTimeline(channel: string, signal: AbortSignal, observer: Conve
         cursor = change.revision;
       }
       revision = cursor;
+      publish();
       if (changes.length < 100) return;
     }
   }
@@ -215,7 +220,7 @@ function subscribeTimeline(channel: string, signal: AbortSignal, observer: Conve
             publish();
           }
           if (revision !== null) await readChanges(revision);
-          publish();
+          observer.setTimelineError(null);
         }
       } catch (e) {
         if (!signal.aborted && !(e instanceof APIError && e.status === 403))

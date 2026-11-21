@@ -165,10 +165,20 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
     }
     let grant: VoiceGrant;
     try {
-      grant = await request<VoiceGrant>("/api/v1/voice/grant", {
-        channelId: channel,
-        ...(resumeIdentity ? { resumeIdentity } : {}),
-      });
+      const body = { channelId: channel, ...(resumeIdentity ? { resumeIdentity } : {}) };
+      const requestGrant = () => request<VoiceGrant>("/api/v1/voice/grant", body);
+      try {
+        grant = await requestGrant();
+      } catch (error) {
+        if (
+          !resumeIdentity ||
+          generation !== version ||
+          disposed ||
+          !(error instanceof APIError && error.status >= 500)
+        )
+          throw error;
+        grant = await requestGrant();
+      }
     } catch (e) {
       if (resumeIdentity) await release(resumeIdentity);
       throw e;
@@ -381,12 +391,18 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
 
   async function startAudio() {
     const session = active;
-    if (!session || !current(session)) return;
+    if (!session || !current(session) || state.deafened) return;
     try {
       await session.room.startAudio();
-      if (current(session)) publish({ audioBlocked: !session.room.canPlaybackAudio });
+      if (current(session)) {
+        publish({ audioBlocked: !session.room.canPlaybackAudio });
+      }
     } catch {
       if (current(session)) publish({ audioBlocked: true, error: "voicePlaybackError" });
+    } finally {
+      if (current(session) && state.deafened) {
+        for (const element of session.audio.values()) element.muted = true;
+      }
     }
   }
 
@@ -442,6 +458,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
       publish({ deafened });
       syncMic();
       if (active) for (const element of active.audio.values()) element.muted = deafened;
+      if (!deafened) void startAudio();
     },
     setPushToTalk(enabled: boolean) {
       continuous = false;

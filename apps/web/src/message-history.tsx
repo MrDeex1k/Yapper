@@ -98,6 +98,11 @@ export function MessageHistory({
 
 type Action = { kind: "edit"; body: string; revision: number } | { kind: "delete" };
 
+function validEdit(body: string) {
+  const length = Array.from(body.trim()).length;
+  return length >= 1 && length <= 2000;
+}
+
 function MessageRow({
   message,
   locale,
@@ -124,6 +129,7 @@ function MessageRow({
   const form = useRef<HTMLFormElement>(null);
   const previousTrigger = useRef<HTMLElement | null>(null);
   const actionKind = action?.kind;
+  const newRevision = action?.kind === "edit" && action.revision !== message.revision;
   useEffect(() => {
     if (actionKind) form.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
   }, [actionKind]);
@@ -140,7 +146,7 @@ function MessageRow({
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!action || busy || locked) return;
-    if (action.kind === "edit" && (archived || !action.body.trim())) return;
+    if (action.kind === "edit" && (archived || !validEdit(action.body) || newRevision)) return;
     setBusy(true);
     setError(null);
     try {
@@ -220,6 +226,13 @@ function MessageRow({
             locked={locked}
             archived={archived}
             error={error}
+            newerBody={newRevision ? message.body : null}
+            onUseLatest={() => {
+              setError(null);
+              setAction((current) =>
+                current?.kind === "edit" ? { ...current, revision: message.revision } : current,
+              );
+            }}
             onBody={(body) =>
               setAction((current) => (current?.kind === "edit" ? { ...current, body } : current))
             }
@@ -240,6 +253,8 @@ function MessageActionForm({
   locked,
   archived,
   error,
+  newerBody,
+  onUseLatest,
   onBody,
   onCancel,
   onSave,
@@ -251,6 +266,8 @@ function MessageActionForm({
   locked: boolean;
   archived: boolean;
   error: unknown;
+  newerBody: string | null;
+  onUseLatest: () => void;
   onBody: (body: string) => void;
   onCancel: () => void;
   onSave: (event: FormEvent<HTMLFormElement>) => Promise<void>;
@@ -263,7 +280,7 @@ function MessageActionForm({
           aria-label={t.editMessage}
           data-autofocus
           value={action.body}
-          maxLength={2000}
+          aria-invalid={Array.from(action.body.trim()).length > 2000}
           disabled={busy || locked || archived}
           rows={2}
           onChange={(event) => onBody(event.target.value)}
@@ -271,12 +288,35 @@ function MessageActionForm({
       ) : (
         <p>{t.confirmMessageDelete}</p>
       )}
+      {action.kind === "edit" && Array.from(action.body.trim()).length > 2000 && (
+        <p role="alert">{t.messageLengthError}</p>
+      )}
+      {newerBody !== null && (
+        <>
+          <output>
+            {t.latestMessage}: {newerBody}
+          </output>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy || locked || archived}
+            onClick={onUseLatest}
+          >
+            {t.editUsingLatest}
+          </Button>
+        </>
+      )}
       <div className="panel-actions">
         <Button
           type="submit"
           size="sm"
           variant={action.kind === "delete" ? "destructive" : "default"}
-          disabled={busy || locked || (action.kind === "edit" && (archived || !action.body.trim()))}
+          disabled={
+            busy ||
+            locked ||
+            (action.kind === "edit" && (archived || !validEdit(action.body) || newerBody !== null))
+          }
         >
           {action.kind === "delete" ? t.deleteMessage : t.save}
         </Button>

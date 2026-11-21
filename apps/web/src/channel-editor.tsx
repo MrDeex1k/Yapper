@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, type FieldErrors, type UseFormRegister } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertDialog, Button, Input } from "@yapper/ui";
@@ -29,13 +29,18 @@ export function ChannelEditor({
     register,
     handleSubmit,
     reset,
-    formState: { errors, isDirty, isSubmitting },
+    formState: { dirtyFields, errors, isDirty, isSubmitting },
   } = useForm<ChannelForm>({
     defaultValues: emptyChannel,
     resolver: zodResolver(channelForm),
   });
   const locked = busy || isSubmitting;
   const channel = catalog.channels.find((item) => item.id === channelId);
+  useEffect(() => {
+    if (!isDirty && channel) {
+      reset({ name: channel.name, kind: channel.kind, categoryId: channel.categoryId });
+    }
+  }, [channel, isDirty, reset]);
   const siblings = channel
     ? catalog.channels.filter(
         (item) => item.kind === channel.kind && item.categoryId === channel.categoryId,
@@ -54,7 +59,11 @@ export function ChannelEditor({
   const saveChannel = handleSubmit(({ kind, ...input }) =>
     change(async () => {
       if (channelId) {
-        await api.saveChannel(channelId, input);
+        if (!dirtyFields.name && !dirtyFields.categoryId) return;
+        await api.saveChannel(channelId, {
+          ...(dirtyFields.name ? { name: input.name } : {}),
+          ...(dirtyFields.categoryId ? { categoryId: input.categoryId } : {}),
+        });
         reset({ ...input, kind });
       } else {
         await api.createChannel({ ...input, kind });
@@ -97,7 +106,7 @@ export function ChannelEditor({
           errors={errors}
         />
         <div className="panel-actions">
-          <Button type="submit" disabled={locked}>
+          <Button type="submit" disabled={locked || Boolean(channel && !isDirty)}>
             {channel ? t.save : t.create}
           </Button>
           {channel && (

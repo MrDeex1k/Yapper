@@ -10,6 +10,7 @@ export function MessageRetention({ locale }: { locale: Locale }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -22,7 +23,7 @@ export function MessageRetention({ locale }: { locale: Locale }) {
         if (!signal.aborted) setError(e);
       });
     return () => controller.abort();
-  }, []);
+  }, [reload]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,6 +70,17 @@ export function MessageRetention({ locale }: { locale: Locale }) {
         <p className="error-message" role="alert">
           {errorText(error, locale)}
         </p>
+      )}
+      {days === null && error !== null && (
+        <Button
+          variant="outline"
+          onClick={() => {
+            setError(null);
+            setReload((value) => value + 1);
+          }}
+        >
+          {t.retryLoad}
+        </Button>
       )}
       {notice && <output>{t.retentionSaved}</output>}
     </section>
