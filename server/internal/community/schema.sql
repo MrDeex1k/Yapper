@@ -68,3 +68,24 @@ CREATE TABLE IF NOT EXISTS categories (
 ALTER TABLE channels
  ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES categories(id),
  ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+
+ALTER TABLE participants
+ ADD COLUMN IF NOT EXISTS kick_generation bigint NOT NULL DEFAULT 0,
+ ADD COLUMN IF NOT EXISTS mic_muted boolean NOT NULL DEFAULT false,
+ ADD COLUMN IF NOT EXISTS last_ip inet;
+ALTER TABLE media_sessions ADD COLUMN IF NOT EXISTS client_ip inet;
+
+CREATE TABLE IF NOT EXISTS ip_blocks (
+ participant_id uuid NOT NULL REFERENCES participants(id),
+ address inet NOT NULL,
+ PRIMARY KEY (participant_id,address)
+);
+CREATE INDEX IF NOT EXISTS ip_blocks_address ON ip_blocks(address);
+CREATE TABLE IF NOT EXISTS moderation_audit (
+ sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ actor_id uuid NOT NULL REFERENCES participants(id),
+ target_id uuid NOT NULL REFERENCES participants(id),
+ action text NOT NULL,
+ ip_blocked boolean NOT NULL DEFAULT false,
+ created_at timestamptz NOT NULL DEFAULT now()
+);

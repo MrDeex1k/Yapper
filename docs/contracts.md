@@ -17,7 +17,7 @@ Versioned HTTP resources cover setup state, guest admission, current participant
 
 A message send includes a client-generated UUID request ID. The unique key is `(participant_id, request_id)`; retries return the original committed message, while reuse with a different payload fails. Persist before returning success or broadcasting. Pagination uses a server-assigned monotonic sequence as a cursor, not timestamps alone.
 
-WebSocket envelopes use `{ "version": 1, "type": "...", "payload": {...} }`. Implemented events are `ready` and `message.created`; revocation closes the connection. Participant-change events remain planned. Durable message state is reconciled from HTTP history on reconnect; presence is replaced by a fresh snapshot. Bound frames, write queues and idle time. Disconnect slow consumers instead of accumulating unbounded buffers.
+WebSocket envelopes use `{ "version": 1, "type": "...", "payload": {...} }`. Stage 1 events are `ready` and `message.created`. Stage 2 adds catalog and member invalidation events. Revocation closes the connection. Durable message state is reconciled from HTTP history on reconnect; presence is replaced by a fresh snapshot. Bound frames, write queues and idle time. Disconnect slow consumers instead of accumulating unbounded buffers.
 
 The shared API package exports generated transport types. Web and Go workspace dependencies include the contract in Turbo invalidation. `POST /api/v1/voice/leave` accepts an optional media identity so stale cleanup does not revoke a replacement session.
 
@@ -34,6 +34,16 @@ Only owners may change admission or manage invitations. `POST /api/v1/admission`
 `GET /api/v1/me` includes ordered categories and channels. A channel exposes its category UUID (empty when uncategorized) and archival state. Owners can create and rename categories, move them up/down, and create, rename, move, categorize, and archive text or voice channels. Channel moves are relative to others of the same kind in the same category. Archiving preserves IDs and text history, rejects new messages/grants and revokes live media in that channel.
 
 `catalog.changed` is a version 1 event with an empty payload. Refresh `/api/v1/me` on that event and on `ready` to cover changes while disconnected.
+
+## Membership and moderation
+
+- `POST /api/v1/moderators` provisions a local username/password account for the owner. A retry with the existing credentials preserves its community ID and current role. A conflicting username is 409. Public signup stays disabled.
+- Staff can read `GET /api/v1/participants` in UUID-ordered pages of 50 via `after`, or look up a single member via `target`. The newest 100 audit records are at `GET /api/v1/moderation/audit`. These responses contain identity or action metadata without network addresses or credentials.
+- `POST /api/v1/participants/{id}/moderate` supports kick, ban, unban, forced mute/unmute and moderator grant/revocation. Only the owner can change roles, and the target needs an existing account. The existing `/ban` endpoint still performs an identity ban.
+- Ban with `blockIp: true` also blocks guest traffic observed at the target's last verified IP. An unban releases that identity's associated IP blocks. Other bans on the same address still apply. Signed-in accounts continue to use their identity permissions.
+- `members.changed` has an empty payload. Refresh `/api/v1/me` and any open moderation view. `me.account` distinguishes a signed-in account from a guest even after demotion, and `me.participant.micMuted` reports enforced mute.
+- A kick increments the participant's connection generation and invalidates earlier WebSocket tickets and the active voice grant. A live WebSocket closes with code `4001`. A fresh ticket is available when the user reconnects. A ban refuses the credential and replayed grants, including admission retries using the banned cookie.
+- Forced mute and its removal invalidate the current media session. Rejoining obtains a new grant, with `canPublish: false` while forced mute is active. Those grants retain subscribe permission. The Go signaling gate rejects earlier revoked identities even when self-hosted LiveKit would accept their signed tokens directly.
 
 ## Planned Rust desktop conformance
 

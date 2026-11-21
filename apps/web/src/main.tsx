@@ -23,12 +23,13 @@ import {
 } from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
-import type { CommunityState, CurrentUser, Participant, Message } from "@yapper/api";
+import type { CommunityState, CurrentUser, Message } from "@yapper/api";
 import { api, APIError, login, logout, restoreAccount } from "./api";
 import { useConversation } from "./use-conversation";
 import { useVoice } from "./use-voice";
 import { errorText } from "./errors";
 import { CatalogPanel, groupedChannels } from "./catalog-panel";
+import { ModerationPanel, isStaff } from "./moderation-panel";
 import { AdmissionPanel } from "./admission-panel";
 import "./style.css";
 
@@ -360,6 +361,8 @@ function EntryFields({
   );
 }
 
+type ConversationPanel = "admission" | "catalog" | "moderation";
+
 function Conversation({
   user: initialUser,
   state,
@@ -395,16 +398,19 @@ function Conversation({
   const conversation = useConversation(channel, refreshCommunity);
   const voice = useVoice();
   const [error, setError] = useState<unknown>(null);
-  const [panel, setPanel] = useState<"admission" | "catalog" | null>(null);
-  const [banTarget, setBanTarget] = useState<Participant | null>(null);
-  async function ban() {
-    if (!banTarget) return;
-    try {
-      await api.ban(banTarget.id);
-      setBanTarget(null);
-    } catch (e) {
-      setError(e);
-    }
+  const [panel, setPanel] = useState<ConversationPanel | null>(null);
+  const [moderationTarget, setModerationTarget] = useState("");
+  function togglePanel(next: ConversationPanel) {
+    setModerationTarget("");
+    setPanel((visible) => (visible === next ? null : next));
+  }
+  function closePanel() {
+    setPanel(null);
+    document.getElementById(`${panel}-toggle`)?.focus();
+  }
+  function moderate(target: string) {
+    setModerationTarget(target);
+    setPanel("moderation");
   }
   function switchChannel(id: string) {
     if (id === channel) return;
@@ -421,7 +427,8 @@ function Conversation({
         voice={voice}
         onChannel={switchChannel}
         panel={panel}
-        onPanel={(next) => setPanel((visible) => (visible === next ? null : next))}
+        onPanel={togglePanel}
+        kicked={conversation.status === "kicked"}
         onSignOut={onSignOut}
         onError={setError}
       />
@@ -435,57 +442,23 @@ function Conversation({
           </div>
           {language}
         </header>
-        <div className="connection-bar">
-          <span
-            className={
-              conversation.status === "connected" ? "status-dot" : "status-dot status-warning"
-            }
-          />
-          <output>{t[conversation.status]}</output>
-        </div>
-        {panel === "admission" && (
-          <AdmissionPanel
-            openAdmission={state.openAdmission}
-            locale={locale}
-            onAdmissionChange={onAdmissionChange}
-            onClose={() => {
-              setPanel(null);
-              document.getElementById("admission-toggle")?.focus();
-            }}
-          />
-        )}
-        {panel === "catalog" && user.participant.role === "owner" && (
-          <CatalogPanel
-            catalog={user}
-            locale={locale}
-            onChanged={refreshCommunity}
-            onClose={() => {
-              setPanel(null);
-              document.getElementById("catalog-toggle")?.focus();
-            }}
-          />
-        )}
-        {banTarget && (
-          <section className="inline-panel" aria-labelledby="ban-title">
-            <strong id="ban-title" role="alert">
-              {t.confirmBan}
-            </strong>
-            <p>{banTarget.nickname}</p>
-            <div className="panel-actions">
-              <Button variant="destructive" onClick={() => void ban()}>
-                {t.confirm}
-              </Button>
-              <Button variant="ghost" onClick={() => setBanTarget(null)}>
-                {t.cancel}
-              </Button>
-            </div>
-          </section>
-        )}
+        <ConnectionStatus conversation={conversation} locale={locale} />
+        <ConversationPanels
+          panel={panel}
+          user={user}
+          openAdmission={state.openAdmission}
+          locale={locale}
+          onAdmissionChange={onAdmissionChange}
+          onCatalogChange={refreshCommunity}
+          onClose={closePanel}
+          moderationTarget={moderationTarget}
+          memberRevision={conversation.memberRevision}
+        />
         <MessageHistory
           items={conversation.messages}
           user={user}
           locale={locale}
-          onBan={setBanTarget}
+          onModerate={moderate}
         />
         <div className="composer-area">
           {(error ?? conversation.error) !== null && (
@@ -501,6 +474,7 @@ function Conversation({
               name={current.name}
               locale={locale}
               onSent={conversation.append}
+              disabled={conversation.status === "kicked"}
             />
           )}
           <p className="composer-hint">
@@ -512,16 +486,91 @@ function Conversation({
     </div>
   );
 }
+function ConnectionStatus({
+  conversation,
+  locale,
+}: {
+  conversation: ReturnType<typeof useConversation>;
+  locale: Locale;
+}) {
+  const t = messages[locale];
+  return (
+    <div className="connection-bar">
+      <span
+        className={conversation.status === "connected" ? "status-dot" : "status-dot status-warning"}
+      />
+      <output>{t[conversation.status]}</output>
+      {conversation.status === "kicked" && (
+        <Button size="sm" variant="outline" onClick={conversation.reconnect}>
+          {t.reconnect}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ConversationPanels({
+  panel,
+  user,
+  locale,
+  openAdmission,
+  onAdmissionChange,
+  onCatalogChange,
+  onClose,
+  moderationTarget,
+  memberRevision,
+}: {
+  panel: ConversationPanel | null;
+  user: CurrentUser;
+  locale: Locale;
+  openAdmission: boolean;
+  onAdmissionChange: (open: boolean) => void;
+  onCatalogChange: () => Promise<void>;
+  onClose: () => void;
+  moderationTarget: string;
+  memberRevision: number;
+}) {
+  if (panel === "moderation" && isStaff(user.participant)) {
+    return (
+      <ModerationPanel
+        key={moderationTarget}
+        actor={user.participant}
+        target={moderationTarget}
+        revision={memberRevision}
+        locale={locale}
+        onClose={onClose}
+      />
+    );
+  }
+  if (user.participant.role !== "owner") return null;
+  if (panel === "admission")
+    return (
+      <AdmissionPanel
+        openAdmission={openAdmission}
+        locale={locale}
+        onAdmissionChange={onAdmissionChange}
+        onClose={onClose}
+      />
+    );
+  if (panel === "catalog")
+    return (
+      <CatalogPanel catalog={user} locale={locale} onChanged={onCatalogChange} onClose={onClose} />
+    );
+  return null;
+}
+
 function MessageComposer({
   channel,
   name,
   locale,
   onSent,
+  disabled,
 }: {
   channel: string;
   name: string;
   locale: Locale;
   onSent: (message: Message) => void;
+  disabled: boolean;
 }) {
   const t = messages[locale];
   const [draft, setDraft] = useState("");
@@ -530,7 +579,7 @@ function MessageComposer({
   const [error, setError] = useState<unknown>(null);
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sending || !draft.trim()) return;
+    if (disabled || sending || !draft.trim()) return;
     const input =
       pending && pending.body === draft.trim()
         ? pending
@@ -563,7 +612,7 @@ function MessageComposer({
           value={draft}
           maxLength={2000}
           rows={2}
-          disabled={sending}
+          disabled={disabled || sending}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -575,7 +624,7 @@ function MessageComposer({
         <Button
           type="submit"
           size="icon"
-          disabled={sending || !draft.trim()}
+          disabled={disabled || sending || !draft.trim()}
           aria-label={sending ? t.sending : pending ? t.retrySend : t.send}
         >
           <Send size={19} />
@@ -592,6 +641,7 @@ function ConversationSidebar({
   voice,
   onChannel,
   panel,
+  kicked,
   onPanel,
   onSignOut,
   onError,
@@ -602,8 +652,9 @@ function ConversationSidebar({
   channel: string;
   voice: ReturnType<typeof useVoice>;
   onChannel: (id: string) => void;
-  panel: "admission" | "catalog" | null;
-  onPanel: (panel: "admission" | "catalog") => void;
+  panel: ConversationPanel | null;
+  kicked: boolean;
+  onPanel: (panel: ConversationPanel) => void;
   onSignOut: () => Promise<void>;
   onError: (error: unknown) => void;
 }) {
@@ -641,7 +692,7 @@ function ConversationSidebar({
                       onClick={
                         kind === "text" ? () => onChannel(item.id) : () => void voice.join(item.id)
                       }
-                      disabled={kind === "voice" && voice.status === "connecting"}
+                      disabled={kind === "voice" && (kicked || voice.status === "connecting")}
                       title={kind === "voice" ? t.joinVoice : undefined}
                     >
                       {kind === "text" ? <Hash size={18} /> : <Volume2 size={18} />}
@@ -656,7 +707,13 @@ function ConversationSidebar({
         );
       })}
       <div className="sidebar-bottom">
-        <VoicePanel voice={voice} voiceChannels={voiceChannels} locale={locale} onError={onError} />
+        <VoicePanel
+          voice={voice}
+          voiceChannels={voiceChannels}
+          forcedMuted={user.participant.micMuted}
+          locale={locale}
+          onError={onError}
+        />
         {user.participant.role === "owner" && (
           <Button
             id="admission-toggle"
@@ -680,6 +737,17 @@ function ConversationSidebar({
             {t.manageChannels}
           </Button>
         )}
+        {isStaff(user.participant) && (
+          <Button
+            id="moderation-toggle"
+            variant="outline"
+            aria-expanded={panel === "moderation"}
+            aria-controls={panel === "moderation" ? "moderation-panel" : undefined}
+            onClick={() => onPanel("moderation")}
+          >
+            {t.moderation}
+          </Button>
+        )}
         <div className="self-row">
           <span className="person-avatar">
             {user.participant.nickname.slice(0, 1).toUpperCase()}
@@ -688,7 +756,7 @@ function ConversationSidebar({
             <strong>{user.participant.nickname}</strong>
             <small>{t[user.participant.role]}</small>
           </div>
-          {user.participant.role !== "participant" && (
+          {user.account && (
             <Button
               size="icon"
               variant="ghost"
@@ -707,17 +775,20 @@ function ConversationSidebar({
 function VoicePanel({
   voice,
   voiceChannels,
+  forcedMuted,
   locale,
   onError,
 }: {
   voice: ReturnType<typeof useVoice>;
   voiceChannels: CurrentUser["channels"];
   locale: Locale;
+  forcedMuted: boolean;
   onError: (error: unknown) => void;
 }) {
   const t = messages[locale];
   return (
     <>
+      {forcedMuted && <output className="voice-moderation-notice">{t.micModerated}</output>}
       {voice.channel && (
         <section className="voice-panel" aria-label={t.voice}>
           <div className="voice-panel-title">
@@ -738,6 +809,7 @@ function VoicePanel({
             <Button
               size="icon"
               variant="ghost"
+              disabled={forcedMuted || !voice.canPublish}
               aria-label={voice.muted ? t.unmute : t.mute}
               aria-pressed={!voice.muted}
               onClick={() => void voice.toggleMute()}
@@ -786,12 +858,12 @@ function MessageHistory({
   items,
   user,
   locale,
-  onBan,
+  onModerate,
 }: {
   items: Message[];
   user: CurrentUser;
   locale: Locale;
-  onBan: (participant: Participant) => void;
+  onModerate: (id: string) => void;
 }) {
   const t = messages[locale];
   return (
@@ -822,18 +894,12 @@ function MessageHistory({
                 <time dateTime={message.createdAt}>
                   {timeFormatters[locale].format(new Date(message.createdAt))}
                 </time>
-                {user.participant.role === "owner" && message.authorId !== user.participant.id && (
+                {isStaff(user.participant) && message.authorId !== user.participant.id && (
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label={`${t.ban}: ${message.nickname}`}
-                    onClick={() =>
-                      onBan({
-                        id: message.authorId,
-                        nickname: message.nickname,
-                        role: "participant",
-                      })
-                    }
+                    aria-label={`${t.moderateParticipant}: ${message.nickname}`}
+                    onClick={() => onModerate(message.authorId)}
                   >
                     <Shield size={14} />
                   </Button>

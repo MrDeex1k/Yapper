@@ -10,6 +10,10 @@ import type {
   AdmissionSettings,
   InvitationInput,
   Invitations,
+  MemberPage,
+  ModerationAction,
+  ModerationAudit,
+  ModeratorInput,
 } from "@yapper/api";
 let token: string | null = null;
 let refreshedAt = 0;
@@ -110,5 +114,23 @@ export const api = {
   send: (channel: string, body: SendInput) =>
     request<Message>(`/api/v1/channels/${channel}/messages`, body),
   ticket: () => request<{ ticket: string }>("/api/v1/events/ticket", {}),
-  ban: (id: string) => request(`/api/v1/participants/${id}/ban`, {}),
+  members: ({
+    after,
+    target,
+    signal,
+  }: {
+    after?: string;
+    target?: string;
+    signal?: AbortSignal;
+  }) => {
+    const params = new URLSearchParams();
+    if (after) params.set("after", after);
+    if (target) params.set("target", target);
+    return request<MemberPage>(`/api/v1/participants?${params}`, undefined, signal);
+  },
+  audit: (signal?: AbortSignal) =>
+    request<ModerationAudit>("/api/v1/moderation/audit", undefined, signal),
+  provisionModerator: (body: ModeratorInput) => request("/api/v1/moderators", body),
+  moderate: (id: string, body: ModerationAction) =>
+    request(`/api/v1/participants/${id}/moderate`, body),
 };

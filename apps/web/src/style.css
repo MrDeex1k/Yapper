@@ -861,3 +861,43 @@ h1 {
     flex-wrap: wrap;
   }
 }
+
+.moderation-panel details {
+  margin-top: 12px;
+}
+.moderation-panel summary {
+  cursor: pointer;
+}
+.moderator-form,
+.moderation-picker {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.moderator-form label,
+.moderation-picker label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  min-width: min(100%, 180px);
+}
+.moderation-target {
+  margin-top: 10px;
+}
+.moderation-panel .panel-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.moderation-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.voice-moderation-notice {
+  color: var(--muted);
+  font-size: 12px;
+}

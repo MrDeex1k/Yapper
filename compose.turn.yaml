@@ -3,7 +3,19 @@
 services:
   ingress:
     ports: !override ["80:80", "443:443/udp"]
+    depends_on:
+      tls-router: { condition: service_started }
+    environment:
+      YAPPER_TURN_PROXY_IP: ${YAPPER_TURN_PROXY_IP:-172.30.244.2}
+    networks:
+      default:
+      turn-proxy:
+        aliases: [ingress-turn]
+    volumes:
+      - ./deploy/caddy-turn.caddyfile:/etc/caddy/proxy.d/turn.caddyfile:ro
   livekit:
+    depends_on:
+      tls-router: { condition: service_started }
     environment:
       LIVEKIT_CONFIG: |
         port: 7880
@@ -59,9 +71,6 @@ services:
       default:
       turn-proxy:
         ipv4_address: ${YAPPER_TURN_PROXY_IP:-172.30.244.2}
-    depends_on:
-      ingress: { condition: service_started }
-      livekit: { condition: service_started }
 networks:
   turn-proxy:
     internal: true

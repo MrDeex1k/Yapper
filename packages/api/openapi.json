@@ -643,6 +643,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -654,7 +664,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/categories/{id}": {
@@ -673,6 +688,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -695,7 +720,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/categories/{id}/move": {
@@ -714,6 +744,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -736,7 +776,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/channels": {
@@ -755,6 +800,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -766,7 +821,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/channels/{id}": {
@@ -785,6 +845,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -807,7 +877,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/channels/{id}/move": {
@@ -826,6 +901,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -848,7 +933,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
       }
     },
     "/api/v1/channels/{id}/archive": {
@@ -867,6 +957,16 @@
           },
           "403": {
             "description": "Owner, resource or origin authorization failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -878,6 +978,202 @@
               "type": "string",
               "format": "uuid"
             }
+          }
+        ],
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/participants": {
+      "get": {
+        "operationId": "listMembers",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/moderators": {
+      "post": {
+        "operationId": "provisionModerator",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeratorInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/participants/{id}/moderate": {
+      "post": {
+        "operationId": "moderateMember",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationAction"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/moderation/audit": {
+      "get": {
+        "operationId": "getModerationAudit",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationAudit"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed."
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
           }
         ]
       }
@@ -925,9 +1221,12 @@
           "role": {
             "type": "string",
             "enum": ["owner", "moderator", "participant"]
+          },
+          "micMuted": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "nickname", "role"]
+        "required": ["id", "nickname", "role", "micMuted"]
       },
       "Channel": {
         "type": "object",
@@ -1064,9 +1363,12 @@
             "items": {
               "$ref": "#/components/schemas/Category"
             }
+          },
+          "account": {
+            "type": "boolean"
           }
         },
-        "required": ["participant", "channels", "categories"]
+        "required": ["participant", "channels", "categories", "account"]
       },
       "History": {
         "type": "object",
@@ -1103,7 +1405,7 @@
       },
       "VoiceGrant": {
         "type": "object",
-        "required": ["url", "token", "identity", "channelId"],
+        "required": ["url", "token", "identity", "channelId", "canPublish"],
         "properties": {
           "url": {
             "type": "string"
@@ -1116,6 +1418,9 @@
           },
           "channelId": {
             "type": "string"
+          },
+          "canPublish": {
+            "type": "boolean"
           }
         }
       },
@@ -1279,6 +1584,161 @@
           }
         },
         "required": ["name", "kind"]
+      },
+      "Member": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["owner", "moderator", "participant"]
+          },
+          "micMuted": {
+            "type": "boolean"
+          },
+          "banned": {
+            "type": "boolean"
+          },
+          "registered": {
+            "type": "boolean"
+          },
+          "canBlockIp": {
+            "type": "boolean"
+          },
+          "ipBlocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "role",
+          "micMuted",
+          "banned",
+          "registered",
+          "canBlockIp",
+          "ipBlocked"
+        ]
+      },
+      "MemberPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            }
+          },
+          "next": {
+            "type": "string",
+            "description": "Cursor UUID or empty when exhausted."
+          }
+        },
+        "required": ["members", "next"]
+      },
+      "ModerationAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "kick",
+              "ban",
+              "unban",
+              "mute",
+              "unmute",
+              "grant_moderator",
+              "revoke_moderator"
+            ]
+          },
+          "blockIp": {
+            "type": "boolean"
+          }
+        },
+        "required": ["action"]
+      },
+      "ModerationSaved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": ["saved"]
+      },
+      "ModeratorInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_]{3,32}$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        },
+        "required": ["username", "password"]
+      },
+      "AuditEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "kick",
+              "ban",
+              "unban",
+              "mute",
+              "unmute",
+              "grant_moderator",
+              "revoke_moderator",
+              "provision_moderator"
+            ]
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ipBlocked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["action", "actorId", "targetId", "ipBlocked", "createdAt"]
+      },
+      "ModerationAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEvent"
+            }
+          }
+        },
+        "required": ["events"]
       }
     },
     "securitySchemes": {

@@ -72,7 +72,7 @@ func run() error {
 		return err
 	}
 	defer mediaService.Close()
-	api, err := httpapi.NewCommunity(store, verifier, auth, httpapi.CommunityConfig{Media: mediaService, Origin: os.Getenv("AUTH_ISSUER"), SetupToken: os.Getenv("SETUP_TOKEN"), SetupExpires: expires})
+	api, err := httpapi.NewCommunity(store, verifier, auth, httpapi.CommunityConfig{Media: mediaService, Origin: os.Getenv("AUTH_ISSUER"), SetupToken: os.Getenv("SETUP_TOKEN"), SetupExpires: expires, TrustIngress: os.Getenv("YAPPER_TRUST_INGRESS_IP") == "true"})
 	if err != nil {
 		return err
 	}

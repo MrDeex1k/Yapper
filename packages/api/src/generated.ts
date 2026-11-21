@@ -308,6 +308,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/participants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listMembers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/moderators": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["provisionModerator"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/participants/{id}/moderate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["moderateMember"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/moderation/audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getModerationAudit"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -326,6 +390,7 @@ export interface components {
       nickname: string;
       /** @enum {string} */
       role: "owner" | "moderator" | "participant";
+      micMuted: boolean;
     };
     Channel: {
       /** Format: uuid */
@@ -372,6 +437,7 @@ export interface components {
       participant: components["schemas"]["Participant"];
       channels: components["schemas"]["Channel"][];
       categories: components["schemas"]["Category"][];
+      account: boolean;
     };
     History: {
       messages: components["schemas"]["Message"][];
@@ -387,6 +453,7 @@ export interface components {
       token: string;
       identity: string;
       channelId: string;
+      canPublish: boolean;
     };
     AdmissionSettings: {
       openAdmission: boolean;
@@ -444,6 +511,57 @@ export interface components {
       categoryId?: string;
       /** @enum {string} */
       kind: "text" | "voice";
+    };
+    Member: {
+      /** Format: uuid */
+      id: string;
+      nickname: string;
+      /** @enum {string} */
+      role: "owner" | "moderator" | "participant";
+      micMuted: boolean;
+      banned: boolean;
+      registered: boolean;
+      canBlockIp: boolean;
+      ipBlocked: boolean;
+    };
+    MemberPage: {
+      members: components["schemas"]["Member"][];
+      /** @description Cursor UUID or empty when exhausted. */
+      next: string;
+    };
+    ModerationAction: {
+      /** @enum {string} */
+      action: "kick" | "ban" | "unban" | "mute" | "unmute" | "grant_moderator" | "revoke_moderator";
+      blockIp?: boolean;
+    };
+    ModerationSaved: {
+      saved: boolean;
+    };
+    ModeratorInput: {
+      username: string;
+      password: string;
+    };
+    AuditEvent: {
+      /** @enum {string} */
+      action:
+        | "kick"
+        | "ban"
+        | "unban"
+        | "mute"
+        | "unmute"
+        | "grant_moderator"
+        | "revoke_moderator"
+        | "provision_moderator";
+      /** Format: uuid */
+      actorId: string;
+      /** Format: uuid */
+      targetId: string;
+      ipBlocked: boolean;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    ModerationAudit: {
+      events: components["schemas"]["AuditEvent"][];
     };
   };
   responses: never;
@@ -948,6 +1066,15 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
     };
   };
   saveCategory: {
@@ -980,6 +1107,15 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
     };
   };
@@ -1014,6 +1150,15 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
     };
   };
   createChannel: {
@@ -1044,6 +1189,15 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
     };
   };
@@ -1078,6 +1232,15 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
     };
   };
   moveChannel: {
@@ -1111,6 +1274,15 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
     };
   };
   archiveChannel: {
@@ -1139,6 +1311,172 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  listMembers: {
+    parameters: {
+      query?: {
+        after?: string;
+        target?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberPage"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  provisionModerator: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ModeratorInput"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ModerationSaved"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  moderateMember: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ModerationAction"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ModerationSaved"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  getModerationAudit: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ModerationAudit"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
       };
     };
   };

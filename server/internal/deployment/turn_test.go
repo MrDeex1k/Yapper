@@ -39,12 +39,33 @@ func TestTURNDeployment(t *testing.T) {
 		t.Fatal("invalid test CA")
 	}
 	const endpoint = "tls-router:8443"
-	dial := func(name string, roots *x509.CertPool) (net.Conn, error) {
+	dial := func(ctx context.Context, name string, roots *x509.CertPool) (net.Conn, error) {
 		d := tls.Dialer{Config: &tls.Config{ServerName: name, RootCAs: roots, MinVersion: tls.VersionTLS12}}
 		return d.DialContext(ctx, "tcp", endpoint)
 	}
+	// The proxy owns its static address before the backends register in Docker DNS.
+	ready, stopReady := context.WithTimeout(ctx, 15*time.Second)
+	defer stopReady()
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for _, name := range []string{"web.yapper.test", "turn.yapper.test"} {
+		for {
+			attempt, cancel := context.WithTimeout(ready, time.Second)
+			c, err := dial(attempt, name, roots)
+			cancel()
+			if err == nil {
+				_ = c.Close()
+				break
+			}
+			select {
+			case <-ready.Done():
+				t.Fatalf("TLS router did not resolve %s: %v", name, err)
+			case <-ticker.C:
+			}
+		}
+	}
 	t.Run("untrusted certificate rejected", func(t *testing.T) {
-		c, err := dial("turn.yapper.test", nil)
+		c, err := dial(ctx, "turn.yapper.test", nil)
 		if err == nil {
 			c.Close()
 			t.Fatal("untrusted certificate accepted")
@@ -55,7 +76,7 @@ func TestTURNDeployment(t *testing.T) {
 	})
 	t.Run("HTTPS shares TLS router", func(t *testing.T) {
 		transport := &http.Transport{DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
-			return dial("web.yapper.test", roots)
+			return dial(ctx, "web.yapper.test", roots)
 		}}
 		defer transport.CloseIdleConnections()
 		client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
@@ -69,7 +90,7 @@ func TestTURNDeployment(t *testing.T) {
 		}
 		defer res.Body.Close()
 		body, err := io.ReadAll(io.LimitReader(res.Body, 1024))
-		if err != nil || res.StatusCode != 200 || string(body) != "https-route-ok" {
+		if err != nil || res.StatusCode != 200 || string(body) != "https-route-ok 172.30.245.4" {
 			t.Fatalf("HTTPS routing failed: status %d, error %v", res.StatusCode, err)
 		}
 	})
@@ -112,7 +133,7 @@ func TestTURNDeployment(t *testing.T) {
 	}
 	newClient := func(t *testing.T, password string) *turn.Client {
 		t.Helper()
-		conn, err := dial("turn.yapper.test", roots)
+		conn, err := dial(ctx, "turn.yapper.test", roots)
 		if err != nil {
 			t.Fatal("TURN TLS connection", err)
 		}

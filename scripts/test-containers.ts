@@ -5,13 +5,13 @@ import type { components } from "../packages/api/src/generated.ts";
 type Schemas = components["schemas"];
 type Guest = { id: string; cookie: string };
 type SmokeState = { channel: string; guest: Guest };
-type RequestOptions = { body?: unknown; cookie?: string; token?: string };
+type RequestOptions = { body?: unknown; cookie?: string; token?: string; clientIpHeader?: string };
 await mkdir(".tmp", { recursive: true });
 const base = "http://127.0.0.1:8090";
 const password = randomBytes(24).toString("hex");
 const call = async <T = Record<string, unknown>>(
   path: string,
-  { body, cookie, token }: RequestOptions = {},
+  { body, cookie, token, clientIpHeader }: RequestOptions = {},
 ) => {
   const response = await fetch(base + path, {
     method: body === undefined ? "GET" : "POST",
@@ -19,6 +19,7 @@ const call = async <T = Record<string, unknown>>(
       Origin: base,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(cookie ? { Cookie: cookie } : {}),
+      ...(clientIpHeader ? { "X-Yapper-Client-IP": clientIpHeader } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -41,6 +42,35 @@ const call = async <T = Record<string, unknown>>(
 const expect = (actual: unknown, expected: unknown, label: string) => {
   if (actual !== expected) throw new Error(`${label}: ${actual} != ${expected}`);
 };
+const waitForEvent = (socket: WebSocket, type: string) =>
+  new Promise<void>((resolve, reject) => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`WebSocket event timeout: ${type}`));
+    }, 5000);
+    socket.addEventListener(
+      "message",
+      (event) => {
+        const envelope = JSON.parse(String(event.data)) as { type?: string };
+        if (envelope.type !== type) return;
+        clearTimeout(timeout);
+        controller.abort();
+        resolve();
+      },
+      { signal },
+    );
+    socket.addEventListener(
+      "close",
+      () => {
+        clearTimeout(timeout);
+        controller.abort();
+        reject(new Error(`WebSocket closed before ${type}`));
+      },
+      { signal },
+    );
+  });
 // Restart returns before PostgreSQL and dependent services are necessarily ready.
 const deadline = Date.now() + 30_000;
 for (;;) {
@@ -208,6 +238,52 @@ expect(
 console.info(
   "PASS: owner-only admission settings, invitation listing and revocation, preserved memberships.",
 );
+const catalogPath = "/api/v1/categories";
+expect(
+  (await call(catalogPath, { body: { name: "Bad" }, cookie: firstGuest.cookie })).response.status,
+  403,
+  "guest catalog write",
+);
+expect(
+  (await call(catalogPath, { body: { name: "Community" }, token })).response.status,
+  200,
+  "owner category",
+);
+const catalog = (await call<Schemas["Me"]>("/api/v1/me", { cookie: firstGuest.cookie })).data;
+const category = catalog.categories.find((item) => item.name === "Community");
+assert(category, "Connected member can fetch changed catalog");
+expect(
+  (
+    await call("/api/v1/channels", {
+      body: { name: "updates", kind: "text", categoryId: category.id },
+      token,
+    })
+  ).response.status,
+  200,
+  "owner channel",
+);
+const added = (await call<Schemas["Me"]>("/api/v1/me", { token })).data.channels.find(
+  (item) => item.name === "updates",
+);
+assert(added && added.categoryId === category.id);
+expect(
+  (await call(`/api/v1/channels/${added.id}/archive`, { body: {}, token })).response.status,
+  200,
+  "archive channel",
+);
+expect(
+  (
+    await call(`/api/v1/channels/${added.id}/messages`, {
+      body: { requestId: randomUUID(), body: "Blocked" },
+      cookie: firstGuest.cookie,
+    })
+  ).response.status,
+  403,
+  "reject archived write",
+);
+console.info(
+  "PASS: authorized category and channel writes, preserved default channel, read-only archival.",
+);
 const send = { requestId: randomUUID(), body: "Persisted through the container stack." };
 const results = await Promise.all(
   Array.from({ length: 5 }, () =>
@@ -230,10 +306,182 @@ expect(
   firstGuest.id,
   "identity persistence",
 );
+const provision = "/api/v1/moderators";
+const moderatorCredentials = { username: "smokemod", password: randomBytes(24).toString("hex") };
+expect(
+  (await call(provision, { body: moderatorCredentials, cookie: firstGuest.cookie })).response
+    .status,
+  403,
+  "guest cannot provision",
+);
+expect(
+  (await call(provision, { body: moderatorCredentials, token })).response.status,
+  200,
+  "owner provisioned moderator",
+);
+expect(
+  (await call(provision, { body: moderatorCredentials, token })).response.status,
+  200,
+  "provision retry",
+);
+expect(
+  (await call(provision, { body: { ...moderatorCredentials, password }, token })).response.status,
+  409,
+  "conflicting credentials",
+);
+expect(
+  (await call(provision, { body: { username: setup.username, password }, token })).response.status,
+  409,
+  "owner account cannot be rebound",
+);
+const moderatorLogin = await call("/api/auth/sign-in/username", { body: moderatorCredentials });
+expect(moderatorLogin.response.status, 200, "moderator login");
+const moderatorCookie = moderatorLogin.response.headers
+  .getSetCookie()
+  .map((c) => c.split(";")[0])
+  .join("; ");
+const modToken = (await call<{ token: string }>("/api/auth/token", { cookie: moderatorCookie }))
+  .data.token;
+const mod = (await call<Schemas["Me"]>("/api/v1/me", { token: modToken })).data.participant;
+expect(mod.role, "moderator", "moderator binding");
+const moderate = (id: string, body: Schemas["ModerationAction"], authToken: string) =>
+  call(`/api/v1/participants/${id}/moderate`, { body, token: authToken });
+expect(
+  (await moderate(me.participant.id, { action: "kick" }, modToken)).response.status,
+  403,
+  "moderator protection of owner",
+);
+expect(
+  (await moderate(secondGuest.id, { action: "grant_moderator" }, modToken)).response.status,
+  403,
+  "moderator cannot assign roles",
+);
+expect(
+  (await call("/api/v1/participants", { cookie: firstGuest.cookie })).response.status,
+  403,
+  "guest cannot list members",
+);
+expect(
+  (await call("/api/v1/moderation/audit", { cookie: firstGuest.cookie })).response.status,
+  403,
+  "guest cannot read audit",
+);
+const issued = await call<{ ticket: string }>("/api/v1/events/ticket", {
+  body: {},
+  token: modToken,
+});
+// Node's WebSocket supports request headers for a non-browser smoke probe.
+const NodeWebSocket = WebSocket as typeof WebSocket & {
+  new (url: string, options: { protocols: string[]; headers: HeadersInit }): WebSocket;
+};
+const moderatorSocket = new NodeWebSocket("ws://127.0.0.1:8090/api/v1/events", {
+  protocols: ["yapper.v1", `yapper.ticket.${issued.data.ticket}`],
+  headers: { Origin: base },
+});
+try {
+  await waitForEvent(moderatorSocket, "ready");
+  const [, revoked] = await Promise.all([
+    waitForEvent(moderatorSocket, "members.changed"),
+    moderate(mod.id, { action: "revoke_moderator" }, token),
+  ]);
+  expect(revoked.response.status, 200, "revoke moderator");
+  expect(
+    (await call("/api/v1/participants", { token: modToken })).response.status,
+    403,
+    "old JWT lost privileges",
+  );
+  expect(
+    (await call<Schemas["Me"]>("/api/v1/me", { token: modToken })).data.participant.role,
+    "participant",
+    "demoted account can still use its identity",
+  );
+  const [, restored] = await Promise.all([
+    waitForEvent(moderatorSocket, "members.changed"),
+    moderate(mod.id, { action: "grant_moderator" }, token),
+  ]);
+  expect(restored.response.status, 200, "restore moderator role");
+} finally {
+  moderatorSocket.close();
+}
+expect(
+  (await moderate(secondGuest.id, { action: "mute" }, modToken)).response.status,
+  200,
+  "forced mute",
+);
+expect(
+  (await call<Schemas["Me"]>("/api/v1/me", { cookie: secondGuest.cookie })).data.participant
+    .micMuted,
+  true,
+  "moderation visible to target",
+);
+expect(
+  (await moderate(secondGuest.id, { action: "unmute" }, modToken)).response.status,
+  200,
+  "lift forced mute",
+);
+const listMembers = (await call<Schemas["MemberPage"]>("/api/v1/participants", { token: modToken }))
+  .data;
+assert(listMembers.members.some((member) => member.id === secondGuest.id && member.canBlockIp));
+expect(
+  (await moderate(secondGuest.id, { action: "ban", blockIp: true }, modToken)).response.status,
+  200,
+  "ban with IP",
+);
+expect(
+  (
+    await call<Schemas["Error"]>("/api/v1/me", {
+      cookie: firstGuest.cookie,
+      clientIpHeader: "192.0.2.19",
+    })
+  ).data.code,
+  "ip_blocked",
+  "Caddy overwrites untrusted IP header and denies other guests at the same IP",
+);
+expect(
+  (
+    await call<Schemas["Error"]>("/api/v1/guests", {
+      body: { nickname: "Fresh guest", invitation: "unused" },
+      clientIpHeader: "192.0.2.19",
+    })
+  ).data.code,
+  "ip_blocked",
+  "IP block also denies fresh identities",
+);
+expect(
+  (await call("/api/v1/me", { token: modToken })).response.status,
+  200,
+  "IP block does not disable signed-in staff",
+);
+const audit = (await call<Schemas["ModerationAudit"]>("/api/v1/moderation/audit", { token })).data
+  .events;
+assert(
+  audit.some(
+    (event) =>
+      event.action === "ban" &&
+      event.targetId === secondGuest.id &&
+      event.actorId === mod.id &&
+      event.ipBlocked,
+  ),
+);
+expect(
+  audit.filter((event) => event.action === "provision_moderator").length,
+  1,
+  "provision audit deduplication",
+);
+expect(
+  (await moderate(secondGuest.id, { action: "unban" }, modToken)).response.status,
+  200,
+  "lift ban and associated address block",
+);
+expect(
+  (await call("/api/v1/me", { cookie: firstGuest.cookie })).response.status,
+  200,
+  "shared address restored",
+);
 expect(
   (await call(`/api/v1/participants/${secondGuest.id}/ban`, { body: {}, token })).response.status,
   200,
-  "ban",
+  "legacy identity ban",
 );
 expect(
   (
@@ -244,6 +492,19 @@ expect(
   ).response.status,
   403,
   "banned write",
+);
+expect(
+  (
+    await call<Schemas["Error"]>("/api/v1/guests", {
+      body: { nickname: "Retry" },
+      cookie: secondGuest.cookie,
+    })
+  ).data.code,
+  "participant_banned",
+  "banned cookie cannot be replaced",
+);
+console.info(
+  "PASS: moderator provisioning, role changes with an existing token, mute/unmute, identity/IP moderation, and audit.",
 );
 expect(
   (await call("/api/auth/sign-out", { body: {}, cookie: ownerCookie })).response.status,

@@ -7,6 +7,7 @@ import {
   type RemoteAudioTrack,
   type RemoteParticipant,
 } from "livekit-client";
+import type { VoiceGrant } from "@yapper/api";
 import { request } from "./api";
 
 type VoiceState = "disconnected" | "connecting" | "connected" | "reconnecting";
@@ -21,6 +22,7 @@ export function useVoice() {
   const [status, setStatus] = useState<VoiceState>("disconnected");
   const [channel, setChannel] = useState<string | null>(null);
   const [muted, setMuted] = useState(true);
+  const [canPublish, setCanPublish] = useState(true);
   const [deafened, setDeafened] = useState(false);
   const [error, setError] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
@@ -70,12 +72,7 @@ export function useVoice() {
       if (current.current) await leave();
       operation = ++generation.current;
       setStatus("connecting");
-      const grant = await request<{
-        url: string;
-        token: string;
-        identity: string;
-        channelId: string;
-      }>("/api/v1/voice/grant", { channelId });
+      const grant = await request<VoiceGrant>("/api/v1/voice/grant", { channelId });
       if (operation !== generation.current) {
         await request("/api/v1/voice/leave", { identity: grant.identity });
         return;
@@ -84,6 +81,7 @@ export function useVoice() {
       const room = new Room({ adaptiveStream: false, dynacast: false });
       current.current = room;
       setChannel(channelId);
+      setCanPublish(grant.canPublish);
       setMuted(true);
       const update = () => {
         if (current.current !== room) return;
@@ -171,7 +169,7 @@ export function useVoice() {
   }
   async function toggleMute() {
     const room = current.current;
-    if (!room) return;
+    if (!room || !canPublish) return;
     setError(false);
     try {
       await room.localParticipant.setMicrophoneEnabled(muted);
@@ -208,6 +206,7 @@ export function useVoice() {
     status,
     channel,
     muted,
+    canPublish,
     deafened,
     error,
     audioBlocked,

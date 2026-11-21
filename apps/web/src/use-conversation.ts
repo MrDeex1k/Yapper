@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Message } from "@yapper/api";
 import { api, APIError } from "./api";
-export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
+export type ConnectionState =
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "disconnected"
+  | "kicked";
 function combine(previous: Message[], incoming: Message[]) {
   const map = new Map(previous.map((message) => [message.id, message]));
   for (const message of incoming) map.set(message.id, message);
@@ -18,21 +23,27 @@ export function useConversation(
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<unknown>(null);
+  const [memberRevision, setMemberRevision] = useState(0);
+  const paused = status === "kicked";
   const [previousChannel, setPreviousChannel] = useState(channel);
   if (previousChannel !== channel) {
     setPreviousChannel(channel);
     setMessages([]);
-    setStatus("connecting");
+    if (!paused) setStatus("connecting");
     setError(null);
   }
-  useEffect(
-    () => subscribeConversation(channel, refreshCommunity, setMessages, setStatus, setError),
-    [channel, refreshCommunity],
-  );
+  useEffect(() => {
+    if (paused) return;
+    return subscribeConversation(channel, refreshCommunity, setMessages, setStatus, setError, () =>
+      setMemberRevision((revision) => revision + 1),
+    );
+  }, [channel, paused, refreshCommunity]);
   return {
     messages,
     status,
     error,
+    memberRevision,
+    reconnect: () => setStatus("connecting"),
     append: (message: Message) => {
       if (message.channelId !== activeChannel.current) return;
       setMessages((previous) =>
@@ -50,6 +61,7 @@ function subscribeConversation(
   setMessages: (update: (previous: Message[]) => Message[]) => void,
   setStatus: (status: ConnectionState) => void,
   setError: (error: unknown) => void,
+  onMembersChanged: () => void,
 ) {
   const controller = new AbortController();
   let socket: WebSocket | undefined;
@@ -94,7 +106,12 @@ function subscribeConversation(
           setError(null);
           void reconcile();
         }
-        if (message.type === "ready" || message.type === "catalog.changed") {
+        if (message.type === "ready" || message.type === "members.changed") onMembersChanged();
+        if (
+          message.type === "ready" ||
+          message.type === "catalog.changed" ||
+          message.type === "members.changed"
+        ) {
           void refreshCommunity(controller.signal).catch((e) => {
             if (!controller.signal.aborted) setError(e);
           });
@@ -102,8 +119,12 @@ function subscribeConversation(
         if (message.type === "message.created" && message.payload.channelId === channel)
           setMessages((previous) => combine(previous, [message.payload]));
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (!controller.signal.aborted) {
+          if (event.code === 4001) {
+            setStatus("kicked");
+            return;
+          }
           setStatus("reconnecting");
           timer = setTimeout(() => void connect(), 1500);
         }

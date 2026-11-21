@@ -1,3 +1,7 @@
+{
+  import proxy.d/*
+}
+
 {$YAPPER_DOMAIN} {
   encode zstd gzip
   header {
@@ -12,7 +16,9 @@
   }
   @application path /api/* /livekit/*
   handle @application {
-    reverse_proxy server:8080
+    reverse_proxy server:8080 {
+      header_up X-Yapper-Client-IP {http.request.remote.host}
+    }
   }
   @private path /internal/*
   handle @private {

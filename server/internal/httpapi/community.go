@@ -9,7 +9,9 @@ import (
 	"errors"
 	"io"
 	"mime"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -30,17 +32,18 @@ type CommunityConfig struct {
 	Origin       string
 	SetupToken   string
 	SetupExpires time.Time
+	TrustIngress bool
 }
 type principal struct {
 	participant community.Participant
 	account     *identity.Account
+	address     netip.Addr
 }
 type ticket struct {
 	who     principal
 	expires time.Time
 }
 type stream struct {
-	who        principal
 	connection *websocket.Conn
 	queue      chan []byte
 }
@@ -78,7 +81,7 @@ func NewCommunity(store *community.Store, verifier *identity.Verifier, auth *ide
 	a.mux.HandleFunc("GET /api/v1/invitations", a.invitations)
 	a.mux.HandleFunc("POST /api/v1/invitations", a.invite)
 	a.mux.HandleFunc("POST /api/v1/invitations/{id}/revoke", a.revokeInvitation)
-	a.mux.HandleFunc("POST /api/v1/participants/{id}/ban", a.ban)
+	a.moderationRoutes()
 	a.mux.HandleFunc("GET /api/v1/channels/{id}/messages", a.history)
 	a.mux.HandleFunc("POST /api/v1/channels/{id}/messages", a.send)
 	a.mux.HandleFunc("POST /api/v1/events/ticket", a.issueTicket)
@@ -93,16 +96,40 @@ func (a *CommunityAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, "origin_denied")
 		return
 	}
-	a.mux.ServeHTTP(w, r)
+	address := a.clientAddress(r)
+	if a.config.TrustIngress && !address.IsValid() {
+		fail(w, 403, "access_denied")
+		return
+	}
+	a.mux.ServeHTTP(w, r.WithContext(identity.WithClientAddress(r.Context(), address)))
+}
+
+func (a *CommunityAPI) clientAddress(r *http.Request) netip.Addr {
+	raw, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if a.config.TrustIngress {
+		values := r.Header.Values("X-Yapper-Client-IP")
+		if len(values) != 1 {
+			return netip.Addr{}
+		}
+		raw = values[0]
+	}
+	address, _ := netip.ParseAddr(raw)
+	return address.Unmap().WithZone("")
 }
 func fail(w http.ResponseWriter, status int, code string) {
 	writeJSON(w, status, map[string]string{"code": code})
 }
 func resultError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, community.ErrDenied), errors.Is(err, identity.ErrUnauthorized):
+	case errors.Is(err, community.ErrBanned):
+		fail(w, 403, "participant_banned")
+	case errors.Is(err, community.ErrIPBlocked):
+		fail(w, 403, "ip_blocked")
+	case errors.Is(err, community.ErrNoGuestIP):
+		fail(w, 409, "ip_unavailable")
+	case errors.Is(err, community.ErrDenied), errors.Is(err, identity.ErrUnauthorized), errors.Is(err, errKicked):
 		fail(w, 403, "access_denied")
-	case errors.Is(err, community.ErrConflict):
+	case errors.Is(err, community.ErrConflict), errors.Is(err, identity.ErrAccountConflict):
 		fail(w, 409, "conflict")
 	case errors.Is(err, community.ErrNotConfigured):
 		fail(w, 409, "not_configured")
@@ -162,8 +189,9 @@ func (a *CommunityAPI) authenticate(r *http.Request) (principal, error) {
 	if err != nil {
 		return principal{}, community.ErrDenied
 	}
-	p, err := a.store.GuestIdentity(r.Context(), cookie.Value)
-	return principal{participant: p}, err
+	address := identity.ClientAddress(r.Context())
+	p, err := a.store.GuestIdentity(r.Context(), cookie.Value, address)
+	return principal{participant: p, address: address}, err
 }
 func (a *CommunityAPI) require(w http.ResponseWriter, r *http.Request) (principal, bool) {
 	p, err := a.authenticate(r)
@@ -224,14 +252,20 @@ func (a *CommunityAPI) join(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "invalid_nickname")
 		return
 	}
-	// Reopening or retrying admission retains a valid existing identity.
+	address := identity.ClientAddress(r.Context())
+	// Retain valid identities and refuse to replace a credential that was banned.
 	if cookie, err := r.Cookie(a.cookieName()); err == nil {
-		if p, err := a.store.GuestIdentity(r.Context(), cookie.Value); err == nil {
+		p, err := a.store.GuestIdentity(r.Context(), cookie.Value, address)
+		if err == nil {
 			writeJSON(w, 200, p)
 			return
 		}
+		if errors.Is(err, community.ErrBanned) || errors.Is(err, community.ErrIPBlocked) || !errors.Is(err, community.ErrDenied) {
+			resultError(w, err)
+			return
+		}
 	}
-	p, secret, err := a.store.Guest(r.Context(), body.Nickname, body.Invitation)
+	p, secret, err := a.store.Guest(r.Context(), body.Nickname, body.Invitation, address)
 	if err != nil {
 		resultError(w, err)
 		return
@@ -249,30 +283,7 @@ func (a *CommunityAPI) me(w http.ResponseWriter, r *http.Request) {
 		resultError(w, err)
 		return
 	}
-	writeJSON(w, 200, currentUser{Participant: p.participant, Catalog: catalog})
-}
-func (a *CommunityAPI) ban(w http.ResponseWriter, r *http.Request) {
-	p, ok := a.require(w, r)
-	if !ok {
-		return
-	}
-	id := r.PathValue("id")
-	if !validID(id) {
-		fail(w, 400, "invalid_request")
-		return
-	}
-	if err := a.store.Ban(r.Context(), p.participant.ID, id); err != nil {
-		resultError(w, err)
-		return
-	}
-	a.disconnect(id)
-	if a.config.Media != nil {
-		if err := a.config.Media.Revoke(r.Context(), id); err != nil {
-			resultError(w, err)
-			return
-		}
-	}
-	writeJSON(w, 200, map[string]bool{"banned": true})
+	writeJSON(w, 200, currentUser{Participant: p.participant, Account: p.account != nil, Catalog: catalog})
 }
 func (a *CommunityAPI) history(w http.ResponseWriter, r *http.Request) {
 	if _, ok := a.require(w, r); !ok {
@@ -344,9 +355,18 @@ func (a *CommunityAPI) issueTicket(w http.ResponseWriter, r *http.Request) {
 	a.tickets[token] = ticket{p, now.Add(10 * time.Second)}
 	writeJSON(w, 201, map[string]string{"ticket": token})
 }
+
+var errKicked = errors.New("participant kicked")
+
+const kickedCloseCode websocket.StatusCode = 4001
+
 func (a *CommunityAPI) current(ctx context.Context, p principal) error {
-	if _, err := a.store.Participant(ctx, p.participant.ID); err != nil {
+	current, err := a.store.Participant(ctx, p.participant.ID)
+	if err != nil {
 		return err
+	}
+	if current.KickGeneration != p.participant.KickGeneration {
+		return errKicked
 	}
 	if p.account != nil {
 		if p.account.ExpiresAt == nil || time.Now().After(p.account.ExpiresAt.Time) {
@@ -354,7 +374,7 @@ func (a *CommunityAPI) current(ctx context.Context, p principal) error {
 		}
 		return a.auth.Active(ctx, *p.account)
 	}
-	return nil
+	return a.store.CheckGuestAddress(ctx, p.address)
 }
 func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Origin") != a.config.Origin {
@@ -375,6 +395,13 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 		fail(w, 403, "access_denied")
 		return
 	}
+	if t.who.account == nil {
+		if err := a.store.CheckGuestAddress(r.Context(), t.who.address); err != nil {
+			resultError(w, err)
+			return
+		}
+		t.who.address = identity.ClientAddress(r.Context())
+	}
 	if err := a.current(r.Context(), t.who); err != nil {
 		resultError(w, err)
 		return
@@ -387,7 +414,7 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	defer conn.CloseNow()
 	conn.SetReadLimit(1024)
 	ctx := conn.CloseRead(r.Context())
-	s := &stream{who: t.who, connection: conn, queue: make(chan []byte, 32)}
+	s := &stream{connection: conn, queue: make(chan []byte, 32)}
 	initial, _ := json.Marshal(map[string]any{"version": 1, "type": "ready", "payload": map[string]bool{"reconcile": true}})
 	s.queue <- initial
 	a.mu.Lock()
@@ -395,7 +422,14 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 	defer func() { a.mu.Lock(); delete(a.streams, s); a.mu.Unlock() }()
 	// Recheck after registration so a ban racing the handshake cannot escape disconnect.
-	if err = a.current(ctx, t.who); err != nil {
+	checkCurrent := func(ctx context.Context) bool {
+		err := a.current(ctx, t.who)
+		if errors.Is(err, errKicked) {
+			_ = conn.Close(kickedCloseCode, "kicked")
+		}
+		return err == nil
+	}
+	if !checkCurrent(ctx) {
 		return
 	}
 	timer := time.NewTicker(time.Second)
@@ -405,7 +439,7 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case data := <-s.queue:
-			if err = a.current(ctx, t.who); err != nil {
+			if !checkCurrent(ctx) {
 				return
 			}
 			writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -416,9 +450,9 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 			}
 		case <-timer.C:
 			checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-			err = a.current(checkCtx, t.who)
+			current := checkCurrent(checkCtx)
 			cancel()
-			if err != nil {
+			if !current {
 				return
 			}
 		}
@@ -435,16 +469,6 @@ func (a *CommunityAPI) broadcast(kind string, payload any) {
 		select {
 		case s.queue <- data:
 		default:
-			_ = s.connection.CloseNow()
-			delete(a.streams, s)
-		}
-	}
-}
-func (a *CommunityAPI) disconnect(id string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for s := range a.streams {
-		if s.who.participant.ID == id {
 			_ = s.connection.CloseNow()
 			delete(a.streams, s)
 		}
@@ -483,7 +507,7 @@ func (a *CommunityAPI) voiceGrant(w http.ResponseWriter, r *http.Request) {
 		subject = p.account.Subject
 		sessionID = p.account.SessionID
 	}
-	grant, err := a.config.Media.Grant(r.Context(), p.participant.ID, body.ChannelID, subject, sessionID)
+	grant, err := a.config.Media.Grant(r.Context(), p.participant, body.ChannelID, subject, sessionID)
 	if err != nil {
 		resultError(w, err)
 		return

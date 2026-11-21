@@ -60,7 +60,7 @@ Cache JWKS with bounded refresh and planned key overlap during rotation. Unknown
 
 JWT verification establishes identity; Go checks current roles, bans, and channel access at each privileged operation. Token expiry is not a substitute for immediate moderation or account revocation. Stage 1 defines and tests account/session revocation propagation from AUTH to Go, including active WebSocket connections. Keep this integration behind a small interface.
 
-Public registration is disabled initially. Host-authorized setup creates the owner; the owner provisions or invites moderator accounts. Future Google sign-in and participant accounts are extensions, not active features. No central account provider is required.
+Public registration is disabled initially. Host-authorized setup creates the owner; the owner provisions local moderator accounts through Go and the private AUTH API. Future Google sign-in and participant accounts are extensions, not active features. No central account provider is required.
 
 mTLS is deferred. Internal AUTH/Go communication uses the private Compose network; public access is routed through HTTPS. Databases and internal management endpoints are not exposed as public ports.
 
@@ -78,7 +78,9 @@ Use foreign keys and indexes suited to stable message pagination and participant
 
 Go checks membership and permissions before issuing a narrowly scoped, short-lived LiveKit grant. Clients never receive a LiveKit server secret. Media identity is tied to the authoritative participant ID, not a user-selected nickname.
 
-Go coordinates kick, ban, room departure, and forced mute with LiveKit. Forced mute must also prevent unauthorized unmuting/publication. Removing a connected participant is not sufficient if an already-issued media token permits re-entry. Stage 1 must verify replay after removal, permission changes, token expiry, and reconnect against the pinned self-hosted LiveKit version. Resolve gaps before declaring moderation complete.
+Go coordinates kick, ban, room departure, channel archival and forced mute with LiveKit. Moderation changes and voice grant invalidations commit together. Go closes affected signaling connections, removes the corresponding LiveKit identities, and retries incomplete removals. A forced-muted identity can obtain a fresh subscribe-only grant. Lifting the mute revokes that grant so the next join receives current publication permissions. Self-hosted LiveKit can still accept valid tokens at its private port, so all public signaling must pass the Go gate.
+
+Go stores the latest verified guest address for optional IP blocking. The ingress reconstructs that address from the actual connection. A block supplements credential bans and applies to new and existing guest connections from the address. IP addresses stay out of the participant and audit responses. Live WebSocket connections check current membership and kick generation. Role changes take effect at the permission check regardless of token issue time.
 
 Chat history is stored in PostgreSQL and transported by the application protocol, not treated as durable LiveKit room data. Audio is not recorded. Limit a client to one active conversation, including switching between saved installations.
 

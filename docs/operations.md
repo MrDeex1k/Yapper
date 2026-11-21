@@ -13,7 +13,7 @@ Requirements:
 - Docker Compose 2.24.4 or newer, including support for `!override`.
 - Distinct `YAPPER_DOMAIN` and `YAPPER_TURN_DOMAIN` DNS names resolving directly to `YAPPER_PUBLIC_IP`. Do not put an HTTP-only CDN/proxy in front of the TURN hostname. TURN clients must send TLS SNI; encrypted ClientHello routing is not supported by this configuration.
 - A trusted certificate chain and matching private key for the TURN hostname, in `fullchain.pem` and `privkey.pem` inside `YAPPER_TURN_CERT_DIR`. Use an absolute directory, restrict host access, and mount the directory read-only. Files under `deploy/certs/` are ignored by Git. Missing directories fail startup instead of being created implicitly.
-- A nonoverlapping private subnet for HAProxy's TURN connection. Defaults are `YAPPER_TURN_PROXY_SUBNET=172.30.244.0/29` and `YAPPER_TURN_PROXY_IP=172.30.244.2`; change both consistently if they overlap host/VPN/Docker routes. Only that proxy address is trusted to supply PROXY protocol headers. Signaling still uses the private application network and Go admission.
+- A nonoverlapping private subnet for HAProxy's TURN connection. Defaults are `YAPPER_TURN_PROXY_SUBNET=172.30.244.0/29` and `YAPPER_TURN_PROXY_IP=172.30.244.2`; change both consistently if they overlap host/VPN/Docker routes. Only that proxy address is trusted to supply PROXY headers to both Caddy and LiveKit on the private subnet. The router starts first to reserve its configured address. Signaling still uses the private application network and Go admission.
 
 Start with the same protected environment file used by the base installation:
 
@@ -36,6 +36,12 @@ Open these server firewall ports and preserve the port numbers through any host 
 Caddy manages the application hostname's certificate as before. The operator must obtain and renew the separate TURN certificate; no automatic TURN certificate renewal is implemented. Replace both PEM files in the mounted directory and restart LiveKit during the documented maintenance window to load them. Active voice connections are interrupted. Test renewed certificate validity and a relay connection before returning the server to service. Never disable client TLS validation to accommodate an invalid certificate.
 
 See the [LiveKit 1.13.11 TURN listener and peer policy](https://github.com/livekit/livekit/blob/v1.13.11/pkg/service/turn.go), the [LiveKit 1.13.11 configuration](https://github.com/livekit/livekit/blob/v1.13.11/config-sample.yaml), and the [HAProxy 3.4 configuration](https://docs.haproxy.org/3.4/configuration.html).
+
+## Guest IP blocks
+
+The standard Compose stack configures Go to accept the client-address field set by Caddy on the private application network. Keep the Go HTTP listener unpublished. Caddy overwrites `X-Yapper-Client-IP` with its connection peer address. With the TURN overlay, HAProxy supplies the original TCP peer address to Caddy via PROXY v2. Direct Go runs use the socket peer. See the [Caddy PROXY protocol listener configuration](https://caddyserver.com/docs/caddyfile/options#proxy-protocol).
+
+If an additional proxy or tunnel is placed in front of Caddy, the connection peer may represent multiple users. Verify address handling for that ingress path before using the IP block option. Go stores the last observed address of guest identities and addresses explicitly blocked by staff. An identity unban removes that identity's associated address blocks. Restrict database/backup access as for other membership data.
 
 ## Installation
 

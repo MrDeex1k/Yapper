@@ -46,7 +46,8 @@ export function internalHandler(
       );
       return Response.json({ active: result.rowCount === 1 });
     }
-    if (path !== "/internal/bootstrap") return new Response(null, { status: 404 });
+    if (path !== "/internal/bootstrap" && path !== "/internal/moderators")
+      return new Response(null, { status: 404 });
     if (
       typeof body.username !== "string" ||
       !/^[a-zA-Z0-9_]{3,32}$/.test(body.username) ||
@@ -55,6 +56,9 @@ export function internalHandler(
       body.password.length > 128
     ) {
       return Response.json({ code: "invalid_credentials" }, { status: 400 });
+    }
+    if (path === "/internal/moderators") {
+      return provisionModerator(auth, database, body.username, body.password);
     }
     const connection = await database.connect();
     let created: string | undefined;
@@ -92,4 +96,45 @@ export function internalHandler(
       connection.release();
     }
   };
+}
+
+async function provisionModerator(
+  auth: ReturnType<typeof createAuth>,
+  database: Pool,
+  username: string,
+  password: string,
+): Promise<Response> {
+  const connection = await database.connect();
+  try {
+    await connection.query("BEGIN");
+    await connection.query("SELECT pg_advisory_xact_lock(743211)");
+    const email = `${username.toLowerCase()}@moderator.invalid`;
+    const existing = await connection.query<{ id: string; email: string; password: string | null }>(
+      `SELECT u.id, u.email, a.password FROM "user" u LEFT JOIN "account" a
+       ON a."userId"=u.id AND a."providerId"='credential' WHERE lower(u.username)=$1`,
+      [username.toLowerCase()],
+    );
+    const user = existing.rows[0];
+    if (user) {
+      const authContext = await auth.$context;
+      const sameCredentials =
+        user.email === email &&
+        user.password &&
+        (await authContext.password.verify({ hash: user.password, password }));
+      await connection.query("COMMIT");
+      return sameCredentials
+        ? Response.json({ subject: user.id })
+        : Response.json({ code: "account_conflict" }, { status: 409 });
+    }
+    const account = await auth.api.signUpEmail({
+      body: { name: username, username, email, password },
+    });
+    await connection.query("COMMIT");
+    return Response.json({ subject: account.user.id });
+  } catch {
+    await connection.query("ROLLBACK");
+    return Response.json({ code: "provision_failed" }, { status: 503 });
+  } finally {
+    connection.release();
+  }
 }

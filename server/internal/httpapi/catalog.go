@@ -122,5 +122,6 @@ func (a *CommunityAPI) catalogResult(w http.ResponseWriter, err error) {
 
 type currentUser struct {
 	Participant community.Participant `json:"participant"`
+	Account     bool                  `json:"account"`
 	community.Catalog
 }

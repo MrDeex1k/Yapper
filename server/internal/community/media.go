@@ -3,6 +3,7 @@ package community
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -15,19 +16,28 @@ type MediaSession struct {
 	AuthSubject   string
 	AuthSessionID string
 	Nickname      string
+	MicMuted      bool
 }
 
-func (s *Store) StartVoice(ctx context.Context, id, channel, subject, sessionID string, remove func(context.Context, MediaSession) error) (MediaSession, error) {
+func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subject, sessionID string, address netip.Addr, remove func(context.Context, MediaSession) error) (MediaSession, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return MediaSession{}, err
 	}
 	defer tx.Rollback(ctx)
+	id := actor.ID
 	var nickname string
-	if err = tx.QueryRow(ctx, "SELECT nickname FROM participants WHERE id=$1 AND NOT banned FOR UPDATE", id).Scan(&nickname); err != nil {
+	var muted bool
+	if err = tx.QueryRow(ctx, "SELECT nickname,mic_muted FROM participants WHERE id=$1 AND NOT banned AND kick_generation=$2 FOR UPDATE", id, actor.KickGeneration).Scan(&nickname, &muted); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			err = ErrDenied
 		}
+		return MediaSession{}, err
+	}
+	if subject != "" {
+		address = netip.Addr{}
+	}
+	if err := checkGuestAddress(ctx, tx, address); err != nil {
 		return MediaSession{}, err
 	}
 	var channelID string
@@ -44,8 +54,8 @@ func (s *Store) StartVoice(ctx context.Context, id, channel, subject, sessionID 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return MediaSession{}, err
 	}
-	session := MediaSession{ParticipantID: id, Identity: id + ":" + uuid.New().String(), ChannelID: channel, AuthSubject: subject, AuthSessionID: sessionID, Nickname: nickname}
-	_, err = tx.Exec(ctx, `INSERT INTO media_sessions(participant_id,identity,channel_id,auth_subject,auth_session_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(participant_id) DO UPDATE SET identity=EXCLUDED.identity,channel_id=EXCLUDED.channel_id,auth_subject=EXCLUDED.auth_subject,auth_session_id=EXCLUDED.auth_session_id,revoked=false`, id, session.Identity, channel, subject, sessionID)
+	session := MediaSession{ParticipantID: id, Identity: id + ":" + uuid.New().String(), ChannelID: channel, AuthSubject: subject, AuthSessionID: sessionID, Nickname: nickname, MicMuted: muted}
+	_, err = tx.Exec(ctx, `INSERT INTO media_sessions(participant_id,identity,channel_id,auth_subject,auth_session_id,client_ip) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(participant_id) DO UPDATE SET identity=EXCLUDED.identity,channel_id=EXCLUDED.channel_id,auth_subject=EXCLUDED.auth_subject,auth_session_id=EXCLUDED.auth_session_id,client_ip=EXCLUDED.client_ip,revoked=false`, id, session.Identity, channel, subject, sessionID, address)
 	if err != nil {
 		return MediaSession{}, err
 	}
@@ -70,12 +80,27 @@ func (s *Store) StartVoice(ctx context.Context, id, channel, subject, sessionID 
 }
 func (s *Store) VoiceSession(ctx context.Context, identity string) (MediaSession, error) {
 	var m MediaSession
-	err := s.Pool.QueryRow(ctx, `SELECT m.participant_id::text,m.identity,m.channel_id::text,m.auth_subject,m.auth_session_id,p.nickname FROM media_sessions m JOIN participants p ON p.id=m.participant_id WHERE m.identity=$1 AND NOT m.revoked AND NOT p.banned`, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID, &m.AuthSubject, &m.AuthSessionID, &m.Nickname)
+	err := s.Pool.QueryRow(ctx, `SELECT m.participant_id::text,m.identity,m.channel_id::text,m.auth_subject,m.auth_session_id,p.nickname,p.mic_muted FROM media_sessions m JOIN participants p ON p.id=m.participant_id WHERE m.identity=$1 AND NOT m.revoked AND NOT p.banned
+ AND (m.auth_subject!='' OR NOT EXISTS(SELECT FROM ip_blocks b WHERE b.address=m.client_ip))`, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID, &m.AuthSubject, &m.AuthSessionID, &m.Nickname, &m.MicMuted)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrDenied
 	}
 	return m, err
 }
+
+// RecordVoiceAddress fences signaling upgrades from a newly blocked guest address.
+func (s *Store) RecordVoiceAddress(ctx context.Context, mediaIdentity string, address netip.Addr) error {
+	if !address.IsValid() {
+		return nil
+	}
+	tag, err := s.Pool.Exec(ctx, `UPDATE media_sessions SET client_ip=$2
+		WHERE identity=$1 AND NOT revoked AND NOT EXISTS(SELECT FROM ip_blocks WHERE address=$2)`, mediaIdentity, address)
+	if err == nil && tag.RowsAffected() != 1 {
+		return ErrDenied
+	}
+	return err
+}
+
 func (s *Store) RevokeVoice(ctx context.Context, id string) (MediaSession, error) {
 	var m MediaSession
 	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 RETURNING participant_id::text,identity,channel_id::text", id).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
