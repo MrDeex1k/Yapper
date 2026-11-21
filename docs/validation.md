@@ -1,6 +1,6 @@
 # Validation and release evidence
 
-Stages 0 and 1 have passed their acceptance gates. The first private release covers GPUI on Windows and Linux and Electron on macOS. See the [Stage 0 evidence](evidence/stage-0.md) and the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21).
+Stages 0, 1, and 2 have passed their scoped acceptance gates. The first private release covers GPUI on Windows and Linux, and Web on the supported browsers. See the [Stage 0 evidence](evidence/stage-0.md), the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21), and the [Stage 2 acceptance record](evidence/stage-2-acceptance.md).
 
 The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the current version baseline and compatibility exceptions. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
 
@@ -60,21 +60,20 @@ At Stage 0, populate exact versions, CPU architectures, and available test devic
 | Android phone/tablet Chrome               | Same mobile scenarios, including real microphone and output routing behavior                                   |
 | GPUI on Windows                           | Clean install, per-server credentials, microphone, recovery, keyboard navigation, EN/PL, updates and uninstall |
 | GPUI on Linux                             | Same desktop scenarios on supported distributions and desktop sessions, with package and audio routing checks  |
-| Electron on macOS                         | Same desktop scenarios plus signing/notarization status and OS permission handling                             |
 
 Record global desktop push-to-talk and mobile background audio separately. Foreground push-to-talk is the release baseline. Document which platforms support global push-to-talk and surface audio output selection limitations in the client. The first release targets mobile voice while the page is active.
 
 ## Desktop acceptance
 
-- At Stage 2, record GPUI and Rust versions, OS and architecture, native session and origin handling, and a two-way test call through the Go signaling endpoint on Windows and Linux. Record the tested Linux distribution and desktop session, along with any build or audio limitations.
-- At Stage 4, validate the installed GPUI packages on Windows and Linux and the Electron package on macOS against the same server contract as Web. Verify foreground push-to-talk, microphone permission denial and recovery, device selection where supported, direct media and TURN/TLS, reconnect, and moderation during a call.
-- Compare the same screens and states in GPUI and Electron at matched window sizes and display scaling. Verify layout, typography, colors, icons, keyboard navigation, and responsive behavior as part of the Stage 4 desktop gate.
-- Switch between two saved servers and restart each app. Verify that credentials and participant identities stay isolated and that the previous voice session closes. On Windows and Linux, exercise the documented transition from Electron development profiles and verify any claimed guest identity preservation.
+- At Stage 2, record GPUI and Rust versions, OS and architecture, and Windows native session and origin handling. Verify a real two-way call through the Go signaling endpoint between Windows GPUI and macOS Web. Check the Linux layout and rendering under X11 using Xvfb. Linux physical-device and audio acceptance belongs to Stage 4.
+- At Stage 4, validate the installed GPUI packages on Windows and Linux against the same server contract as Web. Verify foreground push-to-talk, microphone permission denial and recovery, device selection where supported, direct media and TURN/TLS, reconnect, and moderation during a call.
+- Compare the same screens and states in GPUI and Web at matched viewport sizes and display scaling. Verify layout, typography, colors, icons, keyboard navigation, and responsive behavior as part of the Stage 4 desktop gate.
+- Switch between two saved servers and restart each app. Verify that credentials and participant identities stay isolated and that the previous voice session closes. Exercise the documented sign-in or rejoin path from Stage 1 development builds and verify any claimed guest identity preservation.
 
 ## First private release checklist
 
 - [ ] Stages 0–3 have evidence for all mandatory gates.
-- [ ] GPUI packages on Windows and Linux and the Electron package on macOS pass desktop acceptance. Required Web/device combinations have been tested.
+- [ ] GPUI packages on Windows and Linux pass desktop acceptance. Required Web/device combinations have been tested.
 - [ ] Core conversation has been tested with real participants, not only simulated media.
 - [ ] Installation, upgrade, backup, and restore instructions match the delivered artifacts.
 - [ ] EN and PL are complete for the application and landing.

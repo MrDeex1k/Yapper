@@ -63,4 +63,4 @@ After an established room's SDK reconnect attempts end with a transient disconne
 
 ## Planned Rust desktop conformance
 
-The Windows and Linux GPUI client uses the same public HTTP resources, WebSocket event version, and Go-gated LiveKit signaling as Web and macOS Electron. The Stage 2 prototype defines and verifies native session and origin handling, including guest admission, AUTH login/logout, WebSocket tickets, and signaling. Document compatibility changes and verify them across those clients, preserving browser origin protections and server-side authorization.
+The Windows and Linux GPUI client uses the same server contract as Web. The Stage 2 prototype verifies origin handling, guest admission and restoration, basic timeline and message writes, and Go-gated LiveKit signaling. The full desktop conformance checks cover AUTH login/logout and versioned WebSocket events and tickets. Preserve browser origin protections and server-side authorization as native coverage expands.

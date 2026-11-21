@@ -9,3 +9,11 @@ Implemented on `feat/stage-2-community` above the Stage 1 baseline at `56d9bb7`.
 - `pnpm check` passed. React Doctor scored the changed React files 100/100. Visual and interaction checks of the owner panel in a browser, Windows and Rocky Linux behavior, and the public two-device Stage 1 voice test remain separate acceptance work.
 
 This completes the first work item in the [Stage 2 plan](../stage-2-plan.md). The GPUI prototype and full Electron UI parity remain planned for their respective stages.
+
+## Invitation query pilot
+
+The Web owner panel uses TanStack Query 5.108.2 for invitation metadata. The query client belongs to the active conversation identity. Invitation metadata is discarded when the panel closes, and generated invitation codes stay in local panel state.
+
+- Playwright against Stage 2 Compose on macOS verified the initial list, manual refresh, and a fresh list request after both creation and revocation. The list displayed the new invitation and its revoked status.
+- A simulated `403` on a subsequent refresh displayed an error and hid cached rows. A real guest session sent no invitation-list request during normal use, and the server returned `403` to a direct request from that guest.
+- `pnpm check` passed. React Doctor reported seven pre-existing warnings and no new ones. This run covered Chromium on macOS. Electron and native desktop behavior were outside this verification run.

@@ -80,7 +80,7 @@ A diagnostic export is operator-triggered, reviewed/redacted locally, and shared
 
 ## Client distribution
 
-Private distribution to friends comes first. Prepare Rust/GPUI packages for Windows and Linux and an Electron package for macOS. Provide manual update instructions and record package signing or integrity verification by platform. Document how Windows and Linux users of the Electron development client can transition, including the treatment of saved servers and guest identities. Select supported Linux distributions and package formats during release preparation. Apple signing access exists for the macOS package. Windows signing is not available at planning time.
+Private distribution to friends comes first. Prepare Rust/GPUI packages for Windows and Linux. macOS users access the first release through Web. Provide manual update instructions and record package signing or integrity verification by platform. Document how users of Stage 1 development builds can sign in or rejoin, including the treatment of saved servers and guest identities. Select supported Linux distributions and package formats during release preparation. Windows signing is not available at planning time.
 
 Before public distribution, revisit installer signing/notarization, update trust, artifact integrity, supported architectures, and license selection. License selection is deferred because the current scope is private testing; do not invent a license or describe the project as open source without one.
 

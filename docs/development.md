@@ -8,7 +8,7 @@ Current monorepo layout; exact packages are listed by pnpm:
 
 ```text
 apps/web/          React application and administration UI
-apps/desktop/      Electron client and smoke tooling (macOS release target)
+apps/desktop/      Stage 1 Electron development shell and historical smoke tooling
 apps/desktop-gpui/ Rust/GPUI prototype for Windows and Linux
 apps/auth/         Bun, Elysia 2 RC, Better Auth
 apps/landing/      Astro project website
@@ -86,13 +86,13 @@ Local JS/TS verification checks formatting, lint, types, translation parity, and
 
 Use browser end-to-end tests for setup, joining, chat, roles, and language switching. Media verification includes real devices and actual microphone/network behavior; fake media and browser automation alone are insufficient.
 
-Build container images and validate Compose configuration. For desktop packaging work, build GPUI for Windows and Linux and Electron for macOS. Verify clean installation using the [desktop acceptance criteria](validation.md#desktop-acceptance). Publish artifacts only through an explicitly authorized release procedure. Pin versions and image references.
+Build container images and validate Compose configuration. For desktop packaging work, build GPUI for Windows and Linux. Verify clean installation using the [desktop acceptance criteria](validation.md#desktop-acceptance). Publish artifacts only through an explicitly authorized release procedure. Pin versions and image references.
 
 For each PR, state the resulting behavior, relevant tests and evidence, migration impact, and any remaining platform limits. A skipped or unavailable check is reported as unverified.
 
-## Current Electron smoke test
+## Stage 1 Electron smoke test
 
-After `pnpm build` and installing the pinned Electron runtime, run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.ts`.
+To reproduce the Stage 1 Electron development checks, run `pnpm build`, install the pinned Electron runtime, then run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.ts`.
 
 The command starts the actual Electron entry point twice with an isolated temporary profile. The harness uses an Electron-version-specific application name so unsigned development runtimes do not share the generic Electron Keychain entry. It checks sandbox/context isolation, lack of renderer Node access, guest admission, cookie isolation, encrypted on-disk state, selected-server/identity restoration across process restart, and the rendered conversation after reload. Each process has a 30-second hard deadline. Temporary local credentials/profile files are removed on completion or failure; the admitted test participant remains on the disposable server.
 
