@@ -1,6 +1,6 @@
 use crate::{
     copy::Language,
-    server::{Admission, Failure, Installation, Server, Session},
+    server::{Admission, Failure, Installation, PendingAdmission, Server, Session},
     signaling,
     voice::{self, Command, Event},
 };
@@ -13,7 +13,7 @@ use gpui_component::{
     input::{InputEvent, InputState},
 };
 use push_to_talk::MicrophoneMode;
-use std::sync::Arc;
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use tokio::{
     runtime::Handle,
     sync::{Notify, mpsc, watch},
@@ -29,6 +29,8 @@ pub fn run() -> gpui::Result<()> {
     let runtime = tokio::runtime::Runtime::new()?;
     signaling::install();
     let handle = runtime.handle().clone();
+    let startup_error = Rc::new(RefCell::new(None));
+    let window_error = startup_error.clone();
     Application::new()
         .with_assets(appearance::Assets)
         .run(move |cx| {
@@ -43,28 +45,25 @@ pub fn run() -> gpui::Result<()> {
             .detach();
 
             let bounds = Bounds::centered(None, size(px(1200.), px(800.)), cx);
-            if cx
-                .open_window(
-                    WindowOptions {
-                        window_bounds: Some(WindowBounds::Windowed(bounds)),
-                        window_min_size: Some(size(px(560.), px(480.))),
-                        ..Default::default()
-                    },
-                    |window, cx| {
-                        window.set_window_title("Yapper");
-                        let app = cx.new(|cx| Yapper::new(window, cx, handle));
-                        cx.new(|cx| Root::new(app, window, cx))
-                    },
-                )
-                .is_err()
-            {
-                eprintln!("Could not open the Yapper window.");
+            if let Err(error) = cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    window_min_size: Some(size(px(560.), px(480.))),
+                    ..Default::default()
+                },
+                |window, cx| {
+                    window.set_window_title("Yapper");
+                    let app = cx.new(|cx| Yapper::new(window, cx, handle));
+                    cx.new(|cx| Root::new(app, window, cx))
+                },
+            ) {
+                window_error.replace(Some(error));
                 cx.quit();
                 return;
             }
             cx.activate(true);
         });
-    Ok(())
+    startup_error.take().map_or(Ok(()), Err)
 }
 
 struct Yapper {
@@ -77,8 +76,11 @@ struct Yapper {
     workspace_focus: FocusHandle,
     installation: Option<(Server, Installation)>,
     guest: Option<Admission>,
+    pending_admission: Option<PendingAdmission>,
+    catalog_task: Option<Task<()>>,
     call: Option<Call>,
     chat: Option<chat::Chat>,
+    inactive_chats: HashMap<String, chat::Chat>,
     chat_task: Option<Task<()>>,
     chat_refresh: Arc<Notify>,
     microphone_mode: MicrophoneMode,
@@ -141,8 +143,11 @@ impl Yapper {
             workspace_focus: cx.focus_handle(),
             installation: None,
             guest: None,
+            pending_admission: None,
+            catalog_task: None,
             call: None,
             chat: None,
+            inactive_chats: HashMap::new(),
             chat_task: None,
             chat_refresh: Arc::new(Notify::new()),
             microphone_mode: MicrophoneMode::Manual,
@@ -170,6 +175,7 @@ impl Yapper {
                         app.installation = Some((server, installation));
                         app.guest = admission;
                         app.open_default_text(cx);
+                        app.refresh_catalog(cx);
                     }
                     Err(error) => app.error = Some(error),
                 }
@@ -187,21 +193,37 @@ impl Yapper {
         let server = server.clone();
         let nickname = self.nickname.read(cx).value().trim().to_owned();
         let invitation = self.invitation.read(cx).value().trim().to_owned();
-        self.invitation
-            .update(cx, |input, cx| input.set_value("", window, cx));
+        let pending = self.pending_admission.clone();
         self.pending = true;
         self.error = None;
-        let result = self
-            .runtime
-            .spawn(async move { server.join(nickname, invitation).await });
-        cx.spawn(async move |this, cx| {
+        let result = self.runtime.spawn(async move {
+            let pending = match pending {
+                Some(pending) => pending,
+                None => server.begin_admission(nickname, invitation).await?,
+            };
+            let admission = pending.finish().await;
+            Ok::<_, Failure>((pending, admission))
+        });
+        cx.spawn_in(window, async move |this, cx| {
             let result = result.await.unwrap_or(Err(Failure::Network));
-            let _ = this.update(cx, |app, cx| {
+            let _ = this.update_in(cx, |app, window, cx| {
                 app.pending = false;
                 match result {
-                    Ok(guest) => {
-                        app.guest = Some(guest);
-                        app.open_default_text(cx);
+                    Ok((pending, admission)) => {
+                        app.invitation
+                            .update(cx, |input, cx| input.set_value("", window, cx));
+                        match admission {
+                            Ok(guest) => {
+                                app.pending_admission = None;
+                                app.guest = Some(guest);
+                                app.open_default_text(cx);
+                                app.refresh_catalog(cx);
+                            }
+                            Err(error) => {
+                                app.pending_admission = Some(pending);
+                                app.error = Some(error);
+                            }
+                        }
                     }
                     Err(error) => app.error = Some(error),
                 }
@@ -304,8 +326,13 @@ impl Yapper {
     fn change_server(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.installation = None;
         self.guest = None;
+        self.pending_admission = None;
+        self.catalog_task = None;
+        self.invitation
+            .update(cx, |input, cx| input.set_value("", window, cx));
         self.chat_task = None;
         self.chat = None;
+        self.inactive_chats.clear();
         self.message_input
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.channels_open = false;

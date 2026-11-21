@@ -11,6 +11,7 @@ pub struct Copy {
     pub server_hint: &'static str,
     pub address: &'static str,
     pub connect: &'static str,
+    pub retry_membership: &'static str,
     pub change_server: &'static str,
     pub join: &'static str,
     pub join_heading: &'static str,
@@ -54,6 +55,7 @@ const EN: Copy = Copy {
     server_hint: "Enter a trusted HTTPS domain or IP address.",
     address: "Server address",
     connect: "Connect to server",
+    retry_membership: "Retry opening the workspace",
     change_server: "Change server",
     join: "Join server",
     join_heading: "Join the conversation",
@@ -97,6 +99,7 @@ const PL: Copy = Copy {
     server_hint: "Wpisz domenę lub adres IP z zaufanym HTTPS.",
     address: "Adres serwera",
     connect: "Połącz z serwerem",
+    retry_membership: "Otwórz ponownie przestrzeń",
     change_server: "Zmień serwer",
     join: "Dołącz do serwera",
     join_heading: "Dołącz do rozmowy",
@@ -159,6 +162,10 @@ impl Language {
             Failure::Network => (
                 "Could not reach the server.",
                 "Nie można połączyć się z serwerem.",
+            ),
+            Failure::CredentialStore => (
+                "Could not read your saved session from the system credential store.",
+                "Nie można odczytać zapisanej sesji z systemowego magazynu poświadczeń.",
             ),
             Failure::Setup => (
                 "The server owner must complete setup first.",

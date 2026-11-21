@@ -136,27 +136,38 @@ impl Yapper {
                 )
                 .child(entry_title(copy.join_heading, width))
                 .child(entry_description(copy.join_description));
+            let admitted = self.pending_admission.is_some();
             form = form
-                .child(field(
-                    copy.nickname,
-                    &self.nickname,
-                    self.pending,
-                    window,
-                    cx,
-                ))
-                .when(!installation.open_admission, |form| {
+                .when(!admitted, |form| {
                     form.child(field(
-                        copy.invitation,
-                        &self.invitation,
+                        copy.nickname,
+                        &self.nickname,
                         self.pending,
                         window,
                         cx,
                     ))
+                    .when(!installation.open_admission, |form| {
+                        form.child(field(
+                            copy.invitation,
+                            &self.invitation,
+                            self.pending,
+                            window,
+                            cx,
+                        ))
+                    })
                 })
                 .children(self.render_error())
                 .child(
-                    primary_entry("admit", copy.join, self.pending)
-                        .on_click(cx.listener(|app, _, window, cx| app.admit(window, cx))),
+                    primary_entry(
+                        "admit",
+                        if admitted {
+                            copy.retry_membership
+                        } else {
+                            copy.join
+                        },
+                        self.pending,
+                    )
+                    .on_click(cx.listener(|app, _, window, cx| app.admit(window, cx))),
                 )
                 .child(
                     Button::new("change-server")

@@ -12,6 +12,7 @@ const DEV_COOKIE: &str = "yapper_guest";
 pub enum Failure {
     Address,
     Network,
+    CredentialStore,
     Setup,
     Denied,
     Data,
@@ -27,18 +28,18 @@ pub struct Installation {
     pub open_admission: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq, Eq)]
 pub struct Participant {
     pub nickname: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq, Eq)]
 pub struct Membership {
     pub participant: Participant,
     pub channels: Vec<Channel>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq, Eq)]
 pub struct Channel {
     pub id: String,
     pub name: String,
@@ -87,6 +88,23 @@ pub struct Admission {
     pub saved: bool,
 }
 
+#[derive(Clone)]
+pub struct PendingAdmission {
+    session: Session,
+    saved: bool,
+}
+
+impl PendingAdmission {
+    pub async fn finish(&self) -> Result<Admission, Failure> {
+        let membership = self.session.membership().await?;
+        Ok(Admission {
+            session: self.session.clone(),
+            membership,
+            saved: self.saved,
+        })
+    }
+}
+
 impl Server {
     pub async fn connect(address: &str) -> Result<(Self, Installation), Failure> {
         let origin = parse_origin(address, cfg!(debug_assertions))?;
@@ -107,27 +125,28 @@ impl Server {
 
     pub async fn restore(&self) -> Result<Option<Admission>, Failure> {
         let origin = self.origin.origin().ascii_serialization();
-        let Ok(Ok(secret)) = tokio::task::spawn_blocking(move || {
+        let credential = tokio::task::spawn_blocking(move || {
             keyring::Entry::new(SERVICE, &origin)?.get_password()
         })
         .await
-        else {
-            return Ok(None);
+        .map_err(|_| Failure::CredentialStore)?;
+        let secret = match credential {
+            Ok(secret) => secret,
+            Err(keyring::Error::NoEntry) => return Ok(None),
+            Err(_) => return Err(Failure::CredentialStore),
         };
-
-        let session = self.session(&secret)?;
-        match session.membership().await {
-            Ok(membership) => Ok(Some(Admission {
-                session,
-                membership,
-                saved: true,
-            })),
-            Err(Failure::Denied) => Ok(None),
-            Err(error) => Err(error),
-        }
+        let pending = PendingAdmission {
+            session: self.session(&secret)?,
+            saved: true,
+        };
+        pending.finish().await.map(Some)
     }
 
-    pub async fn join(&self, nickname: String, invitation: String) -> Result<Admission, Failure> {
+    pub async fn begin_admission(
+        &self,
+        nickname: String,
+        invitation: String,
+    ) -> Result<PendingAdmission, Failure> {
         let response = self
             .send(
                 Method::POST,
@@ -144,7 +163,6 @@ impl Server {
             .find_map(|(name, value)| (name == self.cookie_name()).then(|| value.to_owned()))
             .ok_or(Failure::Data)?;
         let session = self.session(&secret)?;
-        let membership = session.membership().await?;
         let origin = self.origin.origin().ascii_serialization();
         let saved = matches!(
             tokio::task::spawn_blocking(move || {
@@ -153,11 +171,7 @@ impl Server {
             .await,
             Ok(Ok(()))
         );
-        Ok(Admission {
-            session,
-            membership,
-            saved,
-        })
+        Ok(PendingAdmission { session, saved })
     }
 
     fn cookie_name(&self) -> &'static str {
@@ -221,6 +235,7 @@ impl Server {
         let response = request.send().await.map_err(|_| Failure::Network)?;
         match response.status() {
             status if status.is_success() => Ok(response),
+            status if status.is_server_error() => Err(Failure::Network),
             StatusCode::BAD_REQUEST
             | StatusCode::UNAUTHORIZED
             | StatusCode::FORBIDDEN
@@ -232,7 +247,7 @@ impl Server {
 }
 
 impl Session {
-    async fn membership(&self) -> Result<Membership, Failure> {
+    pub async fn membership(&self) -> Result<Membership, Failure> {
         self.server
             .request(Method::GET, "/api/v1/me", Some(&self.cookie), None)
             .await

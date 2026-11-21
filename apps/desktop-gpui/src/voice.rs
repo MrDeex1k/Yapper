@@ -1,7 +1,7 @@
 use crate::server::{Failure, Session};
 use livekit::{options::TrackPublishOptions, prelude::*};
 use std::time::Duration;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, mpsc::error::TryRecvError, watch};
 
 pub enum Command {
     Leave,
@@ -22,32 +22,48 @@ pub enum Event {
 pub async fn run(
     session: Session,
     channel: String,
-    commands: mpsc::Receiver<Command>,
+    mut commands: mpsc::Receiver<Command>,
     desired_microphone: watch::Receiver<bool>,
     events: mpsc::UnboundedSender<Event>,
 ) {
-    let grant = match session.grant(&channel).await {
+    if leave_requested(&mut commands) {
+        let _ = events.send(Event::Ended(None));
+        return;
+    }
+    let grant = session.grant(&channel).await;
+    // Keep the grant request alive so a leave can revoke the identity it creates.
+    let leaving = leave_requested(&mut commands);
+    let grant = match grant {
         Ok(grant) => grant,
         Err(error) => {
-            let _ = events.send(Event::Ended(Some(error)));
+            let _ = events.send(Event::Ended((!leaving).then_some(error)));
             return;
         }
     };
-    let result = if session.validate_grant(&grant, &channel).is_ok() {
-        call(
+    let result = if leaving {
+        Ok(())
+    } else if session.validate_grant(&grant, &channel).is_ok() {
+        Box::pin(call(
             &grant.url,
             &grant.token,
             grant.can_publish,
             commands,
             desired_microphone,
             &events,
-        )
+        ))
         .await
     } else {
         Err(Failure::Data)
     };
-    let leave = session.leave(&grant.identity).await;
+    let mut leave = session.leave(&grant.identity).await;
+    if matches!(leave, Err(Failure::Network)) {
+        leave = session.leave(&grant.identity).await;
+    }
     let _ = events.send(Event::Ended(result.and(leave).err()));
+}
+
+fn leave_requested(commands: &mut mpsc::Receiver<Command>) -> bool {
+    !matches!(commands.try_recv(), Err(TryRecvError::Empty))
 }
 
 async fn call(
@@ -58,14 +74,23 @@ async fn call(
     mut desired_microphone: watch::Receiver<bool>,
     events: &mpsc::UnboundedSender<Event>,
 ) -> Result<(), Failure> {
+    if leave_requested(&mut commands) {
+        return Ok(());
+    }
     let audio = PlatformAudio::new().map_err(|_| Failure::Voice)?;
-    let (room, mut room_events) = tokio::time::timeout(
-        Duration::from_secs(20),
-        Room::connect(url, token, RoomOptions::default()),
-    )
-    .await
-    .map_err(|_| Failure::Voice)?
-    .map_err(|_| Failure::Voice)?;
+    let (room, mut room_events) = tokio::select! {
+        biased;
+        // Dropping the SDK connect future runs its cancellation cleanup.
+        // The caller still revokes the exact server grant.
+        _ = commands.recv() => return Ok(()),
+        joined = tokio::time::timeout(
+            Duration::from_secs(20),
+            Room::connect(url, token, RoomOptions::default()),
+        ) => joined.map_err(|_| Failure::Voice)?.map_err(|_| Failure::Voice)?,
+    };
+    if leave_requested(&mut commands) {
+        return room.close().await.map_err(|_| Failure::Voice);
+    }
     let mut microphone: Option<LocalAudioTrack> = None;
     let mut enabled = false;
     let mut connected = true;
@@ -157,9 +182,12 @@ mod tests {
             .await
             .expect("connect to the server");
         let guest = server
-            .join("GPUI smoke".into(), invitation)
+            .begin_admission("GPUI smoke".into(), invitation)
             .await
-            .expect("admit the guest");
+            .expect("admit the guest")
+            .finish()
+            .await
+            .expect("read guest membership");
         assert_eq!(guest.membership.participant.nickname, "GPUI smoke");
         if guest.saved {
             let restored = server
@@ -176,7 +204,7 @@ mod tests {
             .membership
             .channels
             .iter()
-            .find(|channel| channel.kind == "voice")
+            .find(|channel| channel.kind == "voice" && !channel.archived)
             .expect("voice channel");
         let grant = guest
             .session
