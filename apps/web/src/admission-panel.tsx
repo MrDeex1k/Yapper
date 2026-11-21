@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Copy, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
-import type { InvitationSummary } from "@yapper/api";
-import { api } from "./api";
+import type { Invitations } from "@yapper/api";
+import { api, APIError } from "./api";
 import { errorText } from "./errors";
 import { MessageRetention } from "./message-retention";
+
+const invitationsKey = ["owner", "invitations"] as const;
 
 export function AdmissionPanel({
   openAdmission,
@@ -20,51 +23,51 @@ export function AdmissionPanel({
 }) {
   const t = messages[locale];
   const heading = useRef<HTMLHeadingElement>(null);
-  const [items, setItems] = useState<InvitationSummary[]>([]);
+  const queryClient = useQueryClient();
+  const invitations = useQuery({
+    queryKey: invitationsKey,
+    queryFn: ({ signal }) => api.invitations(AbortSignal.any([signal, AbortSignal.timeout(10000)])),
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    networkMode: "always",
+  });
   const [code, setCode] = useState<string | null>(null);
-  const [busy, setBusy] = useState(true);
-  const [loaded, setLoaded] = useState(false);
+  const [working, setWorking] = useState(false);
+  const busy = working || invitations.isFetching;
   const [notice, setNotice] = useState<"admissionSaved" | "copied" | "invitationRevoked" | null>(
     null,
   );
-  const [error, setError] = useState<unknown>(null);
+  const [actionError, setActionError] = useState<unknown>(null);
+  const error = actionError ?? invitations.error;
+  const accessDenied =
+    invitations.error instanceof APIError && [401, 403].includes(invitations.error.status);
+  const items = accessDenied ? undefined : invitations.data?.invitations;
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
 
   useEffect(() => {
     heading.current?.focus();
-    const controller = new AbortController();
-    void api
-      .invitations(AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]))
-      .then(({ invitations }) => {
-        if (controller.signal.aborted) return;
-        setItems(invitations);
-        setLoaded(true);
-      })
-      .catch((failure) => {
-        if (!controller.signal.aborted) setError(failure);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
-      });
-    return () => controller.abort();
   }, []);
 
   async function run(action: () => Promise<void>) {
-    setBusy(true);
-    setError(null);
+    if (busy) return;
+    setWorking(true);
+    setActionError(null);
     setNotice(null);
     try {
       await action();
     } catch (failure) {
-      setError(failure);
+      setActionError(failure);
     } finally {
-      setBusy(false);
+      setWorking(false);
     }
   }
-  async function refresh() {
-    setItems((await api.invitations()).invitations);
-    setLoaded(true);
+
+  function refresh() {
+    return queryClient.invalidateQueries({ queryKey: invitationsKey });
   }
+
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -163,10 +166,10 @@ export function AdmissionPanel({
           {t.refreshInvitations}
         </Button>
       </div>
-      {loaded && items.length === 0 && <p>{t.noInvitations}</p>}
-      {!loaded && busy && <output>{t.loading}</output>}
+      {items?.length === 0 && <p>{t.noInvitations}</p>}
+      {invitations.isPending && invitations.isFetching && <output>{t.loading}</output>}
       <ul className="admission-list">
-        {items.map((item) => (
+        {items?.map((item) => (
           <li key={item.id}>
             <div>
               <time dateTime={item.createdAt}>{date.format(new Date(item.createdAt))}</time>
@@ -189,12 +192,20 @@ export function AdmissionPanel({
                 onClick={() =>
                   void run(async () => {
                     await api.revokeInvitation(item.id);
-                    setItems((previous) =>
-                      previous.map((invitation) =>
-                        invitation.id === item.id ? { ...invitation, revoked: true } : invitation,
-                      ),
+                    queryClient.setQueryData<Invitations>(
+                      invitationsKey,
+                      (previous) =>
+                        previous && {
+                          ...previous,
+                          invitations: previous.invitations.map((invitation) =>
+                            invitation.id === item.id
+                              ? { ...invitation, revoked: true }
+                              : invitation,
+                          ),
+                        },
                     );
                     setNotice("invitationRevoked");
+                    await refresh();
                   })
                 }
               >

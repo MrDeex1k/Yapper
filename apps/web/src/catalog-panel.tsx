@@ -3,6 +3,7 @@ import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
 import type { Channel, CurrentUser } from "@yapper/api";
 import { api } from "./api";
+import { ChannelEditor } from "./channel-editor";
 import { errorText } from "./errors";
 
 type Catalog = Pick<CurrentUser, "categories" | "channels">;
@@ -32,20 +33,11 @@ export function CatalogPanel({
 }) {
   const t = messages[locale];
   const [categoryId, setCategoryId] = useState("");
-  const [channelId, setChannelId] = useState("");
-  const [confirmArchive, setConfirmArchive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const category = catalog.categories.find((item) => item.id === categoryId);
-  const channel = catalog.channels.find((item) => item.id === channelId);
   const categoryIndex = catalog.categories.findIndex((item) => item.id === categoryId);
-  const siblings = channel
-    ? catalog.channels.filter(
-        (item) => item.kind === channel.kind && item.categoryId === channel.categoryId,
-      )
-    : [];
-  const channelIndex = siblings.findIndex((item) => item.id === channelId);
 
   async function change(action: () => Promise<unknown>) {
     if (busy) return;
@@ -55,7 +47,6 @@ export function CatalogPanel({
     try {
       await action();
       await onChanged();
-      setConfirmArchive(false);
       setSaved(true);
     } catch (e) {
       setError(e);
@@ -70,25 +61,6 @@ export function CatalogPanel({
     void change(async () => {
       await api.saveCategory(categoryId, name);
       if (!categoryId) form.reset();
-    });
-  }
-  function saveChannel(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const input = {
-      name: String(data.get("name")).trim(),
-      categoryId: String(data.get("categoryId")),
-    };
-    void change(async () => {
-      if (channelId) await api.saveChannel(channelId, input);
-      else {
-        await api.createChannel({
-          ...input,
-          kind: data.get("kind") === "voice" ? "voice" : "text",
-        });
-        form.reset();
-      }
     });
   }
   return (
@@ -158,117 +130,7 @@ export function CatalogPanel({
             </div>
           </form>
         </div>
-        <div>
-          <label>
-            {t.channel}
-            <select
-              value={channelId}
-              onChange={(e) => {
-                setChannelId(e.target.value);
-                setConfirmArchive(false);
-              }}
-              disabled={busy}
-            >
-              <option value="">{t.newChannel}</option>
-              {catalog.channels.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                  {item.archived ? ` (${t.archived})` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <form key={channelId} onSubmit={saveChannel}>
-            <label>
-              {t.channelName}
-              <Input
-                name="name"
-                required
-                maxLength={64}
-                defaultValue={channel?.name}
-                disabled={busy}
-              />
-            </label>
-            {!channel && (
-              <label>
-                {t.channelKind}
-                <select name="kind" disabled={busy}>
-                  <option value="text">{t.textChannels}</option>
-                  <option value="voice">{t.voiceChannels}</option>
-                </select>
-              </label>
-            )}
-            <label>
-              {t.category}
-              <select name="categoryId" defaultValue={channel?.categoryId ?? ""} disabled={busy}>
-                <option value="">{t.uncategorized}</option>
-                {catalog.categories.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="panel-actions">
-              <Button type="submit" disabled={busy}>
-                {channel ? t.save : t.create}
-              </Button>
-              {channel && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy || channelIndex === 0}
-                    onClick={() => void change(() => api.moveChannel(channel.id, -1))}
-                  >
-                    {t.moveUp}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy || channelIndex === siblings.length - 1}
-                    onClick={() => void change(() => api.moveChannel(channel.id, 1))}
-                  >
-                    {t.moveDown}
-                  </Button>
-                  {!channel.archived && !confirmArchive && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => setConfirmArchive(true)}
-                    >
-                      {t.archiveChannel}
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
-          </form>
-          {channel && confirmArchive && (
-            <>
-              <p role="alert">{t.confirmArchive}</p>
-              <div className="panel-actions">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={busy}
-                  onClick={() => void change(() => api.archiveChannel(channel.id))}
-                >
-                  {t.archiveChannel}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => setConfirmArchive(false)}
-                >
-                  {t.cancel}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+        <ChannelEditor catalog={catalog} locale={locale} busy={busy} change={change} />
       </div>
       {error !== null && (
         <p className="error-message" role="alert">

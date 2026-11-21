@@ -1,9 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createVoiceController, initialVoiceState, type AudioDeviceKind } from "./voice-controller";
+
+const desktopPointer = "(pointer: fine) and (hover: hover)";
+const editableTarget = "input,textarea,select,[contenteditable]:not([contenteditable=false])";
+
+function subscribeToPointer(change: () => void) {
+  const query = window.matchMedia(desktopPointer);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+}
+
+function hasDesktopPointer() {
+  return Boolean(window.yapperDesktop) || window.matchMedia(desktopPointer).matches;
+}
+
+function useKeyboardAvailability() {
+  const desktop = useSyncExternalStore(subscribeToPointer, hasDesktopPointer);
+  const [usedKeyboard, setUsedKeyboard] = useState(false);
+  useEffect(() => {
+    if (usedKeyboard) return;
+    function detectKeyboard(event: KeyboardEvent) {
+      if (
+        event.isTrusted &&
+        event.key === "Tab" &&
+        !event.isComposing &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !(event.target instanceof Element && event.target.closest(editableTarget))
+      ) {
+        setUsedKeyboard(true);
+      }
+    }
+    window.addEventListener("keydown", detectKeyboard, true);
+    return () => window.removeEventListener("keydown", detectKeyboard, true);
+  }, [usedKeyboard]);
+  return desktop || usedKeyboard;
+}
 
 export function useVoice(forcedMuted = false, kicked = false) {
   const controller = useRef<ReturnType<typeof createVoiceController> | null>(null);
   const [state, setState] = useState(initialVoiceState);
+  const canUsePushToTalk = useKeyboardAvailability();
+  const pushToTalk = canUsePushToTalk && state.pushToTalk;
   useEffect(() => {
     const voice = createVoiceController(setState);
     controller.current = voice;
@@ -19,7 +58,10 @@ export function useVoice(forcedMuted = false, kicked = false) {
     if (kicked) void controller.current?.leave();
   }, [kicked]);
   useEffect(() => {
-    if (!state.pushToTalk || state.status !== "connected") return;
+    if (!canUsePushToTalk && state.pushToTalk) controller.current?.setPushToTalk(false);
+  }, [canUsePushToTalk, state.pushToTalk]);
+  useEffect(() => {
+    if (!pushToTalk || state.status !== "connected") return;
     const events = new AbortController();
     const { signal } = events;
     const release = () => controller.current?.press(false);
@@ -44,9 +86,7 @@ export function useVoice(forcedMuted = false, kicked = false) {
         const target = event.target;
         if (
           target instanceof Element &&
-          target.closest(
-            "input,textarea,select,button,a,[contenteditable]:not([contenteditable=false])",
-          )
+          target.closest(`${editableTarget},button,a,summary,[role=button],[role=slider]`)
         )
           return;
         event.preventDefault();
@@ -65,18 +105,21 @@ export function useVoice(forcedMuted = false, kicked = false) {
       events.abort();
       release();
     };
-  }, [state.pushToTalk, state.status]);
+  }, [pushToTalk, state.status]);
 
   return {
     ...state,
+    canUsePushToTalk,
+    pushToTalk,
     join: async (channel: string) => {
       if (!kicked) await controller.current?.join(channel);
     },
     leave: async () => controller.current?.leave(),
     toggleMute: () => controller.current?.toggleMute(),
     toggleDeafen: () => controller.current?.toggleDeafen(),
-    setPushToTalk: (enabled: boolean) => controller.current?.setPushToTalk(enabled),
-    press: (enabled: boolean) => controller.current?.press(enabled),
+    setPushToTalk: (enabled: boolean) => {
+      if (!enabled || canUsePushToTalk) controller.current?.setPushToTalk(enabled);
+    },
     setVolume: (identity: string, volume: number) =>
       controller.current?.setVolume(identity, volume),
     setDevice: (kind: AudioDeviceKind, id: string) => controller.current?.setDevice(kind, id),
