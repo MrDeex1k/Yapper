@@ -7,5 +7,9 @@
     "erasableSyntaxOnly": true,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["scripts/**/*.ts", "apps/desktop/scripts/copy-renderer.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "apps/desktop/scripts/copy-renderer.ts",
+    "apps/desktop/scripts/start.ts"
+  ]
 }
