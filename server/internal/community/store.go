@@ -31,9 +31,11 @@ type Participant struct {
 	Role     string `json:"role"`
 }
 type Channel struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Kind string `json:"kind"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Kind       string `json:"kind"`
+	CategoryID string `json:"categoryId"`
+	Archived   bool   `json:"archived"`
 }
 type Message struct {
 	ID        string    `json:"id"`
@@ -158,22 +160,6 @@ func scanParticipant(row pgx.Row) (Participant, error) {
 	}
 	return p, err
 }
-func (s *Store) Channels(ctx context.Context) ([]Channel, error) {
-	rows, err := s.Pool.Query(ctx, "SELECT id::text,name,kind FROM channels ORDER BY position,id")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := []Channel{}
-	for rows.Next() {
-		var c Channel
-		if err = rows.Scan(&c.ID, &c.Name, &c.Kind); err != nil {
-			return nil, err
-		}
-		result = append(result, c)
-	}
-	return result, rows.Err()
-}
 func owner(ctx context.Context, tx pgx.Tx, id string) error {
 	var role string
 	err := tx.QueryRow(ctx, "SELECT role FROM participants WHERE id=$1 AND NOT banned FOR SHARE", id).Scan(&role)
@@ -219,7 +205,7 @@ func (s *Store) Send(ctx context.Context, actor, channel, requestID, body string
 	// Serialize sends within a channel so a committed cursor cannot skip a later
 	// commit with a previously allocated smaller sequence number.
 	var channelID string
-	if err = tx.QueryRow(ctx, "SELECT id::text FROM channels WHERE id=$1 AND kind='text' FOR UPDATE", channel).Scan(&channelID); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT id::text FROM channels WHERE id=$1 AND kind='text' AND NOT archived FOR UPDATE", channel).Scan(&channelID); err != nil {
 		return Message{}, false, ErrDenied
 	}
 	var m Message

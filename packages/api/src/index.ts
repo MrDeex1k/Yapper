@@ -11,3 +11,6 @@ export type AdmissionSettings = components["schemas"]["AdmissionSettings"];
 export type InvitationInput = components["schemas"]["InvitationInput"];
 export type InvitationSummary = components["schemas"]["InvitationSummary"];
 export type Invitations = components["schemas"]["Invitations"];
+export type Category = components["schemas"]["Category"];
+export type ChannelInput = components["schemas"]["ChannelInput"];
+export type CreateChannelInput = components["schemas"]["CreateChannelInput"];

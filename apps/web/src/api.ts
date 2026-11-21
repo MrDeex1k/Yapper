@@ -1,5 +1,7 @@
 import type {
   CurrentUser,
+  ChannelInput,
+  CreateChannelInput,
   CommunityState,
   GuestInput,
   SetupInput,
@@ -82,7 +84,7 @@ export async function logout() {
 }
 export const api = {
   state: () => request<CommunityState>("/api/v1/state"),
-  me: () => request<CurrentUser>("/api/v1/me"),
+  me: (signal?: AbortSignal) => request<CurrentUser>("/api/v1/me", undefined, signal),
   setup: (body: SetupInput) => request<{ configured: boolean }>("/api/v1/setup", body),
   join: (body: GuestInput) => request("/api/v1/guests", body),
   setAdmission: (body: AdmissionSettings) => request<AdmissionSettings>("/api/v1/admission", body),
@@ -90,6 +92,15 @@ export const api = {
     request<Invitations>("/api/v1/invitations", undefined, signal),
   invite: (body: InvitationInput) => request<{ token: string }>("/api/v1/invitations", body),
   revokeInvitation: (id: string) => request(`/api/v1/invitations/${id}/revoke`, {}),
+  saveCategory: (id: string, name: string) =>
+    request(id ? `/api/v1/categories/${id}` : "/api/v1/categories", { name }),
+  moveCategory: (id: string, direction: -1 | 1) =>
+    request(`/api/v1/categories/${id}/move`, { direction }),
+  createChannel: (body: CreateChannelInput) => request("/api/v1/channels", body),
+  saveChannel: (id: string, body: ChannelInput) => request(`/api/v1/channels/${id}`, body),
+  moveChannel: (id: string, direction: -1 | 1) =>
+    request(`/api/v1/channels/${id}/move`, { direction }),
+  archiveChannel: (id: string) => request(`/api/v1/channels/${id}/archive`, {}),
   history: (channel: string, after: number, signal?: AbortSignal) =>
     request<{ messages: Message[] }>(
       `/api/v1/channels/${channel}/messages?after=${after}`,

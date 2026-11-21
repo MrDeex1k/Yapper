@@ -10,24 +10,25 @@ For each implementation gate, record the source revision, image/package versions
 
 ## Functional and authorization scenarios
 
-See the [Stage 2 admission controls report](evidence/stage-2-admission.md) for the current scope and local evidence.
+See the Stage 2 reports for [admission controls](evidence/stage-2-admission.md) and [channel management](evidence/stage-2-channels.md).
 
-| Area          | Required evidence                                                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Owner setup   | Host-obtained setup token creates one owner; expired/reused tokens and unauthorized setup fail                                      |
-| Accounts      | Owner/moderator login, logout, recovery, and revoked sessions behave consistently in Web and all first-release desktop clients      |
-| JWT/JWKS      | Valid token accepted; wrong issuer/audience/algorithm, expiry, unknown key rejected; rotation and cache behavior tested             |
-| Guests        | Nickname admission creates stable per-server identity; reopening preserves it; clearing client data cannot recover it by nickname   |
-| Invitations   | Closed mode rejects uninvited admission; concurrent redemption respects use limits; expiry/revocation prevent new admission         |
-| Open mode     | Address and nickname admit a guest; switching to closed mode changes new-admission behavior                                         |
-| Roles         | Guests cannot administer; moderators cannot change installation ownership or assign privileged roles                                |
-| Moderation    | Kick, ban, message deletion, and forced mute apply to active WebSocket/media connections and reconnect attempts                     |
-| Media grants  | Removed users cannot regain publication by replaying an already-issued grant; actual self-hosted behavior is verified               |
-| Messages      | Persistence precedes acknowledgement; retries do not duplicate; own-message edit/delete and moderator deletion enforced             |
-| History       | Existing history visible to admitted users; pagination remains correct while new messages arrive; retention removes eligible bodies |
-| Voice         | Mute/deafen, speaking state, supported device selection, participant volume, foreground push-to-talk, and switching channels work   |
-| Saved servers | Identities remain isolated; switching cannot leave two active voice conversations                                                   |
-| Languages     | EN/PL parity, locale persistence, translated errors, keyboard labels, and landing locale routes verified                            |
+| Area          | Required evidence                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Owner setup   | Host-obtained setup token creates one owner; expired/reused tokens and unauthorized setup fail                                                                     |
+| Accounts      | Owner/moderator login, logout, recovery, and revoked sessions behave consistently in Web and all first-release desktop clients                                     |
+| JWT/JWKS      | Valid token accepted; wrong issuer/audience/algorithm, expiry, unknown key rejected; rotation and cache behavior tested                                            |
+| Guests        | Nickname admission creates stable per-server identity; reopening preserves it; clearing client data cannot recover it by nickname                                  |
+| Invitations   | Closed mode rejects uninvited admission; concurrent redemption respects use limits; expiry/revocation prevent new admission                                        |
+| Open mode     | Address and nickname admit a guest; switching to closed mode changes new-admission behavior                                                                        |
+| Channels      | Owners can manage and order channels and categories; IDs/history survive upgrades; changes reach connected clients; archival blocks sends/grants and revokes voice |
+| Roles         | Guests cannot administer; moderators cannot change installation ownership or assign privileged roles                                                               |
+| Moderation    | Kick, ban, message deletion, and forced mute apply to active WebSocket/media connections and reconnect attempts                                                    |
+| Media grants  | Removed users cannot regain publication by replaying an already-issued grant; actual self-hosted behavior is verified                                              |
+| Messages      | Persistence precedes acknowledgement; retries do not duplicate; own-message edit/delete and moderator deletion enforced                                            |
+| History       | Existing history visible to admitted users; pagination remains correct while new messages arrive; retention removes eligible bodies                                |
+| Voice         | Mute/deafen, speaking state, supported device selection, participant volume, foreground push-to-talk, and switching channels work                                  |
+| Saved servers | Identities remain isolated; switching cannot leave two active voice conversations                                                                                  |
+| Languages     | EN/PL parity, locale persistence, translated errors, keyboard labels, and landing locale routes verified                                                           |
 
 ## Capacity gate
 

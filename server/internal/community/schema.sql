@@ -59,3 +59,12 @@ CREATE TABLE IF NOT EXISTS media_removals (
  participant_id uuid NOT NULL REFERENCES participants(id),
  channel_id uuid NOT NULL REFERENCES channels(id)
 );
+
+CREATE TABLE IF NOT EXISTS categories (
+ id uuid PRIMARY KEY,
+ name text NOT NULL,
+ position integer NOT NULL
+);
+ALTER TABLE channels
+ ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES categories(id),
+ ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;

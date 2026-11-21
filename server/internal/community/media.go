@@ -30,12 +30,13 @@ func (s *Store) StartVoice(ctx context.Context, id, channel, subject, sessionID 
 		}
 		return MediaSession{}, err
 	}
-	var exists bool
-	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM channels WHERE id=$1 AND kind='voice')", channel).Scan(&exists); err != nil {
-		return MediaSession{}, err
-	}
-	if !exists {
+	var channelID string
+	err = tx.QueryRow(ctx, "SELECT id::text FROM channels WHERE id=$1 AND kind='voice' AND NOT archived FOR SHARE", channel).Scan(&channelID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return MediaSession{}, ErrDenied
+	}
+	if err != nil {
+		return MediaSession{}, err
 	}
 	var old MediaSession
 	err = tx.QueryRow(ctx, "SELECT participant_id::text,identity,channel_id::text FROM media_sessions WHERE participant_id=$1", id).Scan(&old.ParticipantID, &old.Identity, &old.ChannelID)

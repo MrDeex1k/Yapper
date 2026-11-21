@@ -69,6 +69,7 @@ func NewCommunity(store *community.Store, verifier *identity.Verifier, auth *ide
 	if config.Media != nil {
 		a.mux.Handle("/livekit/", config.Media)
 	}
+	a.catalogRoutes()
 	a.mux.HandleFunc("GET /api/v1/state", a.state)
 	a.mux.HandleFunc("POST /api/v1/setup", a.setup)
 	a.mux.HandleFunc("POST /api/v1/guests", a.join)
@@ -243,15 +244,12 @@ func (a *CommunityAPI) me(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	channels, err := a.store.Channels(r.Context())
+	catalog, err := a.store.Catalog(r.Context())
 	if err != nil {
 		resultError(w, err)
 		return
 	}
-	writeJSON(w, 200, struct {
-		Participant community.Participant `json:"participant"`
-		Channels    []community.Channel   `json:"channels"`
-	}{p.participant, channels})
+	writeJSON(w, 200, currentUser{Participant: p.participant, Catalog: catalog})
 }
 func (a *CommunityAPI) ban(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.require(w, r)

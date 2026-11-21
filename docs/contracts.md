@@ -29,6 +29,12 @@ Only owners may change admission or manage invitations. `POST /api/v1/admission`
 
 `POST /api/v1/invitations/{id}/revoke` is idempotent for existing invitations. Revocation prevents future use in closed mode. Open mode admits guests without consuming an invitation, and existing memberships survive revocation and subsequent mode changes.
 
+## Channel catalog
+
+`GET /api/v1/me` includes ordered categories and channels. A channel exposes its category UUID (empty when uncategorized) and archival state. Owners can create and rename categories, move them up/down, and create, rename, move, categorize, and archive text or voice channels. Channel moves are relative to others of the same kind in the same category. Archiving preserves IDs and text history, rejects new messages/grants and revokes live media in that channel.
+
+`catalog.changed` is a version 1 event with an empty payload. Refresh `/api/v1/me` on that event and on `ready` to cover changes while disconnected.
+
 ## Planned Rust desktop conformance
 
 The Windows and Linux GPUI client uses the same public HTTP resources, WebSocket event version, and Go-gated LiveKit signaling as Web and macOS Electron. The Stage 2 prototype defines and verifies native session and origin handling, including guest admission, AUTH login/logout, WebSocket tickets, and signaling. Document compatibility changes and verify them across those clients, preserving browser origin protections and server-side authorization.

@@ -1,4 +1,12 @@
-import { StrictMode, useEffect, useState, type FormEvent } from "react";
+import {
+  Fragment,
+  StrictMode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   Mic,
@@ -20,6 +28,7 @@ import { api, APIError, login, logout, restoreAccount } from "./api";
 import { useConversation } from "./use-conversation";
 import { useVoice } from "./use-voice";
 import { errorText } from "./errors";
+import { CatalogPanel, groupedChannels } from "./catalog-panel";
 import { AdmissionPanel } from "./admission-panel";
 import "./style.css";
 
@@ -352,7 +361,7 @@ function EntryFields({
 }
 
 function Conversation({
-  user,
+  user: initialUser,
   state,
   locale,
   language,
@@ -367,38 +376,27 @@ function Conversation({
   onAdmissionChange: (openAdmission: boolean) => void;
 }) {
   const t = messages[locale];
+  const [user, setUser] = useState(initialUser);
   const textChannels = user.channels.filter((c) => c.kind === "text");
-  const [channel, setChannel] = useState(textChannels[0]?.id ?? "");
-  const current = textChannels.find((c) => c.id === channel);
-  const conversation = useConversation(channel);
+  const [selectedChannel, setChannel] = useState(
+    () => textChannels.find((channel) => !channel.archived)?.id ?? "",
+  );
+  const current =
+    textChannels.find((channel) => channel.id === selectedChannel) ??
+    textChannels.find((channel) => !channel.archived) ??
+    textChannels[0];
+  const channel = current?.id ?? "";
+  const refreshRevision = useRef(0);
+  const refreshCommunity = useCallback(async (signal?: AbortSignal) => {
+    const revision = ++refreshRevision.current;
+    const next = await api.me(signal);
+    if (!signal?.aborted && refreshRevision.current === revision) setUser(next);
+  }, []);
+  const conversation = useConversation(channel, refreshCommunity);
   const voice = useVoice();
-  const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState<{ requestId: string; body: string } | null>(null);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [showAdmission, setShowAdmission] = useState(false);
+  const [panel, setPanel] = useState<"admission" | "catalog" | null>(null);
   const [banTarget, setBanTarget] = useState<Participant | null>(null);
-  async function send(event: FormEvent) {
-    event.preventDefault();
-    if (sending || !draft.trim()) return;
-    const input =
-      pending && pending.body === draft.trim()
-        ? pending
-        : { requestId: crypto.randomUUID(), body: draft.trim() };
-    setPending(input);
-    setSending(true);
-    setError(null);
-    try {
-      const message = await api.send(channel, input);
-      conversation.append(message);
-      setDraft("");
-      setPending(null);
-    } catch (e) {
-      setError(e);
-    } finally {
-      setSending(false);
-    }
-  }
   async function ban() {
     if (!banTarget) return;
     try {
@@ -411,8 +409,6 @@ function Conversation({
   function switchChannel(id: string) {
     if (id === channel) return;
     setChannel(id);
-    setDraft("");
-    setPending(null);
     setError(null);
   }
   return (
@@ -424,8 +420,8 @@ function Conversation({
         channel={channel}
         voice={voice}
         onChannel={switchChannel}
-        showAdmission={showAdmission}
-        onAdmission={() => setShowAdmission((visible) => !visible)}
+        panel={panel}
+        onPanel={(next) => setPanel((visible) => (visible === next ? null : next))}
         onSignOut={onSignOut}
         onError={setError}
       />
@@ -447,14 +443,25 @@ function Conversation({
           />
           <output>{t[conversation.status]}</output>
         </div>
-        {showAdmission && (
+        {panel === "admission" && (
           <AdmissionPanel
             openAdmission={state.openAdmission}
             locale={locale}
             onAdmissionChange={onAdmissionChange}
             onClose={() => {
-              setShowAdmission(false);
+              setPanel(null);
               document.getElementById("admission-toggle")?.focus();
+            }}
+          />
+        )}
+        {panel === "catalog" && user.participant.role === "owner" && (
+          <CatalogPanel
+            catalog={user}
+            locale={locale}
+            onChanged={refreshCommunity}
+            onClose={() => {
+              setPanel(null);
+              document.getElementById("catalog-toggle")?.focus();
             }}
           />
         )}
@@ -486,31 +493,16 @@ function Conversation({
               {errorText(error ?? conversation.error, locale)}
             </p>
           )}
-          <form className="composer" onSubmit={(event) => void send(event)}>
-            <textarea
-              aria-label={t.messagePlaceholder}
-              placeholder={`${t.messagePlaceholder} #${current?.name ?? ""}`}
-              value={draft}
-              maxLength={2000}
-              rows={2}
-              disabled={sending}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  void send(event);
-                }
-              }}
+          {current?.archived && <p className="composer-hint">{t.archivedNotice}</p>}
+          {current && !current.archived && (
+            <MessageComposer
+              key={channel}
+              channel={channel}
+              name={current.name}
+              locale={locale}
+              onSent={conversation.append}
             />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={sending || !draft.trim()}
-              aria-label={sending ? t.sending : pending ? t.retrySend : t.send}
-            >
-              <Send size={19} />
-            </Button>
-          </form>
+          )}
           <p className="composer-hint">
             {t.privacy}
             <Headphones size={13} aria-hidden="true" />
@@ -520,6 +512,78 @@ function Conversation({
     </div>
   );
 }
+function MessageComposer({
+  channel,
+  name,
+  locale,
+  onSent,
+}: {
+  channel: string;
+  name: string;
+  locale: Locale;
+  onSent: (message: Message) => void;
+}) {
+  const t = messages[locale];
+  const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<{ requestId: string; body: string } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  async function send(event: FormEvent) {
+    event.preventDefault();
+    if (sending || !draft.trim()) return;
+    const input =
+      pending && pending.body === draft.trim()
+        ? pending
+        : { requestId: crypto.randomUUID(), body: draft.trim() };
+    setPending(input);
+    setSending(true);
+    setError(null);
+    try {
+      const message = await api.send(channel, input);
+      onSent(message);
+      setDraft("");
+      setPending(null);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setSending(false);
+    }
+  }
+  return (
+    <>
+      {error !== null && (
+        <p className="error-message" role="alert">
+          {errorText(error, locale)}
+        </p>
+      )}
+      <form className="composer" onSubmit={(event) => void send(event)}>
+        <textarea
+          aria-label={t.messagePlaceholder}
+          placeholder={`${t.messagePlaceholder} #${name}`}
+          value={draft}
+          maxLength={2000}
+          rows={2}
+          disabled={sending}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              void send(event);
+            }
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          disabled={sending || !draft.trim()}
+          aria-label={sending ? t.sending : pending ? t.retrySend : t.send}
+        >
+          <Send size={19} />
+        </Button>
+      </form>
+    </>
+  );
+}
 function ConversationSidebar({
   user,
   state,
@@ -527,8 +591,8 @@ function ConversationSidebar({
   channel,
   voice,
   onChannel,
-  showAdmission,
-  onAdmission,
+  panel,
+  onPanel,
   onSignOut,
   onError,
 }: {
@@ -538,13 +602,12 @@ function ConversationSidebar({
   channel: string;
   voice: ReturnType<typeof useVoice>;
   onChannel: (id: string) => void;
-  showAdmission: boolean;
-  onAdmission: () => void;
+  panel: "admission" | "catalog" | null;
+  onPanel: (panel: "admission" | "catalog") => void;
   onSignOut: () => Promise<void>;
   onError: (error: unknown) => void;
 }) {
   const t = messages[locale];
-  const textChannels = user.channels.filter((c) => c.kind === "text");
   const voiceChannels = user.channels.filter((c) => c.kind === "voice");
   return (
     <aside className="sidebar" aria-label={t.channels}>
@@ -558,49 +621,63 @@ function ConversationSidebar({
           <p>{t.privacy}</p>
         </div>
       </div>
-      <p className="section-label">{t.textChannels}</p>
-      <nav className="channel-list" aria-label={t.textChannels}>
-        {textChannels.map((c) => (
-          <Button
-            key={c.id}
-            variant="ghost"
-            className={c.id === channel ? "channel-button channel-active" : "channel-button"}
-            aria-current={c.id === channel ? "page" : undefined}
-            onClick={() => onChannel(c.id)}
-          >
-            <Hash size={18} />
-            {c.name}
-          </Button>
-        ))}
-      </nav>
-      <p className="section-label">{t.voiceChannels}</p>
-      <nav className="channel-list" aria-label={t.voiceChannels}>
-        {voiceChannels.map((c) => (
-          <Button
-            key={c.id}
-            variant="ghost"
-            className="channel-button"
-            onClick={() => void voice.join(c.id)}
-            disabled={voice.status === "connecting"}
-            title={t.joinVoice}
-          >
-            <Volume2 size={18} />
-            {c.name}
-          </Button>
-        ))}
-      </nav>
+      {(["text", "voice"] as const).map((kind) => {
+        const label = kind === "text" ? t.textChannels : t.voiceChannels;
+        return (
+          <Fragment key={kind}>
+            <p className="section-label">{label}</p>
+            <nav className="channel-list" aria-label={label}>
+              {groupedChannels(user, kind).map((group) => (
+                <Fragment key={group.id}>
+                  {group.name && <span className="channel-category">{group.name}</span>}
+                  {group.channels.map((item) => (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      className={
+                        item.id === channel ? "channel-button channel-active" : "channel-button"
+                      }
+                      aria-current={item.id === channel ? "page" : undefined}
+                      onClick={
+                        kind === "text" ? () => onChannel(item.id) : () => void voice.join(item.id)
+                      }
+                      disabled={kind === "voice" && voice.status === "connecting"}
+                      title={kind === "voice" ? t.joinVoice : undefined}
+                    >
+                      {kind === "text" ? <Hash size={18} /> : <Volume2 size={18} />}
+                      <span className="channel-name">{item.name}</span>
+                      {item.archived && <small>{t.archived}</small>}
+                    </Button>
+                  ))}
+                </Fragment>
+              ))}
+            </nav>
+          </Fragment>
+        );
+      })}
       <div className="sidebar-bottom">
         <VoicePanel voice={voice} voiceChannels={voiceChannels} locale={locale} onError={onError} />
         {user.participant.role === "owner" && (
           <Button
             id="admission-toggle"
             variant="outline"
-            aria-expanded={showAdmission}
-            aria-controls={showAdmission ? "admission-panel" : undefined}
-            onClick={onAdmission}
+            aria-expanded={panel === "admission"}
+            aria-controls={panel === "admission" ? "admission-panel" : undefined}
+            onClick={() => onPanel("admission")}
           >
             <Shield size={16} aria-hidden="true" />
             {t.admissionSettings}
+          </Button>
+        )}
+        {user.participant.role === "owner" && (
+          <Button
+            id="catalog-toggle"
+            variant="outline"
+            aria-expanded={panel === "catalog"}
+            aria-controls={panel === "catalog" ? "catalog-panel" : undefined}
+            onClick={() => onPanel("catalog")}
+          >
+            {t.manageChannels}
           </Button>
         )}
         <div className="self-row">

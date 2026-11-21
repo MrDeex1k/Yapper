@@ -7,7 +7,10 @@ function combine(previous: Message[], incoming: Message[]) {
   for (const message of incoming) map.set(message.id, message);
   return [...map.values()].sort((a, b) => a.sequence - b.sequence);
 }
-export function useConversation(channel: string) {
+export function useConversation(
+  channel: string,
+  refreshCommunity: (signal?: AbortSignal) => Promise<void>,
+) {
   const activeChannel = useRef(channel);
   useLayoutEffect(() => {
     activeChannel.current = channel;
@@ -22,7 +25,10 @@ export function useConversation(channel: string) {
     setStatus("connecting");
     setError(null);
   }
-  useEffect(() => subscribeConversation(channel, setMessages, setStatus, setError), [channel]);
+  useEffect(
+    () => subscribeConversation(channel, refreshCommunity, setMessages, setStatus, setError),
+    [channel, refreshCommunity],
+  );
   return {
     messages,
     status,
@@ -40,6 +46,7 @@ export function useConversation(channel: string) {
 // Every completion checks the abort signal before publishing state.
 function subscribeConversation(
   channel: string,
+  refreshCommunity: (signal: AbortSignal) => Promise<void>,
   setMessages: (update: (previous: Message[]) => Message[]) => void,
   setStatus: (status: ConnectionState) => void,
   setError: (error: unknown) => void,
@@ -50,7 +57,7 @@ function subscribeConversation(
   let cursor = 0;
   let reconciling = false;
   async function reconcile() {
-    if (reconciling) return;
+    if (!channel || reconciling) return;
     reconciling = true;
     try {
       while (!controller.signal.aborted) {
@@ -87,6 +94,11 @@ function subscribeConversation(
           setError(null);
           void reconcile();
         }
+        if (message.type === "ready" || message.type === "catalog.changed") {
+          void refreshCommunity(controller.signal).catch((e) => {
+            if (!controller.signal.aborted) setError(e);
+          });
+        }
         if (message.type === "message.created" && message.payload.channelId === channel)
           setMessages((previous) => combine(previous, [message.payload]));
       };
@@ -107,7 +119,7 @@ function subscribeConversation(
       timer = setTimeout(() => void connect(), 2500);
     }
   }
-  if (channel) void connect();
+  void connect();
   return () => {
     controller.abort();
     clearTimeout(timer);

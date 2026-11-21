@@ -626,6 +626,261 @@
           }
         }
       }
+    },
+    "/api/v1/categories": {
+      "post": {
+        "operationId": "createCategory",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/categories/{id}": {
+      "post": {
+        "operationId": "saveCategory",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/categories/{id}/move": {
+      "post": {
+        "operationId": "moveCategory",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/channels": {
+      "post": {
+        "operationId": "createChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChannelInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/channels/{id}": {
+      "post": {
+        "operationId": "saveChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/channels/{id}/move": {
+      "post": {
+        "operationId": "moveChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/channels/{id}/archive": {
+      "post": {
+        "operationId": "archiveChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -688,9 +943,16 @@
           "kind": {
             "type": "string",
             "enum": ["text", "voice"]
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Category UUID, or an empty string for uncategorized."
+          },
+          "archived": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "name", "kind"]
+        "required": ["id", "name", "kind", "categoryId", "archived"]
       },
       "Message": {
         "type": "object",
@@ -796,9 +1058,15 @@
             "items": {
               "$ref": "#/components/schemas/Channel"
             }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
           }
         },
-        "required": ["participant", "channels"]
+        "required": ["participant", "channels", "categories"]
       },
       "History": {
         "type": "object",
@@ -930,6 +1198,87 @@
           }
         },
         "required": ["revoked"]
+      },
+      "Category": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name"]
+      },
+      "CategoryInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": ["name"]
+      },
+      "ChannelInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "categoryId": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
+      "MoveInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "type": "integer",
+            "enum": [-1, 1]
+          }
+        },
+        "required": ["direction"]
+      },
+      "CatalogSaved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": ["saved"]
+      },
+      "CreateChannelInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["text", "voice"]
+          }
+        },
+        "required": ["name", "kind"]
       }
     },
     "securitySchemes": {

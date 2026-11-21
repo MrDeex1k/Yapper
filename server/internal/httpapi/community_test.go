@@ -166,6 +166,14 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 	if _, _, err = ws.Read(ctx); err != nil {
 		t.Fatal("no ready event", err)
 	}
+	recorder := httptest.NewRecorder()
+	api.catalogResult(recorder, store.SaveCategory(t.Context(), owner.ID, "", "Community"))
+	if recorder.Code != 200 {
+		t.Fatalf("catalog update=%d", recorder.Code)
+	}
+	if _, event, err := ws.Read(ctx); err != nil || !bytes.Contains(event, []byte(`"type":"catalog.changed"`)) {
+		t.Fatalf("catalog invalidation=%s, %v", event, err)
+	}
 	replay, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/events", &websocket.DialOptions{HTTPHeader: header, Subprotocols: []string{"yapper.v1", "yapper.ticket." + issued.Ticket}})
 	if err == nil {
 		replay.CloseNow()
