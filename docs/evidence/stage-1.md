@@ -1,6 +1,32 @@
 # Stage 1 implementation checkpoint
 
-Date: 2026-09-29. Source: `feat/implement-first-conversation`, based on foundation commit `633f439`. **Implemented for review; the Stage 1 acceptance gate has not passed.** No 0.5.0 release is claimed. Stages 2–8 have not started. The approved Stage 0–8 plan is authoritative; the retired roadmap's F01–F05 version mapping is not silently reused.
+The conversation implementation was squash-merged as `ee997fc` in [PR #28](https://github.com/MrDeex1k/Yapper/pull/28) on 2026-09-29. The results below distinguish the merged implementation from the acceptance checks required by the [implementation plan](../implementation-plan.md).
+
+## Current status
+
+As of 2026-11-21, Stage 0 is complete and Stage 1 is in acceptance. Stage 2 is next in the roadmap. The repository has no published release. At the time of this review, GitHub `main` was at `7e1294b`. The local `main` also contained `15e2f6a`, which updates dependencies and images and fixes PostgreSQL readiness on fresh startup.
+
+The [native desktop decision](../architecture.md#native-desktop-direction) keeps Electron as the Stage 1 development reference and the first macOS release client. Stage 4 covers release-package acceptance for macOS Electron and Windows/Linux GPUI. Earlier checkpoint notes retain the scope and outcomes recorded at the time.
+
+Stage 1 includes the [dependency and image refresh](dependency-refresh-2026-11-21.md), fresh PostgreSQL 19 volumes, and the switch to Bun formatting. [Oxlint remains the linter](dependency-refresh-2026-11-21.md#bun-tooling-follow-up). The remaining acceptance run has been deferred.
+
+| Area                           | Evidence                                                                                                                                                                                                                                                                                | Remaining verification                                                                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setup, authentication and chat | Fresh local Compose setup, owner login, invitations, two guests, persisted shared chat, retry deduplication, guest authorization and revocation passed. Identity and committed history survived a container restart.                                                                    | Repeat the complete client flow on the public acceptance installation using the revision selected for testing.                                  |
+| Public HTTPS and WSS           | A temporary Cloudflare Tunnel on 2026-09-30 served Web assets over trusted HTTPS. API and WebSocket probes verified secure owner cookies, login, invitations, shared history and receipt of a live chat event. The DNS record, tunnel, containers and test data were removed afterward. | Verify HTTPS and WSS on the same public installation used for media acceptance. The tunnel probe covered the application traffic only.          |
+| Voice and permissions          | Local LiveKit signaling, voice admission, ban and grant replay denial through Go passed. An isolated Docker test verified TURN/TLS certificate checks, credentials and bidirectional UDP relay.                                                                                         | Verify direct public UDP, actual client selection of TURN/TLS, two-person speech with real microphones, audio controls and permission handling. |
+| Reconnect                      | Local transport and session tests cover history reconciliation, message deduplication, and stale voice-session cleanup.                                                                                                                                                                 | Interrupt a real client connection during a call and confirm that voice and chat recover without duplicate sessions or messages.                |
+| Electron                       | The macOS arm64 development client passed join, renderer isolation, encrypted credentials and restoration after restart on Electron 44.8.0.                                                                                                                                             | Install and verify the macOS Electron development package. Stage 4 covers final desktop packages.                                               |
+
+The [TypeScript migration report](typescript-migration.md) and [2026-10-17 refresh report](dependency-refresh-2026-10-17.md#verification) contain the later verification results. The dated checkpoint sections below preserve the original test environment and outcomes.
+
+## Next steps for Stage 1
+
+1. **Prepare one public test installation.** Choose a Linux host with a reachable public IPv4 address and record the exact source commit being tested. Prepare the application and TURN hostnames, trusted certificates, and the firewall rules in the [operations guide](../operations.md#turntls-on-one-public-ipv4-address). Keep LiveKit signaling port `7880` private. Start a fresh Compose project and verify HTTPS, WSS and both migrations.
+2. **Run the first real call.** Create the owner through the one-time setup flow. Use two separate devices on different networks, redeem separate invitations, exchange messages in both directions, and hold a two-way call over direct UDP. Check mute, deafen, microphone permission denial and regrant, and that guests cannot administer the server.
+3. **Exercise fallback, recovery and removal.** On one client network, block direct media paths so TURN/TLS can be selected and confirm the selected ICE candidate pair while audio flows in both directions. Interrupt and restore that client's connection while both clients are active. Verify history reconciliation and one active voice session per participant. Ban an active participant and confirm disconnect and denial of a cached grant through the public Go signaling endpoint.
+4. **Verify the macOS desktop development flow.** Install the macOS Electron development package and use it against the public test installation. Check server selection, login, credentials and identity after restart, and microphone access. Record the tested OS, architecture, and observed behavior. The final macOS package and signing checks are part of Stage 4.
+5. **Record the outcome before starting Stage 2.** Save the commit, image versions, client and network details, transport selected and results against the [Stage 1 completion criteria](../implementation-plan.md#stage-1--first-complete-conversation). Keep case-specific failures open until they pass. Stage 2 then starts with the agreed community features, including channel management, admission modes and moderation.
 
 ## Implemented behavior
 
@@ -24,13 +50,13 @@ Environment: macOS 27.0.1 arm64, Node 24.20.0, pnpm 12.6.0, Bun 1.4.2, Go 1.27.1
 - Browser inspection exercised owner login, message send/history after restart and connection status. LiveKit joined the voice room in the browser. Microphone capture and two-person speech were not tested.
 - Electron gateway tests passed for origin/TLS restrictions, gateway authentication, renderer cookie isolation, independent server cookie jars and persisted restore. An unsigned macOS arm64 development bundle was built using Electron Packager. Native application inspection timed out; a successful build does not prove native startup, microphone permissions or OS credential persistence.
 
-## Remaining acceptance gates
+## Acceptance gaps at the initial checkpoint
 
 1. Verify public trusted HTTPS, advertised media address, firewall/UDP reachability and TURN fallback. The optional TURN configuration has isolated local protocol evidence below; public deployment remains unverified. The HTTP smoke override cannot prove these properties.
 2. Complete a fresh-install scenario with two real clients exchanging text and speaking with real microphones. Exercise mute/deafen, denied permissions, network interruption and reconnect without duplicate voice sessions.
 3. Test the packaged Electron client on Windows and macOS, including OS encryption, server-origin changes, login/session persistence and microphone permissions. Apple signing/notarization is not configured; Windows signing is unavailable.
 4. Stale voice-leave/reconciliation versus replacement sessions and active registered-user revocation now have regression evidence below. Real client interruption/reconnect scenarios still require platform testing.
-5. Complete code review and record the required local checks for this PR. Further rate limits, recovery, diagnostics, operational readiness and load gates remain Stage 3 work, not delivered production guarantees.
+5. The PR was still under review at this checkpoint. Its merge and the later checks are reflected in the current status above. Further rate limits, recovery, diagnostics and load tests are Stage 3 work.
 
 Open admission controls, channel/category management, moderator provisioning, message edit/delete/retention, full device controls and saved-server management remain Stage 2. The local client is not yet the complete first private release.
 

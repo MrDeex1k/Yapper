@@ -3,7 +3,7 @@
   "globalDependencies": [
     "tsconfig.base.json",
     ".oxlintrc.json",
-    ".oxfmtrc.json",
+    "bunfig.toml",
     ".node-version",
     ".bun-version",
     ".go-version"

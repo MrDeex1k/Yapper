@@ -1,2 +1,5 @@
 [install]
 auto = "disable"
+
+[fmt]
+ignorePatterns = ["pnpm-lock.yaml"]

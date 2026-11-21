@@ -5,32 +5,43 @@
 | Component              | Responsibility                                                                 | Implementation                                      |
 | ---------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
 | Web client             | Community UI, voice controls, moderation, administration                       | React, TypeScript, Tailwind, shadcn/ui with Base UI |
-| Desktop shell          | Saved servers, platform integration, packaged application                      | Electron with the shared React client               |
+| Windows/Linux desktop  | Community UI, saved servers, voice controls, and platform integration          | Rust and GPUI (planned)                             |
+| macOS desktop          | Community UI, saved servers, voice controls, and platform integration          | Electron for the first release, Swift in Stage 8    |
 | Landing                | Public project information and downloads in EN/PL                              | Astro                                               |
 | Application server     | Guests, membership, permissions, channels, messages, presence, voice admission | Go                                                  |
-| Authentication service | Owner/moderator credentials and sessions, JWT signing and JWKS                 | Bun, TypeScript, Elysia 2 Beta, Better Auth         |
+| Authentication service | Owner/moderator credentials and sessions, JWT signing and JWKS                 | Bun, TypeScript, Elysia 2 RC, Better Auth           |
 | Media server           | WebRTC media transport and TURN connectivity                                   | Self-hosted LiveKit                                 |
 | Database               | Durable application and authentication data                                    | PostgreSQL; separate databases and database roles   |
 | Public ingress         | Trusted HTTPS and routing to local services                                    | Reverse proxy; implementation default: Caddy        |
 
 All runtime services for one community belong to one Docker Compose project. The landing is deployed independently. Start with one host and one application-server instance. Multi-host clustering, Kubernetes, and federation are deferred.
 
-Build-time tooling is separate from this runtime topology: pnpm owns JS/TS dependencies, Turborepo schedules repository tasks, and standard Vite builds the React client. Bun continues to execute AUTH; Electron uses its own runtime. See [Approved toolchain](toolchain.md) for the selected configuration and decision rationale.
+Build-time tooling is separate from this runtime topology. pnpm owns JS/TS dependencies, Turborepo schedules repository tasks, Vite builds the React client, and Bun executes AUTH. Cargo will own the desktop build and Rust dependencies. See the [approved toolchain](toolchain.md) for tool ownership and integration.
 
 ```mermaid
 flowchart LR
-    W[Web / Electron] -->|HTTPS and WSS| P[Public ingress]
+    W[React Web] -->|HTTPS and WSS| P[Public ingress]
+    Dsk[Windows and Linux Rust / GPUI] -->|HTTPS and WSS| P
+    Mac[macOS Electron] -->|HTTPS and WSS| P
     P --> G[Go application server]
     P --> A[Elysia / Better Auth]
     G -->|Admitted signaling| L[LiveKit]
     W <-->|WebRTC / TURN| L
+    Dsk <-->|WebRTC / TURN| L
+    Mac <-->|WebRTC / TURN| L
     G -->|JWKS / account validation| A
     G -->|Media grants / moderation| L
     G --> D[(Application database)]
     A --> E[(Authentication database)]
 ```
 
-The diagram separates media transport from HTTP ingress: configuring HTTPS alone does not make UDP media or TURN reachable. Stage 1 must verify domains, public address advertisement, certificates, exposed ports, and restrictive-network fallback together. Additional media/TURN hostnames may be required even though users enter one community address.
+The diagram shows the architecture for the first private release. HTTP ingress and media transport have distinct network requirements. Stage 1 must verify domains, public address advertisement, certificates, exposed ports, and restrictive-network fallback together. Additional media/TURN hostnames may be required even though users enter one community address.
+
+## Native desktop direction
+
+Rust and [GPUI](https://gpui.rs/) target Windows and Linux. GPUI renders the desktop interface. Native Rust code handles HTTP, WebSocket, session storage, and media integration. Web and all desktop clients share the versioned server contract and product behavior, including EN/PL copy. Go remains authoritative for application permissions and LiveKit continues to carry voice.
+
+The Electron client and bundled React renderer remain the Stage 1 reference and the macOS client for the first private release. Stage 2 validates the Windows and Linux GPUI integration with a prototype. Stage 4 packages GPUI for Windows and Linux and Electron for macOS. Stage 8 delivers the Swift macOS client and defines the transition from Electron. See the [implementation plan](implementation-plan.md#stage-4--desktop-and-first-private-release).
 
 ## Identity and authorization
 
@@ -39,9 +50,9 @@ Go owns the community's participant identifiers and permissions. Better Auth own
 Guests use a server-issued opaque credential and a persistent participant ID. Technical defaults:
 
 - Browser guest credentials use same-origin secure HttpOnly cookies. Browser storage holds preferences and non-secret UI state, not privileged bearer tokens.
-- Electron stores per-server credentials using an OS-protected mechanism exposed through narrowly scoped IPC. Secrets are not stored in renderer localStorage.
-- Keep renderer sandboxing and context isolation enabled. Bundle the desktop renderer locally; do not give arbitrary server pages access to privileged Electron APIs.
-- Verify the desktop cross-origin/session integration in Stage 1. Native origins, CORS, cookie behavior, and authenticated requests require an explicit tested contract rather than an assumption that the browser flow transfers unchanged.
+- GPUI desktop will isolate guest and account sessions by full server origin and protect persistent credentials with OS credential storage. Verify trusted TLS, restart and logout behavior, server switching, and session revocation on Windows and the supported Linux environments.
+- Define and test the Rust client's HTTP and WebSocket session handling against the existing trusted-origin, cookie and ticket checks. Preserve browser protections and Go's authorization and signaling boundaries when adding native compatibility.
+- The current Electron client keeps credentials in its main process behind scoped IPC, with a bundled, sandboxed and context-isolated renderer. Its Stage 1 evidence applies to that implementation.
 
 Registered users authenticate with Better Auth. Its JWT plugin issues a short-lived token for Go to verify using JWKS. Validate the configured issuer, intended audience, signature algorithm, expiry, and subject. Fetch keys only from the installation's configured trusted issuer. A token-provided URL must never choose the trust source.
 
@@ -71,17 +82,19 @@ Go coordinates kick, ban, room departure, and forced mute with LiveKit. Forced m
 
 Chat history is stored in PostgreSQL and transported by the application protocol, not treated as durable LiveKit room data. Audio is not recorded. Limit a client to one active conversation, including switching between saved installations.
 
+Evaluate the LiveKit Rust SDK for the GPUI client. Verify that native signaling works through the public Go endpoint and that the client handles microphone permissions, audio input/output, direct media, TURN/TLS fallback, reconnect, and revocation. Choose and pin the media dependencies after the prototype validates the integration.
+
 ## Compatibility investigations
 
 The following are implementation gates, not requests to reopen approved product decisions:
 
-1. Pin Elysia 2 Beta, Bun, Better Auth, and JWT/JWKS integration; run login, expiry, rotation, and revocation tests.
-2. Verify guest credential persistence and registered login in both Web and Electron.
+1. Pin the Elysia 2 release line, Bun, Better Auth, and JWT/JWKS integration. Run login, expiry, rotation, and revocation tests.
+2. Verify guest credential persistence and registered login in Web and the current Electron client in Stage 1. Verify the same behavior on the Windows and Linux GPUI packages and the macOS Electron package before the first private release.
 3. Demonstrate enforceable media moderation with self-hosted LiveKit.
 4. Validate mobile browser devices, reconnect, and foreground audio on real devices.
 5. Validate Oxlint's JS plugin integration with `@shadcn/lint` and determine an Oxfmt-compatible formatter strategy for Astro files.
 
-An implementation blocker should produce a narrow decision record containing the failing behavior, evidence, and proposed alternative. Do not silently replace Elysia 2 Beta or other approved technologies.
+Record the failing behavior, evidence, and proposed alternative when an implementation blocker requires changing an approved technology.
 
 ## Upstream references
 

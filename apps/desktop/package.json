@@ -15,10 +15,10 @@
     "test": "tsc --noEmit false --outDir .test-build && node --test .test-build/gateway.test.js .test-build/preview.test.js"
   },
   "dependencies": {
-    "tough-cookie": "6.0.2"
+    "tough-cookie": "6.1.0"
   },
   "devDependencies": {
     "@yapper/web": "workspace:*",
-    "electron": "44.8.0"
+    "electron": "45.4.1"
   }
 }

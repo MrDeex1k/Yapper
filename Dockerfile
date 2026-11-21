@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile:1
-FROM node:26.12.0-bookworm-slim@sha256:298992629d69bbd5b2b03ad57094d8e4fcb3a8eeb7c4e25d29de656519568913 AS dependencies
+# syntax=docker/dockerfile:1.29.0@sha256:572cebbc2b15e6f84c077742952674889cb63cd5e9b80abdffcbe587b6f19183
+FROM node:26.13.1-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS dependencies
 WORKDIR /workspace
-RUN npm install --global pnpm@12.14.0
+RUN npm install --global pnpm@12.21.0
 COPY . .
 RUN pnpm install --frozen-lockfile
 
@@ -11,7 +11,7 @@ RUN pnpm --filter @yapper/web build
 FROM dependencies AS auth-deploy
 RUN pnpm --filter @yapper/auth deploy --prod /out/auth
 
-FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS auth
+FROM oven/bun:1.4.5-slim@sha256:b780593f3e10918cbdaec3d5a08d52224b9198069a65eb47812085c2ec007643 AS auth
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=auth-deploy --chown=bun:bun /out/auth /app
@@ -19,7 +19,7 @@ COPY --chown=bun:bun bunfig.toml /app/bunfig.toml
 USER bun
 CMD ["bun", "src/index.ts"]
 
-FROM golang:1.27.2@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8 AS go-build
+FROM golang:1.27.4@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS go-build
 WORKDIR /workspace/server
 COPY server/go.mod server/go.sum ./
 RUN go mod download
@@ -32,6 +32,6 @@ COPY --from=go-build /out/yapper /yapper
 USER 10001:10001
 ENTRYPOINT ["/yapper"]
 
-FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f AS ingress
+FROM caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 AS ingress
 COPY --from=web-build /workspace/apps/web/dist /srv
 COPY deploy/Caddyfile /etc/caddy/Caddyfile

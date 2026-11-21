@@ -1,6 +1,6 @@
 # Operations plan
 
-A complete local container smoke installation exists; public production installation and recovery remain unverified. See [Stage 1 evidence](evidence/stage-1.md). `compose.yaml` provides Caddy/Go/AUTH/PostgreSQL/LiveKit topology, and `compose.smoke.yaml` restricts the smoke ingress to loopback HTTP. Do not use that override for public deployment.
+The local Compose smoke installation has passed. A temporary Cloudflare Tunnel test also verified public HTTPS, login and chat over WSS. The tunnel was removed after testing. Public media and production recovery remain pending. See the [Stage 1 evidence and remaining checks](evidence/stage-1.md#current-status). `compose.yaml` provides Caddy, Go, AUTH, PostgreSQL and LiveKit. Use `compose.smoke.yaml` only for loopback HTTP testing.
 
 The base Compose configuration requires `YAPPER_DOMAIN` (trusted public domain), `YAPPER_PUBLIC_IP` (advertised media address), and the distinct secrets/database settings in `.env.example`. Ingress uses TCP 80/443; media uses TCP 7881 and UDP 7882. Internal signaling port 7880 must remain private so clients cannot bypass Go admission/revocation. The optional [TURN overlay](#turntls-on-one-public-ipv4-address) adds restrictive-network fallback. Generated development settings are not a production installation procedure.
 
@@ -35,7 +35,7 @@ Open these server firewall ports and preserve the port numbers through any host 
 
 Caddy manages the application hostname's certificate as before. The operator must obtain and renew the separate TURN certificate; no automatic TURN certificate renewal is implemented. Replace both PEM files in the mounted directory and restart LiveKit during the documented maintenance window to load them. Active voice connections are interrupted. Test renewed certificate validity and a relay connection before returning the server to service. Never disable client TLS validation to accommodate an invalid certificate.
 
-References checked against the pinned versions: [LiveKit 1.13.10 TURN listener and peer policy](https://github.com/livekit/livekit/blob/v1.13.10/pkg/service/turn.go), [LiveKit configuration](https://github.com/livekit/livekit/blob/v1.13.10/config-sample.yaml), and [HAProxy 3.4 configuration](https://docs.haproxy.org/3.4/configuration.html). Context7 returned LiveKit master documentation; the versioned source was checked to resolve that coverage gap.
+See the [LiveKit 1.13.11 TURN listener and peer policy](https://github.com/livekit/livekit/blob/v1.13.11/pkg/service/turn.go), the [LiveKit 1.13.11 configuration](https://github.com/livekit/livekit/blob/v1.13.11/config-sample.yaml), and the [HAProxy 3.4 configuration](https://docs.haproxy.org/3.4/configuration.html).
 
 ## Installation
 
@@ -54,7 +54,9 @@ The deployed Web application is served locally by the installation. No central Y
 
 ## Updates and backups
 
-Updates are manual and may disconnect conversations. Use versioned images and a release manifest tying AUTH, Go, Web, Electron protocol compatibility, and schema versions together.
+Updates are manual and may disconnect conversations. Use versioned images and a release manifest tying AUTH, Go, Web, desktop package versions, protocol compatibility, and schema versions together.
+
+Stage 1 starts PostgreSQL 19 with fresh volumes because there is no existing Yapper database to migrate. If upgrading a separate PostgreSQL 18 installation, keep the original volume and migrate both databases to a fresh PostgreSQL 19 volume before switching. Test the coordinated backup and restore with both database roles and verify owners, guest identities, and message history before promotion.
 
 Before updating, announce maintenance, stop new writes or use a documented coordinated consistency method, and back up both databases plus configuration, secrets, and signing material. Apply migrations in a defined order and run post-update smoke checks before returning to service.
 
@@ -72,11 +74,9 @@ A diagnostic export is operator-triggered, reviewed/redacted locally, and shared
 
 ## Client distribution
 
-Private distribution to friends comes first. Prepare Windows and macOS packages with manual update instructions and explicit signing status. Apple signing access exists; configuring credentials and signing artifacts is implementation work. Windows signing is not available at planning time.
+Private distribution to friends comes first. Prepare Rust/GPUI packages for Windows and Linux and an Electron package for macOS. Provide manual update instructions and record package signing or integrity verification by platform. Document how Windows and Linux users of the Electron development client can transition, including the treatment of saved servers and guest identities. Select supported Linux distributions and package formats during release preparation. Apple signing access exists for the macOS package. Windows signing is not available at planning time.
 
 Before public distribution, revisit installer signing/notarization, update trust, artifact integrity, supported architectures, and license selection. License selection is deferred because the current scope is private testing; do not invent a license or describe the project as open source without one.
-
-Reference: [Electron packaging and signing](https://www.electronjs.org/docs/latest/tutorial/tutorial-packaging).
 
 ## Repository history reset
 
