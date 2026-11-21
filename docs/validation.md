@@ -1,6 +1,6 @@
 # Validation and release evidence
 
-Stage 0 has passed its foundation checks. Stage 1 acceptance still covers public media, real calls, network recovery and the macOS Electron development flow. The [Stage 1 acceptance run](evidence/stage-1.md#next-steps-for-stage-1) is separate from [Stage 2 feature work](stage-2-plan.md). The first private release covers GPUI on Windows and Linux and Electron on macOS. Recorded results are in the [Stage 0 evidence](evidence/stage-0.md) and the [Stage 1 checkpoint](evidence/stage-1.md#current-status).
+Stages 0 and 1 have passed their acceptance gates. The first private release covers GPUI on Windows and Linux and Electron on macOS. See the [Stage 0 evidence](evidence/stage-0.md) and the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21).
 
 The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the current version baseline and compatibility exceptions. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
 

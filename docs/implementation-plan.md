@@ -1,8 +1,8 @@
 # Implementation plan
 
-**Stage 0 is complete. Stage 1 acceptance remains open. Stage 2 is in progress on its own branch.** The foundation and conversation changes landed in PRs #27 and #28. Public media and real-device acceptance still apply to Stage 1. The first private desktop release will use Rust and GPUI on Windows and Linux and Electron on macOS. See the [Stage 1 evidence](evidence/stage-1.md#current-status) and [Stage 2 plan](stage-2-plan.md).
+**Stages 0 and 1 are complete. Stage 2 is in progress.** The first private desktop release will use Rust and GPUI on Windows and Linux and Electron on macOS. See the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21) and the [Stage 2 plan](stage-2-plan.md).
 
-Stages use completion gates rather than dates. Stage 2 feature work may proceed on its own branch while Stage 1 waits for the acceptance run. Stage 1 acceptance remains separate. Keep changes reviewable.
+Stages use completion gates rather than dates. Each stage depends on the preceding stage unless stated otherwise. Keep changes reviewable.
 
 ## Stage 0 — Repository and compatibility foundation
 

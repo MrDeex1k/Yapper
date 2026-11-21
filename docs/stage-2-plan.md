@@ -1,6 +1,6 @@
 # Stage 2 implementation proposal
 
-**Status:** implementation approved. `feat/stage-2-community` is the target branch. The Stage 1 baseline was brought forward from `main`, and its acceptance run is deferred. Keep the work items below as separate reviewable commits on the target branch.
+**Status:** implementation approved. `feat/stage-2-community` is the target branch. The Stage 1 baseline was brought forward from `main`, and the maintainer has accepted it. Keep the work items below as separate reviewable commits on the target branch.
 
 ## Change sequence
 

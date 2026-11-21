@@ -86,6 +86,8 @@ Chat history is stored in PostgreSQL and transported by the application protocol
 
 Evaluate the LiveKit Rust SDK for the GPUI client. Verify that native signaling works through the public Go endpoint and that the client handles microphone permissions, audio input/output, direct media, TURN/TLS fallback, reconnect, and revocation. Choose and pin the media dependencies after the prototype validates the integration.
 
+Evaluate the LiveKit Rust SDK for the GPUI client. Verify that native signaling works through the public Go endpoint and that the client handles microphone permissions, audio input/output, direct media, TURN/TLS fallback, reconnect, and revocation. Choose and pin the media dependencies after the prototype validates the integration.
+
 ## Compatibility investigations
 
 The following are implementation gates, not requests to reopen approved product decisions:

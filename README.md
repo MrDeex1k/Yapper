@@ -2,7 +2,7 @@
 
 Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
 
-**Stage 1 is in acceptance testing.** The foundation and first conversation implementation are merged. Local setup, chat, voice admission, TURN/TLS and the Electron development client on macOS have test evidence. The next milestone is a two-person call with real microphones on a publicly reachable test server, including TURN fallback and recovery after a network interruption. The macOS Electron development package still needs installation checks. See the [current status and acceptance steps](docs/evidence/stage-1.md#current-status).
+**Stage 1 is complete.** The foundation and first conversation are implemented. Stage 2 is in progress on its feature branch. See the [Stage 1 acceptance record](docs/evidence/stage-1.md#acceptance-run--2026-11-21).
 
 Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
 

@@ -37,7 +37,7 @@ Executed on macOS arm64 with the pinned runtimes, Docker Compose 5.5.0, and OrbS
 - The AUTH, Go and ingress images built. A fresh Compose smoke test passed setup, login, guest admission, durable chat, retry deduplication, ban and session revocation. Guest identity and message history survived restarting PostgreSQL, AUTH and Go.
 - `pnpm test:turn` passed TLS routing, trusted certificate checks, authenticated TURN relay and peer policy. Electron 45.4.1 passed the native macOS development join and restore scenarios with an isolated renderer and OS-encrypted credentials.
 
-Public networking, two-person microphone calls, and desktop release installers remain outside this verification. The refresh leaves Stage 1 in acceptance.
+The dependency refresh did not cover public networking, real speech, or desktop release installers. Follow-up acceptance is recorded in the [Stage 1 evidence](stage-1.md#acceptance-run--2026-11-21).
 
 ## Bun tooling follow-up
 
