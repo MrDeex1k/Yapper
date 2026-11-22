@@ -1,221 +1,130 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  Room,
-  RoomEvent,
-  Track,
-  ConnectionState as MediaConnectionState,
-  type RemoteAudioTrack,
-  type RemoteParticipant,
-} from "livekit-client";
-import { request } from "./api";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createVoiceController, initialVoiceState, type AudioDeviceKind } from "./voice-controller";
 
-type VoiceState = "disconnected" | "connecting" | "connected" | "reconnecting";
-type VoiceParticipant = { identity: string; name: string; speaking: boolean };
-export function useVoice() {
-  const current = useRef<Room | null>(null);
-  const sounds = useRef(new Map<RemoteAudioTrack, HTMLMediaElement[]>());
-  const deafenedRef = useRef(false);
-  const busy = useRef(false);
-  const generation = useRef(0);
-  const mediaIdentity = useRef<string | null>(null);
-  const [status, setStatus] = useState<VoiceState>("disconnected");
-  const [channel, setChannel] = useState<string | null>(null);
-  const [muted, setMuted] = useState(true);
-  const [deafened, setDeafened] = useState(false);
-  const [error, setError] = useState(false);
-  const [audioBlocked, setAudioBlocked] = useState(false);
-  const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
-  function clearAudio() {
-    for (const [track, elements] of sounds.current) {
-      track.detach();
-      for (const element of elements) element.remove();
-    }
-    sounds.current.clear();
-  }
-  useEffect(
-    () => () => {
-      generation.current++;
-      const room = current.current;
-      current.current = null;
-      void room?.disconnect();
-      for (const [track, elements] of sounds.current) {
-        track.detach();
-        for (const element of elements) element.remove();
-      }
-      sounds.current.clear();
-    },
-    [],
-  );
-  async function leave() {
-    generation.current++;
-    const identity = mediaIdentity.current;
-    mediaIdentity.current = null;
-    const room = current.current;
-    current.current = null;
-    await room?.disconnect();
-    clearAudio();
-    setStatus("disconnected");
-    setChannel(null);
-    setParticipants([]);
-    setMuted(true);
-    setAudioBlocked(false);
-    await request("/api/v1/voice/leave", identity ? { identity } : {});
-  }
-  async function join(channelId: string) {
-    if (busy.current) return;
-    busy.current = true;
-    setError(false);
-    let operation = -1;
-    try {
-      if (current.current) await leave();
-      operation = ++generation.current;
-      setStatus("connecting");
-      const grant = await request<{
-        url: string;
-        token: string;
-        identity: string;
-        channelId: string;
-      }>("/api/v1/voice/grant", { channelId });
-      if (operation !== generation.current) {
-        await request("/api/v1/voice/leave", { identity: grant.identity });
-        return;
-      }
-      mediaIdentity.current = grant.identity;
-      const room = new Room({ adaptiveStream: false, dynacast: false });
-      current.current = room;
-      setChannel(channelId);
-      setMuted(true);
-      const update = () => {
-        if (current.current !== room) return;
-        setParticipants(
-          [room.localParticipant, ...room.remoteParticipants.values()].map((p) => ({
-            identity: p.identity,
-            name: p.name || p.identity,
-            speaking: p.isSpeaking,
-          })),
-        );
-      };
-      room
-        .on(RoomEvent.ParticipantConnected, update)
-        .on(RoomEvent.ParticipantDisconnected, update)
-        .on(RoomEvent.ActiveSpeakersChanged, update);
-      room.on(RoomEvent.TrackSubscribed, (track, _publication, _participant: RemoteParticipant) => {
-        if (track.kind !== Track.Kind.Audio) return;
-        const audio = track as RemoteAudioTrack;
-        const element = audio.attach();
-        element.className = "remote-audio";
-        element.muted = deafenedRef.current;
-        document.body.append(element);
-        sounds.current.set(audio, [element]);
-      });
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        if (track.kind !== Track.Kind.Audio) return;
-        const audio = track as RemoteAudioTrack;
-        for (const element of sounds.current.get(audio) ?? []) element.remove();
-        audio.detach();
-        sounds.current.delete(audio);
-      });
-      room.on(RoomEvent.ConnectionStateChanged, (state) => {
-        if (current.current !== room) return;
-        setStatus(
-          state === MediaConnectionState.Connected
-            ? "connected"
-            : state === MediaConnectionState.Reconnecting ||
-                state === MediaConnectionState.SignalReconnecting
-              ? "reconnecting"
-              : state === MediaConnectionState.Connecting
-                ? "connecting"
-                : "disconnected",
-        );
-      });
-      room.on(RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio));
-      room.on(RoomEvent.Disconnected, () => {
-        if (current.current === room) {
-          current.current = null;
-          clearAudio();
-          setStatus("disconnected");
-          setChannel(null);
-          setParticipants([]);
-          setMuted(true);
-        }
-      });
-      await room.connect(grant.url, grant.token);
-      if (operation !== generation.current) {
-        await room.disconnect();
-        return;
-      }
-      update();
-      // Joining listens first. Microphone capture starts only after an explicit unmute.
-      await room.startAudio();
-      if (operation !== generation.current) return;
-      setAudioBlocked(!room.canPlaybackAudio);
-    } catch {
-      if (operation !== -1 && operation !== generation.current) return;
-      const room = current.current;
-      current.current = null;
-      await room?.disconnect();
-      clearAudio();
-      setStatus("disconnected");
-      setChannel(null);
-      setError(true);
-      try {
-        const identity = mediaIdentity.current;
-        mediaIdentity.current = null;
-        if (identity) await request("/api/v1/voice/leave", { identity });
-      } catch {
-        /* The server also reconciles revoked membership. */
-      }
-    } finally {
-      busy.current = false;
-    }
-  }
-  async function toggleMute() {
-    const room = current.current;
-    if (!room) return;
-    setError(false);
-    try {
-      await room.localParticipant.setMicrophoneEnabled(muted);
-      setMuted(!room.localParticipant.isMicrophoneEnabled);
-    } catch {
-      setError(true);
-    }
-  }
-  async function toggleDeafen() {
-    const next = !deafenedRef.current;
-    if (next && current.current) {
-      try {
-        await current.current.localParticipant.setMicrophoneEnabled(false);
-        setMuted(true);
-      } catch {
-        setError(true);
-        return;
+const desktopPointer = "(pointer: fine) and (hover: hover)";
+const editableTarget = "input,textarea,select,[contenteditable]:not([contenteditable=false])";
+
+function subscribeToPointer(change: () => void) {
+  const query = window.matchMedia(desktopPointer);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+}
+
+function hasDesktopPointer() {
+  return Boolean(window.yapperDesktop) || window.matchMedia(desktopPointer).matches;
+}
+
+function useKeyboardAvailability() {
+  const desktop = useSyncExternalStore(subscribeToPointer, hasDesktopPointer);
+  const [usedKeyboard, setUsedKeyboard] = useState(false);
+  useEffect(() => {
+    if (usedKeyboard) return;
+    function detectKeyboard(event: KeyboardEvent) {
+      if (
+        event.isTrusted &&
+        event.key === "Tab" &&
+        !event.isComposing &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !(event.target instanceof Element && event.target.closest(editableTarget))
+      ) {
+        setUsedKeyboard(true);
       }
     }
-    deafenedRef.current = next;
-    setDeafened(next);
-    for (const elements of sounds.current.values())
-      for (const element of elements) element.muted = next;
-  }
-  async function startAudio() {
-    try {
-      await current.current?.startAudio();
-      setAudioBlocked(false);
-    } catch {
-      setError(true);
-    }
-  }
+    window.addEventListener("keydown", detectKeyboard, true);
+    return () => window.removeEventListener("keydown", detectKeyboard, true);
+  }, [usedKeyboard]);
+  return desktop || usedKeyboard;
+}
+
+export function useVoice(forcedMuted = false, kicked = false) {
+  const controller = useRef<ReturnType<typeof createVoiceController> | null>(null);
+  const [state, setState] = useState(initialVoiceState);
+  const canUsePushToTalk = useKeyboardAvailability();
+  const pushToTalk = canUsePushToTalk && state.pushToTalk;
+  useEffect(() => {
+    const voice = createVoiceController(setState);
+    controller.current = voice;
+    return () => {
+      controller.current = null;
+      voice.dispose();
+    };
+  }, []);
+  useEffect(() => {
+    controller.current?.setForcedMuted(forcedMuted);
+  }, [forcedMuted]);
+  useEffect(() => {
+    if (kicked) void controller.current?.leave();
+  }, [kicked]);
+  useEffect(() => {
+    if (!canUsePushToTalk && state.pushToTalk) controller.current?.setPushToTalk(false);
+  }, [canUsePushToTalk, state.pushToTalk]);
+  useEffect(() => {
+    if (!pushToTalk || state.status !== "connected") return;
+    const events = new AbortController();
+    const { signal } = events;
+    const release = () => controller.current?.press(false);
+    window.addEventListener("blur", release, { signal });
+    window.addEventListener("pagehide", release, { signal });
+    document.addEventListener("visibilitychange", release, { signal });
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.code !== "Space" ||
+          event.repeat ||
+          event.isComposing ||
+          event.defaultPrevented ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          document.hidden
+        )
+          return;
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest(`${editableTarget},button,a,summary,[role=button],[role=slider]`)
+        )
+          return;
+        event.preventDefault();
+        controller.current?.press(true);
+      },
+      { signal },
+    );
+    window.addEventListener(
+      "keyup",
+      (event) => {
+        if (event.code === "Space") release();
+      },
+      { signal },
+    );
+    return () => {
+      events.abort();
+      release();
+    };
+  }, [pushToTalk, state.status]);
+
   return {
-    status,
-    channel,
-    muted,
-    deafened,
-    error,
-    audioBlocked,
-    participants,
-    join,
-    leave,
-    toggleMute,
-    toggleDeafen,
-    startAudio,
+    ...state,
+    canUsePushToTalk,
+    pushToTalk,
+    join: async (channel: string) => {
+      if (!kicked) await controller.current?.join(channel);
+    },
+    leave: async () => controller.current?.leave(),
+    toggleMute: () => controller.current?.toggleMute(),
+    toggleDeafen: () => controller.current?.toggleDeafen(),
+    setPushToTalk: (enabled: boolean) => {
+      if (!enabled || canUsePushToTalk) controller.current?.setPushToTalk(enabled);
+    },
+    setVolume: (identity: string, volume: number) =>
+      controller.current?.setVolume(identity, volume),
+    setDevice: (kind: AudioDeviceKind, id: string) => controller.current?.setDevice(kind, id),
+    refreshDevices: () => controller.current?.refreshDevices(),
+    pickOutput: () => controller.current?.pickOutput(),
+    startAudio: () => controller.current?.startAudio(),
   };
 }

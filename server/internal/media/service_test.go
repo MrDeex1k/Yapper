@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -19,6 +20,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/livekit/protocol/livekit"
+	"github.com/twitchtv/twirp"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestSelfHostedReplayGate(t *testing.T) {
@@ -59,11 +62,11 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invite, err := store.Invite(ctx, owner.ID)
+	invite, err := store.Invite(ctx, owner.ID, community.InvitationOptions{ExpiresInHours: 24, MaxUses: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	guest, _, err := store.Guest(ctx, "friend", invite)
+	guest, _, err := store.Guest(ctx, "friend", invite, netip.Addr{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +88,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	defer service.Close()
 	proxy := httptest.NewServer(service)
 	defer proxy.Close()
-	grant, err := service.Grant(ctx, guest.ID, channel, "", "")
+	grant, err := service.Grant(ctx, guest, channel, "", "", "")
 	if err != nil {
 		t.Fatal("grant failed", err)
 	}
@@ -99,7 +102,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	if _, _, err = connection.Read(ctx); err != nil {
 		t.Fatal("LiveKit did not send join response")
 	}
-	if err = store.Ban(ctx, owner.ID, guest.ID); err != nil {
+	if _, err = store.Moderate(ctx, owner.ID, guest.ID, community.Ban, false); err != nil {
 		t.Fatal(err)
 	}
 	if err = service.Revoke(ctx, guest.ID); err != nil {
@@ -116,9 +119,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		}
 	}
 	cancelClose()
-	if _, err = service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: grant.Identity}); err == nil {
-		t.Fatal("revoked participant remains in LiveKit")
-	}
+	requireRemoved(t, ctx, service, channel, grant.Identity)
 
 	replay, response, err := websocket.Dial(ctx, address, &websocket.DialOptions{HTTPHeader: header})
 	if err == nil {
@@ -128,7 +129,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 	if response == nil || response.StatusCode != 403 {
 		t.Fatal("replay was not rejected at admission")
 	}
-	if _, err = service.Grant(ctx, guest.ID, channel, "", ""); err == nil {
+	if _, err = service.Grant(ctx, guest, channel, "", "", ""); err == nil {
 		t.Fatal("banned participant obtained a new grant")
 	}
 	// Verify the premise against the pinned real server: its private endpoint
@@ -172,7 +173,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer registered.Close()
-		ownerGrant, err := registered.Grant(ctx, owner.ID, channel, "owner", "session")
+		ownerGrant, err := registered.Grant(ctx, owner, channel, "owner", "session", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,9 +202,7 @@ func TestSelfHostedReplayGate(t *testing.T) {
 		if _, err := store.VoiceSession(ctx, ownerGrant.Identity); !errors.Is(err, community.ErrDenied) {
 			t.Fatal("revoked account retained voice")
 		}
-		if _, err := registered.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: ownerGrant.Identity}); err == nil {
-			t.Fatal("revoked account remains in LiveKit")
-		}
+		requireRemoved(t, ctx, registered, channel, ownerGrant.Identity)
 		denied, response, err := websocket.Dial(ctx, ownerAddress, &websocket.DialOptions{HTTPHeader: header})
 		if err == nil {
 			denied.CloseNow()
@@ -213,5 +212,230 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatal("revoked account replay was not denied")
 		}
 	})
+	t.Run("switching rooms removes the old identity before admitting its replacement", func(t *testing.T) {
+		invitation, err := store.Invite(ctx, owner.ID, community.InvitationOptions{MaxUses: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		switcher, _, err := store.Guest(ctx, "switcher", invitation, netip.Addr{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.SaveChannel(ctx, owner.ID, "", "Second voice", "voice", ""); err != nil {
+			t.Fatal(err)
+		}
+		channels, err := store.Channels(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nextChannel string
+		for _, item := range channels {
+			if item.Name == "Second voice" {
+				nextChannel = item.ID
+			}
+		}
+		connect := func(grant Grant) (*websocket.Conn, *http.Response, error) {
+			address := "ws" + strings.TrimPrefix(proxy.URL, "http") + "/livekit/rtc?protocol=15&access_token=" + url.QueryEscape(grant.Token)
+			return websocket.Dial(ctx, address, &websocket.DialOptions{HTTPHeader: header})
+		}
+		enter := func(channelID string) Grant {
+			t.Helper()
+			grant, err := service.Grant(ctx, switcher, channelID, "", "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ws, _, err := connect(grant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = ws.CloseNow() })
+			if _, _, err := ws.Read(ctx); err != nil {
+				t.Fatal(err)
+			}
+			return grant
+		}
+		previous := enter(channel)
+		if _, err := service.Grant(ctx, switcher, nextChannel, "", "", previous.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("automatic recovery switched rooms: %v", err)
+		}
+
+		replacement := enter(nextChannel)
+		requireRemoved(t, ctx, service, channel, previous.Identity)
+		if replay, res, err := connect(previous); err == nil || res == nil || res.StatusCode != 403 {
+			if replay != nil {
+				_ = replay.CloseNow()
+			}
+			t.Fatalf("old grant was not rejected: %v", err)
+		}
+		if err := service.Leave(ctx, switcher.ID, previous.Identity); err != nil {
+			t.Fatal(err)
+		}
+		if m, err := store.VoiceSession(ctx, replacement.Identity); err != nil || m.ChannelID != nextChannel {
+			t.Fatalf("stale leave changed the replacement grant: %+v %v", m, err)
+		}
+		if _, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: nextChannel, Identity: replacement.Identity}); err != nil {
+			t.Fatal("replacement missing in LiveKit", err)
+		}
+		recovered, err := service.Grant(ctx, switcher, nextChannel, "", "", replacement.Identity)
+		if err != nil || recovered.Identity == replacement.Identity {
+			t.Fatalf("automatic recovery did not rotate the media grant: %+v %v", recovered, err)
+		}
+		if _, err := service.Grant(ctx, switcher, nextChannel, "", "", replacement.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("replaced media identity authorized automatic recovery: %v", err)
+		}
+		if err := service.Leave(ctx, switcher.ID, recovered.Identity); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("force mute removes the publishing session and preserves listen access", func(t *testing.T) {
+		invite, err := store.Invite(ctx, owner.ID, community.InvitationOptions{MaxUses: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		speaker, _, err := store.Guest(ctx, "speaker", invite, netip.Addr{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		dial := func(grant Grant) (*websocket.Conn, *http.Response, error) {
+			address := "ws" + strings.TrimPrefix(proxy.URL, "http") + "/livekit/rtc?access_token=" + url.QueryEscape(grant.Token) + "&protocol=15&auto_subscribe=1"
+			return websocket.Dial(ctx, address, &websocket.DialOptions{HTTPHeader: header})
+		}
+		join := func(grant Grant, publish bool) *websocket.Conn {
+			t.Helper()
+			ws, _, err := dial(grant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = ws.CloseNow() })
+			if _, _, err := ws.Read(ctx); err != nil {
+				t.Fatal("join response:", err)
+			}
+			member, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: grant.Identity})
+			if err != nil || member.GetPermission().GetCanPublish() != publish || !member.GetPermission().GetCanSubscribe() {
+				t.Fatalf("LiveKit join permissions=%v, err=%v, publish wanted=%v", member.GetPermission(), err, publish)
+			}
+			return ws
+		}
+		grantFor := func(publish bool) Grant {
+			t.Helper()
+			grant, err := service.Grant(ctx, speaker, channel, "", "", "")
+			if err != nil || grant.CanPublish != publish {
+				t.Fatalf("grant permission=%v err=%v, publish wanted=%v", grant.CanPublish, err, publish)
+			}
+			return grant
+		}
+		apply := func(action community.ModerationAction) {
+			t.Helper()
+			sessions, err := store.Moderate(ctx, owner.ID, speaker.ID, action, false)
+			if err != nil || len(sessions) != 1 {
+				t.Fatalf("revocations=%d err=%v", len(sessions), err)
+			}
+			service.FinishRevocations(ctx, sessions)
+		}
+		requestTrack := func(ws *websocket.Conn, wantPublished bool) {
+			t.Helper()
+			data, err := proto.Marshal(&livekit.SignalRequest{Message: &livekit.SignalRequest_AddTrack{
+				AddTrack: &livekit.AddTrackRequest{Cid: "test-mic", Name: "test-mic", Type: livekit.TrackType_AUDIO, Source: livekit.TrackSource_MICROPHONE},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+				t.Fatal(err)
+			}
+			probe, stop := context.WithCancel(ctx)
+			t.Cleanup(stop)
+			read := make(chan error, 1)
+			go func() {
+				for {
+					_, data, err := ws.Read(probe)
+					if err != nil {
+						read <- err
+						return
+					}
+					var response livekit.SignalResponse
+					if err := proto.Unmarshal(data, &response); err != nil {
+						read <- err
+						return
+					}
+					if response.GetTrackPublished() != nil {
+						read <- nil
+						return
+					}
+				}
+			}()
+			wait := 2 * time.Second
+			if !wantPublished {
+				wait = 750 * time.Millisecond
+			}
+			select {
+			case err := <-read:
+				if err != nil {
+					t.Fatal("signaling probe failed:", err)
+				}
+				if !wantPublished {
+					t.Fatal("LiveKit accepted a microphone track from a listen-only participant")
+				}
+			case <-time.After(wait):
+				if wantPublished {
+					t.Fatal("control publication was not accepted")
+				}
+				// LiveKit can deny AddTrack silently. Require a live peer to answer.
+				ping, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				if err := ws.Ping(ping); err != nil {
+					t.Fatal("listener stopped responding during the publication probe:", err)
+				}
+				select {
+				case err := <-read:
+					t.Fatalf("listener probe ended unexpectedly: %v", err)
+				default:
+				}
+			case <-ctx.Done():
+				t.Fatal("publication probe exceeded the test deadline:", ctx.Err())
+			}
+		}
+		before := grantFor(true)
+		active := join(before, true)
+		requestTrack(active, true)
+		apply(community.Mute)
+		if _, err := service.Grant(ctx, speaker, channel, "", "", before.Identity); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("moderated grant authorized automatic recovery: %v", err)
+		}
+		requireRemoved(t, ctx, service, channel, before.Identity)
+		if replay, response, err := dial(before); err == nil || response == nil || response.StatusCode != 403 {
+			if replay != nil {
+				_ = replay.CloseNow()
+			}
+			t.Fatalf("forced mute did not deny old publishing grant: %v", err)
+		}
+		listenerGrant := grantFor(false)
+		listener := join(listenerGrant, false)
+		requestTrack(listener, false)
+		member, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: channel, Identity: listenerGrant.Identity})
+		if err != nil || len(member.GetTracks()) != 0 {
+			t.Fatalf("listen-only participant state after publication probe: tracks=%d, err=%v", len(member.GetTracks()), err)
+		}
+		apply(community.Unmute)
+		restored := grantFor(true)
+		join(restored, true)
+		if err := store.ArchiveChannel(ctx, owner.ID, channel); err != nil {
+			t.Fatal(err)
+		}
+		service.reconcileOnce(ctx)
+		requireRemoved(t, ctx, service, channel, restored.Identity)
+		if _, err := service.Grant(ctx, speaker, channel, "", "", ""); !errors.Is(err, community.ErrDenied) {
+			t.Fatalf("archived channel admitted a grant: %v", err)
+		}
+	})
 	t.Log("Real LiveKit accepts a revoked token directly; Yapper ingress rejects it and closes the previous connection.")
+}
+
+func requireRemoved(t *testing.T, ctx context.Context, service *Service, room, identity string) {
+	t.Helper()
+	_, err := service.room.GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: room, Identity: identity})
+	if rpc, ok := errors.AsType[twirp.Error](err); !ok || rpc.Code() != twirp.NotFound {
+		t.Fatalf("LiveKit did not confirm participant removal: %v", err)
+	}
 }

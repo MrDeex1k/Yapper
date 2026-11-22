@@ -139,10 +139,11 @@ try {
     join(dir, "Caddyfile"),
     `{
     auto_https off
+    import /etc/caddy/proxy.d/*
   }
   https://web.yapper.test {
     tls /test-certs/fullchain.pem /test-certs/privkey.pem
-    respond "https-route-ok"
+    respond "https-route-ok {http.request.remote.host}"
   }
   `,
   );
@@ -155,8 +156,10 @@ try {
     service.restart = "no";
   }
   const turnNetwork = livekit.networks?.["turn-proxy"];
-  assert(turnNetwork);
+  const ingressNetwork = ingress.networks?.["turn-proxy"];
+  assert(turnNetwork && ingressNetwork);
   turnNetwork.ipv4_address = "172.30.245.3";
+  ingressNetwork.ipv4_address = "172.30.245.5";
   // Only the isolated test subnet can be a private relay peer. Production
   // retains LiveKit's default denial of private/loopback/link-local peers.
   assert(livekit.environment?.LIVEKIT_CONFIG);
@@ -164,7 +167,12 @@ try {
     "  enabled: true\n",
     "  enabled: true\n  allow_restricted_peer_cidrs: [172.30.245.0/29]\n",
   );
+  const proxyConfig = ingress.volumes?.find(
+    (volume) => volume.target === "/etc/caddy/proxy.d/turn.caddyfile",
+  );
+  assert(proxyConfig);
   ingress.volumes = [
+    proxyConfig,
     {
       type: "bind",
       source: join(dir, "Caddyfile"),
@@ -198,11 +206,10 @@ try {
   // Pull only upstream images; the ingress image must have been built locally.
   run("docker", [...compose, "pull", "livekit", "tls-router"], { stdio: "inherit" });
   created = true;
-  run(
-    "docker",
-    [...compose, "up", "-d", "--wait", "--wait-timeout", "30", "livekit", "ingress", "tls-router"],
-    { stdio: "inherit" },
-  );
+  run("docker", [...compose, "up", "-d", "tls-router"], { stdio: "inherit" });
+  run("docker", [...compose, "up", "-d", "--wait", "--wait-timeout", "30", "livekit", "ingress"], {
+    stdio: "inherit",
+  });
   run(
     "docker",
     [

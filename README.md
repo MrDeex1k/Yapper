@@ -2,7 +2,7 @@
 
 Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
 
-**Stage 1 is complete.** The foundation and first conversation are implemented. Stage 2 is in progress on its feature branch. See the [Stage 1 acceptance record](docs/evidence/stage-1.md#acceptance-run--2026-11-21).
+**Stage 2 has passed acceptance.** The community features and the Windows/Linux GPUI prototype are implemented. See the [Stage 2 acceptance record](docs/evidence/stage-2-acceptance.md).
 
 Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
 
@@ -20,7 +20,7 @@ The initial plan was approved on 2026-09-28. The [native desktop decision](docs/
 
 ## Planned first private release
 
-The first private release is planned to include text and voice channels, persistent message history, invitations, moderation, and local administration. The target clients are desktop and mobile browsers, Rust/GPUI on Windows and Linux, and Electron on macOS. The Astro landing currently has Polish and English status pages. Download links and installation guidance are part of release preparation.
+The first private release is planned to include text and voice channels, persistent message history, invitations, moderation, and local administration. The target clients are desktop and mobile browsers, including browsers on macOS, and native Rust/GPUI on Windows and Linux. The Astro landing currently has Polish and English status pages. Download links and installation guidance are part of release preparation.
 
 Native mobile clients, a Rust terminal client, and a dedicated Swift macOS client follow after the first release is stabilized. Additional communication features are prioritized from real usage.
 
@@ -44,6 +44,6 @@ pnpm check
 pnpm test:integration
 ```
 
-Integration tests create disposable schemas/accounts in the development databases and exercise local LiveKit. Never point them at production. `pnpm build` builds clients and services. For a local Electron smoke launch, run `pnpm --filter @yapper/desktop exec install-electron` once, then `pnpm --filter @yapper/desktop start`. This is not an installer or release package. Electron serves its bundled renderer and API gateway from one loopback HTTP origin. Select the server in the application; credentials remain isolated in the main process. The foundation-only `YAPPER_API_ORIGIN` preview setting is superseded by this server picker.
+Integration tests create disposable schemas/accounts in the development databases and exercise local LiveKit. Never point them at production. `pnpm build` builds clients and services. See the [GPUI prototype](apps/desktop-gpui/README.md) for native build and smoke-test instructions.
 
 The existing GitHub repository is retained; its default branch now has a new root history. See [reset evidence](docs/evidence/stage-0.md#repository-reset).

@@ -66,12 +66,11 @@ The initial supported products are:
 
 - Responsive Web on desktop and mobile, including desktop Safari, Chrome/Edge, Firefox, Safari on iOS/iPadOS, and Chrome on Android.
 - A native Rust application with a GPUI interface on Windows and Linux, using the same server contract as Web.
-- Electron on macOS, using the shared React interface for the first private release.
 - An independent Astro project landing page containing product information, installation guidance, and download links. A self-hosted community opens the communicator directly.
 
-Record supported OS/browser versions, CPU architectures, and Linux distributions or desktop sessions in the first-release platform matrix after validation.
+The first private release supports macOS through Web. Record supported OS/browser versions, CPU architectures, and Linux distributions or desktop sessions in the first-release platform matrix after validation.
 
-After stabilization, the roadmap is native Swift clients for iOS/iPadOS and Kotlin/Jetpack Compose clients for Android phones/tablets, then a Rust/Ratatui terminal client, then a dedicated Swift macOS client to replace Electron. The terminal client's precise voice and accessibility capabilities are scoped when that stage starts.
+After stabilization, the roadmap is native Swift clients for iOS/iPadOS and Kotlin/Jetpack Compose clients for Android phones/tablets, then a Rust/Ratatui terminal client, then a dedicated Swift macOS client. The terminal client's precise voice and accessibility capabilities are scoped when that stage starts.
 
 ## Privacy and distribution
 

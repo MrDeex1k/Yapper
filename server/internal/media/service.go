@@ -52,10 +52,11 @@ func (b *trackedBody) Close() error {
 }
 
 type Grant struct {
-	URL       string `json:"url"`
-	Token     string `json:"token"`
-	Identity  string `json:"identity"`
-	ChannelID string `json:"channelId"`
+	URL        string `json:"url"`
+	Token      string `json:"token"`
+	Identity   string `json:"identity"`
+	ChannelID  string `json:"channelId"`
+	CanPublish bool   `json:"canPublish"`
 }
 
 func New(store *community.Store, auth *identity.AuthClient, endpoint, key, secret, origin string) (*Service, error) {
@@ -65,18 +66,20 @@ func New(store *community.Store, auth *identity.AuthClient, endpoint, key, secre
 	}
 	return &Service{store: store, auth: auth, key: key, secret: secret, origin: origin, target: target, room: lksdk.NewRoomServiceClient(endpoint, key, secret), connections: map[string]map[*trackedBody]struct{}{}}, nil
 }
-func (s *Service) Grant(ctx context.Context, id, channel, subject, sessionID string) (Grant, error) {
-	m, err := s.store.StartVoice(ctx, id, channel, subject, sessionID, s.remove)
+func (s *Service) Grant(ctx context.Context, actor community.Participant, channel, subject, sessionID, resumeIdentity string) (Grant, error) {
+	m, err := s.store.StartVoice(ctx, actor, channel, subject, sessionID, resumeIdentity, identity.ClientAddress(ctx), s.remove)
 	if err != nil {
 		return Grant{}, err
 	}
-	grant := &lkauth.VideoGrant{RoomJoin: true, Room: m.ChannelID, CanPublish: new(true), CanSubscribe: new(true), CanPublishData: new(false), CanUpdateOwnMetadata: new(false)}
-	grant.SetCanPublishSources([]livekit.TrackSource{livekit.TrackSource_MICROPHONE})
+	grant := &lkauth.VideoGrant{RoomJoin: true, Room: m.ChannelID, CanPublish: new(!m.MicMuted), CanSubscribe: new(true), CanPublishData: new(false), CanUpdateOwnMetadata: new(false)}
+	if !m.MicMuted {
+		grant.SetCanPublishSources([]livekit.TrackSource{livekit.TrackSource_MICROPHONE})
+	}
 	token, err := lkauth.NewAccessToken(s.key, s.secret).SetIdentity(m.Identity).SetName(m.Nickname).SetVideoGrant(grant).SetValidFor(60 * time.Second).ToJWT()
 	if err != nil {
 		return Grant{}, err
 	}
-	return Grant{URL: strings.Replace(s.origin, "http", "ws", 1) + "/livekit", Token: token, Identity: m.Identity, ChannelID: m.ChannelID}, nil
+	return Grant{URL: strings.Replace(s.origin, "http", "ws", 1) + "/livekit", Token: token, Identity: m.Identity, ChannelID: m.ChannelID, CanPublish: !m.MicMuted}, nil
 }
 func (s *Service) Revoke(ctx context.Context, id string) error {
 	m, err := s.store.RevokeVoice(ctx, id)
@@ -91,6 +94,21 @@ func (s *Service) Revoke(ctx context.Context, id string) error {
 	}
 	return s.store.ForgetVoice(ctx, m.Identity)
 }
+
+// FinishRevocations removes the exact grants invalidated by a community transaction.
+func (s *Service) FinishRevocations(ctx context.Context, sessions []community.MediaSession) {
+	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	for _, session := range sessions {
+		if bounded.Err() != nil {
+			return
+		}
+		if s.remove(bounded, session) == nil {
+			_ = s.store.ForgetVoice(bounded, session.Identity)
+		}
+	}
+}
+
 func (s *Service) remove(ctx context.Context, m community.MediaSession) error {
 	s.mu.Lock()
 	connections := s.connections[m.Identity]
@@ -144,6 +162,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m, err := s.current(r.Context(), claims.Subject)
+	if err == nil && m.AuthSubject == "" {
+		err = s.store.CheckGuestAddress(r.Context(), identity.ClientAddress(r.Context()))
+	}
 	if err != nil || m.ChannelID != claims.Video.Room {
 		http.Error(w, "access denied", 403)
 		return
@@ -165,13 +186,19 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return errors.New("invalid media upgrade")
 			}
-			// Register and recheck under the same lock used by moderation. A handshake
-			// authorized before a concurrent ban cannot become an untracked live socket.
+			// Serialize tracking with connection removal. The store separately orders
+			// guest addresses and IP blocks inside PostgreSQL transactions.
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			if _, err := s.current(r.Context(), m.Identity); err != nil {
 				_ = body.Close()
 				return errors.New("media membership revoked")
+			}
+			if m.AuthSubject == "" {
+				if err := s.store.RecordVoiceAddress(r.Context(), m.Identity, identity.ClientAddress(r.Context())); err != nil {
+					_ = body.Close()
+					return err
+				}
 			}
 			tracked := &trackedBody{ReadWriteCloser: body, service: s, identity: m.Identity}
 			if s.connections[m.Identity] == nil {

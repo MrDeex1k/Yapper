@@ -162,6 +162,48 @@
         ]
       }
     },
+    "/api/v1/admission": {
+      "post": {
+        "operationId": "setAdmission",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdmissionSettings"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/invitations": {
       "post": {
         "operationId": "invite",
@@ -189,10 +231,90 @@
         },
         "security": [
           {
-            "guestCookie": []
+            "accountJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationInput"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "invitations",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitations"
+                }
+              }
+            }
           },
+          "default": {
+            "description": "Stable error code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/invitations/{id}/revoke": {
+      "post": {
+        "operationId": "revokeInvitation",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationRevoked"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ]
       }
@@ -439,6 +561,11 @@
                   "channelId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "resumeIdentity": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "Only replace this current, unrevoked media identity in the same channel."
                   }
                 }
               }
@@ -504,6 +631,1010 @@
           }
         }
       }
+    },
+    "/api/v1/categories": {
+      "post": {
+        "operationId": "createCategory",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/categories/{id}": {
+      "post": {
+        "operationId": "saveCategory",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/categories/{id}/move": {
+      "post": {
+        "operationId": "moveCategory",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/channels": {
+      "post": {
+        "operationId": "createChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChannelInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}": {
+      "post": {
+        "operationId": "saveChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patchChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}/move": {
+      "post": {
+        "operationId": "moveChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}/archive": {
+      "post": {
+        "operationId": "archiveChannel",
+        "responses": {
+          "200": {
+            "description": "Catalog updated or already in the requested state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner, resource or origin authorization failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/participants": {
+      "get": {
+        "operationId": "listMembers",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/moderators": {
+      "post": {
+        "operationId": "provisionModerator",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeratorInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/participants/{id}/moderate": {
+      "post": {
+        "operationId": "moderateMember",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationSaved"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationAction"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/moderation/audit": {
+      "get": {
+        "operationId": "getModerationAudit",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationAudit"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authorization, moderation, or origin check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}/timeline": {
+      "get": {
+        "operationId": "timeline",
+        "security": [
+          {
+            "guestCookie": []
+          },
+          {
+            "accountJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}/messages/changes": {
+      "get": {
+        "operationId": "messageChanges",
+        "security": [
+          {
+            "guestCookie": []
+          },
+          {
+            "accountJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageChanges"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "description": "Returns up to 100 changes in ascending revision order. Apply each batch and use its last revision as the next after cursor. Continue until a batch contains fewer than 100 changes."
+      }
+    },
+    "/api/v1/channels/{id}/messages/{message}/edit": {
+      "post": {
+        "operationId": "editMessage",
+        "security": [
+          {
+            "guestCookie": []
+          },
+          {
+            "accountJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSaved"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "message",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageEdit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/channels/{id}/messages/{message}/delete": {
+      "post": {
+        "operationId": "deleteMessage",
+        "security": [
+          {
+            "guestCookie": []
+          },
+          {
+            "accountJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSaved"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "message",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/message-retention": {
+      "get": {
+        "operationId": "messageRetention",
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageRetention"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "setMessageRetention",
+        "security": [
+          {
+            "accountJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageRetention"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable error code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageRetention"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -548,9 +1679,12 @@
           "role": {
             "type": "string",
             "enum": ["owner", "moderator", "participant"]
+          },
+          "micMuted": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "nickname", "role"]
+        "required": ["id", "nickname", "role", "micMuted"]
       },
       "Channel": {
         "type": "object",
@@ -566,9 +1700,16 @@
           "kind": {
             "type": "string",
             "enum": ["text", "voice"]
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Category UUID, or an empty string for uncategorized."
+          },
+          "archived": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "name", "kind"]
+        "required": ["id", "name", "kind", "categoryId", "archived"]
       },
       "Message": {
         "type": "object",
@@ -603,6 +1744,15 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         },
         "required": [
@@ -613,7 +1763,8 @@
           "nickname",
           "requestId",
           "body",
-          "createdAt"
+          "createdAt",
+          "revision"
         ]
       },
       "SetupInput": {
@@ -627,7 +1778,8 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "Password length is measured in Unicode code points."
           },
           "name": {
             "type": "string"
@@ -646,7 +1798,7 @@
             "type": "string"
           }
         },
-        "required": ["nickname", "invitation"]
+        "required": ["nickname"]
       },
       "SendInput": {
         "type": "object",
@@ -674,9 +1826,18 @@
             "items": {
               "$ref": "#/components/schemas/Channel"
             }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "account": {
+            "type": "boolean"
           }
         },
-        "required": ["participant", "channels"]
+        "required": ["participant", "channels", "categories", "account"]
       },
       "History": {
         "type": "object",
@@ -707,13 +1868,17 @@
         "properties": {
           "token": {
             "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
-        "required": ["token"]
+        "required": ["id", "token"]
       },
       "VoiceGrant": {
         "type": "object",
-        "required": ["url", "token", "identity", "channelId"],
+        "required": ["url", "token", "identity", "channelId", "canPublish"],
         "properties": {
           "url": {
             "type": "string"
@@ -726,8 +1891,454 @@
           },
           "channelId": {
             "type": "string"
+          },
+          "canPublish": {
+            "type": "boolean"
           }
         }
+      },
+      "AdmissionSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "openAdmission": {
+            "type": "boolean"
+          }
+        },
+        "required": ["openAdmission"]
+      },
+      "InvitationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expiresInHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 876000,
+            "description": "Zero removes the expiration. Defaults to 24 when omitted."
+          },
+          "maxUses": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "description": "Zero removes the usage limit. Defaults to 1 when omitted."
+          }
+        }
+      },
+      "InvitationSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "remaining": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "createdAt", "expiresAt", "remaining", "revoked"]
+      },
+      "Invitations": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationSummary"
+            }
+          }
+        },
+        "required": ["invitations"]
+      },
+      "InvitationRevoked": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revoked": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["revoked"]
+      },
+      "Category": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name"]
+      },
+      "CategoryInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": ["name"]
+      },
+      "ChannelInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "categoryId": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
+      "MoveInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "type": "integer",
+            "enum": [-1, 1]
+          }
+        },
+        "required": ["direction"]
+      },
+      "CatalogSaved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": ["saved"]
+      },
+      "CreateChannelInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["text", "voice"]
+          }
+        },
+        "required": ["name", "kind"]
+      },
+      "Member": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["owner", "moderator", "participant"]
+          },
+          "micMuted": {
+            "type": "boolean"
+          },
+          "banned": {
+            "type": "boolean"
+          },
+          "registered": {
+            "type": "boolean"
+          },
+          "canBlockIp": {
+            "type": "boolean"
+          },
+          "ipBlocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "role",
+          "micMuted",
+          "banned",
+          "registered",
+          "canBlockIp",
+          "ipBlocked"
+        ]
+      },
+      "MemberPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            }
+          },
+          "next": {
+            "type": "string",
+            "description": "Cursor UUID or empty when exhausted."
+          }
+        },
+        "required": ["members", "next"]
+      },
+      "ModerationAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "kick",
+              "ban",
+              "unban",
+              "mute",
+              "unmute",
+              "grant_moderator",
+              "revoke_moderator"
+            ]
+          },
+          "blockIp": {
+            "type": "boolean"
+          }
+        },
+        "required": ["action"]
+      },
+      "ModerationSaved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": ["saved"]
+      },
+      "ModeratorInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_]{3,32}$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128,
+            "description": "Password length is measured in Unicode code points."
+          }
+        },
+        "required": ["username", "password"]
+      },
+      "AuditEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "kick",
+              "ban",
+              "unban",
+              "mute",
+              "unmute",
+              "grant_moderator",
+              "revoke_moderator",
+              "provision_moderator",
+              "delete_message"
+            ]
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ipBlocked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["action", "actorId", "targetId", "ipBlocked", "createdAt"]
+      },
+      "ModerationAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEvent"
+            }
+          }
+        },
+        "required": ["events"]
+      },
+      "HistoryPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "before": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["messages", "before", "revision"]
+      },
+      "MessageChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "message": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Message"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "revision", "message"]
+      },
+      "MessageChanges": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageChange"
+            }
+          }
+        },
+        "required": ["changes"]
+      },
+      "MessageEdit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["body", "revision"]
+      },
+      "MessageSaved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": ["saved"]
+      },
+      "MessageRetention": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 36500
+          }
+        },
+        "required": ["days"]
+      },
+      "EmptyInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "ChannelPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Omit to keep the current category. Send an empty string to remove it."
+          }
+        },
+        "minProperties": 1
       }
     },
     "securitySchemes": {

@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var ErrAccountConflict = errors.New("account already exists")
+
 type AuthClient struct {
 	base, secret string
 	client       *http.Client
@@ -40,6 +42,9 @@ func (c *AuthClient) post(ctx context.Context, path string, body, result any) er
 		return errors.New("authentication service unavailable")
 	}
 	defer res.Body.Close()
+	if path == "/internal/moderators" && res.StatusCode == http.StatusConflict {
+		return ErrAccountConflict
+	}
 	if res.StatusCode != http.StatusOK {
 		return errors.New("authentication service rejected request")
 	}
@@ -66,10 +71,18 @@ func (c *AuthClient) Active(ctx context.Context, account Account) error {
 	return nil
 }
 func (c *AuthClient) Provision(ctx context.Context, username, password string) (string, error) {
+	return c.provision(ctx, "/internal/bootstrap", username, password)
+}
+
+func (c *AuthClient) ProvisionModerator(ctx context.Context, username, password string) (string, error) {
+	return c.provision(ctx, "/internal/moderators", username, password)
+}
+
+func (c *AuthClient) provision(ctx context.Context, path, username, password string) (string, error) {
 	var result struct {
 		Subject string `json:"subject"`
 	}
-	err := c.post(ctx, "/internal/bootstrap", map[string]string{"username": username, "password": password}, &result)
+	err := c.post(ctx, path, map[string]string{"username": username, "password": password}, &result)
 	if err != nil {
 		return "", err
 	}

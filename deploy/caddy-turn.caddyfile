@@ -1,0 +1,10 @@
+servers :443 {
+  listener_wrappers {
+    proxy_protocol {
+      timeout 2s
+      allow {$YAPPER_TURN_PROXY_IP}/32
+      fallback_policy reject
+    }
+    tls
+  }
+}

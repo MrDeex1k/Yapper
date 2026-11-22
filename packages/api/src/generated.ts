@@ -68,7 +68,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/invitations": {
+  "/api/v1/admission": {
     parameters: {
       query?: never;
       header?: never;
@@ -77,7 +77,39 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    post: operations["setAdmission"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["invitations"];
+    put?: never;
     post: operations["invite"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["revokeInvitation"];
     delete?: never;
     options?: never;
     head?: never;
@@ -164,6 +196,263 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/categories": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["createCategory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/categories/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["saveCategory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/categories/{id}/move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["moveCategory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["createChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["saveChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["patchChannel"];
+    trace?: never;
+  };
+  "/api/v1/channels/{id}/move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["moveChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["archiveChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/participants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listMembers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/moderators": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["provisionModerator"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/participants/{id}/moderate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["moderateMember"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/moderation/audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getModerationAudit"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/{id}/timeline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["timeline"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/{id}/messages/changes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Returns up to 100 changes in ascending revision order. Apply each batch and use its last revision as the next after cursor. Continue until a batch contains fewer than 100 changes. */
+    get: operations["messageChanges"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/{id}/messages/{message}/edit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["editMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/{id}/messages/{message}/delete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["deleteMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/message-retention": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["messageRetention"];
+    put?: never;
+    post: operations["setMessageRetention"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -182,6 +471,7 @@ export interface components {
       nickname: string;
       /** @enum {string} */
       role: "owner" | "moderator" | "participant";
+      micMuted: boolean;
     };
     Channel: {
       /** Format: uuid */
@@ -189,6 +479,9 @@ export interface components {
       name: string;
       /** @enum {string} */
       kind: "text" | "voice";
+      /** @description Category UUID, or an empty string for uncategorized. */
+      categoryId: string;
+      archived: boolean;
     };
     Message: {
       /** Format: uuid */
@@ -205,16 +498,21 @@ export interface components {
       body: string;
       /** Format: date-time */
       createdAt: string;
+      /** Format: date-time */
+      editedAt?: string;
+      /** Format: int64 */
+      revision: number;
     };
     SetupInput: {
       token: string;
       username: string;
+      /** @description Password length is measured in Unicode code points. */
       password: string;
       name: string;
     };
     GuestInput: {
       nickname: string;
-      invitation: string;
+      invitation?: string;
     };
     SendInput: {
       /** Format: uuid */
@@ -224,6 +522,8 @@ export interface components {
     Me: {
       participant: components["schemas"]["Participant"];
       channels: components["schemas"]["Channel"][];
+      categories: components["schemas"]["Category"][];
+      account: boolean;
     };
     History: {
       messages: components["schemas"]["Message"][];
@@ -233,12 +533,155 @@ export interface components {
     };
     Invitation: {
       token: string;
+      /** Format: uuid */
+      id: string;
     };
     VoiceGrant: {
       url: string;
       token: string;
       identity: string;
       channelId: string;
+      canPublish: boolean;
+    };
+    AdmissionSettings: {
+      openAdmission: boolean;
+    };
+    InvitationInput: {
+      /** @description Zero removes the expiration. Defaults to 24 when omitted. */
+      expiresInHours?: number;
+      /** @description Zero removes the usage limit. Defaults to 1 when omitted. */
+      maxUses?: number;
+    };
+    InvitationSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      expiresAt: string | null;
+      remaining: number | null;
+      revoked: boolean;
+    };
+    Invitations: {
+      invitations: components["schemas"]["InvitationSummary"][];
+    };
+    InvitationRevoked: {
+      /** @constant */
+      revoked: true;
+    };
+    Category: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+    };
+    CategoryInput: {
+      name: string;
+    };
+    ChannelInput: {
+      name: string;
+      categoryId?: string;
+    };
+    MoveInput: {
+      /** @enum {integer} */
+      direction: -1 | 1;
+    };
+    CatalogSaved: {
+      saved: boolean;
+    };
+    CreateChannelInput: {
+      name: string;
+      categoryId?: string;
+      /** @enum {string} */
+      kind: "text" | "voice";
+    };
+    Member: {
+      /** Format: uuid */
+      id: string;
+      nickname: string;
+      /** @enum {string} */
+      role: "owner" | "moderator" | "participant";
+      micMuted: boolean;
+      banned: boolean;
+      registered: boolean;
+      canBlockIp: boolean;
+      ipBlocked: boolean;
+    };
+    MemberPage: {
+      members: components["schemas"]["Member"][];
+      /** @description Cursor UUID or empty when exhausted. */
+      next: string;
+    };
+    ModerationAction: {
+      /** @enum {string} */
+      action: "kick" | "ban" | "unban" | "mute" | "unmute" | "grant_moderator" | "revoke_moderator";
+      blockIp?: boolean;
+    };
+    ModerationSaved: {
+      saved: boolean;
+    };
+    ModeratorInput: {
+      username: string;
+      /** @description Password length is measured in Unicode code points. */
+      password: string;
+    };
+    AuditEvent: {
+      /** @enum {string} */
+      action:
+        | "kick"
+        | "ban"
+        | "unban"
+        | "mute"
+        | "unmute"
+        | "grant_moderator"
+        | "revoke_moderator"
+        | "provision_moderator"
+        | "delete_message";
+      /** Format: uuid */
+      actorId: string;
+      /** Format: uuid */
+      targetId: string;
+      ipBlocked: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: uuid */
+      messageId?: string;
+    };
+    ModerationAudit: {
+      events: components["schemas"]["AuditEvent"][];
+    };
+    HistoryPage: {
+      messages: components["schemas"]["Message"][];
+      /** Format: int64 */
+      before: number;
+      /** Format: int64 */
+      revision: number;
+    };
+    MessageChange: {
+      /** Format: uuid */
+      id: string;
+      /** Format: int64 */
+      revision: number;
+      message: components["schemas"]["Message"] | null;
+    };
+    MessageChanges: {
+      changes: components["schemas"]["MessageChange"][];
+    };
+    MessageEdit: {
+      body: string;
+      /** Format: int64 */
+      revision: number;
+    };
+    MessageSaved: {
+      saved: boolean;
+    };
+    MessageRetention: {
+      days: number;
+    };
+    EmptyInput: Record<string, never>;
+    ChannelPatch: {
+      name?: string;
+      /** @description Omit to keep the current category. Send an empty string to remove it. */
+      categoryId?: string;
     };
   };
   responses: never;
@@ -384,7 +827,40 @@ export interface operations {
       };
     };
   };
-  invite: {
+  setAdmission: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AdmissionSettings"];
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdmissionSettings"];
+        };
+      };
+      /** @description Stable error code */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  invitations: {
     parameters: {
       query?: never;
       header?: never;
@@ -394,12 +870,76 @@ export interface operations {
     requestBody?: never;
     responses: {
       /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Invitations"];
+        };
+      };
+      /** @description Stable error code */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  invite: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["InvitationInput"];
+      };
+    };
+    responses: {
+      /** @description Success */
       201: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["Invitation"];
+        };
+      };
+      /** @description Stable error code */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  revokeInvitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationRevoked"];
         };
       };
       /** @description Stable error code */
@@ -555,6 +1095,8 @@ export interface operations {
         "application/json": {
           /** Format: uuid */
           channelId: string;
+          /** @description Only replace this current, unrevoked media identity in the same channel. */
+          resumeIdentity?: string;
         };
       };
     };
@@ -607,6 +1149,715 @@ export interface operations {
         };
       };
       /** @description Stable error code */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  createCategory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CategoryInput"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  saveCategory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CategoryInput"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  moveCategory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MoveInput"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  createChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateChannelInput"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  saveChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChannelInput"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  patchChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChannelPatch"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  moveChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MoveInput"];
+      };
+    };
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  archiveChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Catalog updated or already in the requested state. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSaved"];
+        };
+      };
+      /** @description Owner, resource or origin authorization failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  listMembers: {
+    parameters: {
+      query?: {
+        after?: string;
+        target?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberPage"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  provisionModerator: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ModeratorInput"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ModerationSaved"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  moderateMember: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ModerationAction"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ModerationSaved"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  getModerationAudit: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ModerationAudit"];
+        };
+      };
+      /** @description Authorization, moderation, or origin check failed. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  timeline: {
+    parameters: {
+      query?: {
+        before?: number;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HistoryPage"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  messageChanges: {
+    parameters: {
+      query?: {
+        after?: number;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageChanges"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  editMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        message: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MessageEdit"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageSaved"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  deleteMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        message: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EmptyInput"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageSaved"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  messageRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageRetention"];
+        };
+      };
+      /** @description Stable error code. */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  setMessageRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MessageRetention"];
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageRetention"];
+        };
+      };
+      /** @description Stable error code. */
       default: {
         headers: {
           [name: string]: unknown;

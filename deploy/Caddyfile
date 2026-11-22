@@ -1,9 +1,13 @@
+{
+  import proxy.d/*
+}
+
 {$YAPPER_DOMAIN} {
   encode zstd gzip
   header {
     X-Content-Type-Options nosniff
     Referrer-Policy no-referrer
-    Permissions-Policy "camera=(), microphone=(self)"
+    Permissions-Policy "camera=(), microphone=(self), speaker-selection=(self)"
     Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{$YAPPER_DOMAIN}; media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
   }
   @auth path /api/auth/*
@@ -12,7 +16,9 @@
   }
   @application path /api/* /livekit/*
   handle @application {
-    reverse_proxy server:8080
+    reverse_proxy server:8080 {
+      header_up X-Yapper-Client-IP {http.request.remote.host}
+    }
   }
   @private path /internal/*
   handle @private {

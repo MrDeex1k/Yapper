@@ -3,6 +3,7 @@ package community
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -80,9 +81,122 @@ func TestConcurrentSetupCreatesOneOwner(t *testing.T) {
 		t.Fatalf("provisions=%d success=%d", calls.Load(), success.Load())
 	}
 }
+
+func TestAdmissionControls(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	if _, _, err := s.Guest(ctx, "uninvited", "", netip.Addr{}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("closed admission: %v", err)
+	}
+	if err := s.SetOpenAdmission(ctx, owner.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	guest, credential, err := s.Guest(ctx, "walk in", "", netip.Addr{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOpenAdmission(ctx, guest.ID, false); !errors.Is(err, ErrDenied) {
+		t.Fatalf("guest changed admission: %v", err)
+	}
+	if err := s.SetOpenAdmission(ctx, owner.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if restored, err := s.GuestIdentity(ctx, credential, netip.Addr{}); err != nil || restored.ID != guest.ID {
+		t.Fatalf("closing admission removed membership: %v", err)
+	}
+	if _, _, err = s.Guest(ctx, "new guest", "", netip.Addr{}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("closed admission allowed new guest: %v", err)
+	}
+
+	token, err := s.Invite(ctx, owner.ID, InvitationOptions{MaxUses: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wins atomic.Int32
+	var wg sync.WaitGroup
+	for range 12 {
+		wg.Go(func() {
+			if _, _, err := s.Guest(ctx, "friend", token, netip.Addr{}); err == nil {
+				wins.Add(1)
+			} else if !errors.Is(err, ErrDenied) {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if wins.Load() != 3 {
+		t.Fatalf("admissions=%d, want 3", wins.Load())
+	}
+	token, err = s.Invite(ctx, owner.ID, InvitationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, _, err := s.Guest(ctx, "invited", token, netip.Addr{}); err != nil {
+			t.Fatal("unlimited invitation failed", err)
+		}
+	}
+	items, err := s.Invitations(ctx, owner.ID)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("invitation list: %v, %v", items, err)
+	}
+	unlimited, exhausted := items[0], items[1]
+	if unlimited.Remaining != nil || unlimited.ExpiresAt != nil ||
+		exhausted.Remaining == nil || *exhausted.Remaining != 0 || exhausted.ExpiresAt != nil {
+		t.Fatalf("unexpected invitation settings: %+v", items)
+	}
+	if _, err := s.Invitations(ctx, guest.ID); !errors.Is(err, ErrDenied) {
+		t.Fatalf("guest listed invitations: %v", err)
+	}
+	if err := s.RevokeInvitation(ctx, guest.ID, unlimited.ID); !errors.Is(err, ErrDenied) {
+		t.Fatalf("guest revoked invitation: %v", err)
+	}
+	for range 2 {
+		if err := s.RevokeInvitation(ctx, owner.ID, unlimited.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := s.Guest(ctx, "late guest", token, netip.Addr{}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("revoked invitation allowed admission: %v", err)
+	}
+}
+
+func TestInvitationMigrationRetainsLegacyCodes(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	if _, err := s.Pool.Exec(ctx, `ALTER TABLE invitations ALTER COLUMN remaining SET NOT NULL,
+		ALTER COLUMN expires_at SET NOT NULL, DROP COLUMN created_at`); err != nil {
+		t.Fatal(err)
+	}
+	token := newSecret()
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO invitations(id,token_hash,remaining,expires_at)
+		VALUES($1,$2,1,now()+interval '24 hours')`, uuid.New().String(), digest(token)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.Invitations(ctx, owner.ID)
+	if err != nil || len(items) != 1 || items[0].CreatedAt.IsZero() || items[0].ExpiresAt == nil {
+		t.Fatalf("legacy invitation metadata: %v, %v", items, err)
+	}
+	if _, _, err := s.Guest(ctx, "legacy invite", token, netip.Addr{}); err != nil {
+		t.Fatal(err)
+	}
+	expired, err := s.Invite(ctx, owner.ID, InvitationOptions{ExpiresInHours: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, "UPDATE invitations SET expires_at=now() WHERE token_hash=$1", digest(expired)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = s.Guest(ctx, "expired invite", expired, netip.Addr{}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("expired invitation allowed admission: %v", err)
+	}
+}
 func TestInviteConcurrencyIdentityAndBan(t *testing.T) {
 	s, owner := configuredStore(t)
-	token, err := s.Invite(t.Context(), owner.ID)
+	token, err := s.Invite(t.Context(), owner.ID, InvitationOptions{ExpiresInHours: 24, MaxUses: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +207,7 @@ func TestInviteConcurrencyIdentityAndBan(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 12 {
 		wg.Go(func() {
-			p, key, err := s.Guest(t.Context(), "friend", token)
+			p, key, err := s.Guest(t.Context(), "friend", token, netip.Addr{})
 			if err == nil {
 				successes.Add(1)
 				mu.Lock()
@@ -109,20 +223,20 @@ func TestInviteConcurrencyIdentityAndBan(t *testing.T) {
 	if successes.Load() != 1 {
 		t.Fatalf("admissions=%d", successes.Load())
 	}
-	restored, err := s.GuestIdentity(t.Context(), secret)
+	restored, err := s.GuestIdentity(t.Context(), secret, netip.Addr{})
 	if err != nil || restored.ID != winner.ID {
 		t.Fatal("identity not preserved", err)
 	}
-	if _, err = s.Invite(t.Context(), winner.ID); !errors.Is(err, ErrDenied) {
+	if _, err = s.Invite(t.Context(), winner.ID, InvitationOptions{ExpiresInHours: 24, MaxUses: 1}); !errors.Is(err, ErrDenied) {
 		t.Fatal("guest created invitation", err)
 	}
-	if err = s.Ban(t.Context(), winner.ID, owner.ID); !errors.Is(err, ErrDenied) {
+	if _, err = s.Moderate(t.Context(), winner.ID, owner.ID, Ban, false); !errors.Is(err, ErrDenied) {
 		t.Fatal("guest banned owner", err)
 	}
-	if err = s.Ban(t.Context(), owner.ID, winner.ID); err != nil {
+	if _, err = s.Moderate(t.Context(), owner.ID, winner.ID, Ban, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.GuestIdentity(t.Context(), secret); !errors.Is(err, ErrDenied) {
+	if _, err = s.GuestIdentity(t.Context(), secret, netip.Addr{}); !errors.Is(err, ErrDenied) {
 		t.Fatal("banned credential accepted", err)
 	}
 }
@@ -185,12 +299,12 @@ func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
 			channel = c.ID
 		}
 	}
-	old, err := s.StartVoice(t.Context(), owner.ID, channel, "owner-subject", "session", func(context.Context, MediaSession) error { return nil })
+	old, err := s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", "", netip.Addr{}, func(context.Context, MediaSession) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
 	removalFailure := errors.New("LiveKit unavailable")
-	_, err = s.StartVoice(t.Context(), owner.ID, channel, "owner-subject", "session", func(ctx context.Context, stale MediaSession) error {
+	_, err = s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", "", netip.Addr{}, func(ctx context.Context, stale MediaSession) error {
 		if stale.Identity != old.Identity {
 			t.Fatal("wrong identity removed")
 		}
@@ -220,11 +334,63 @@ func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
 	if _, err := s.VoiceSession(t.Context(), sessions[0].Identity); err != nil {
 		t.Fatal("replacement revoked by stale operation")
 	}
-	if err := s.ForgetVoiceRemoval(t.Context(), old.Identity); err != nil {
+	removed := map[string]bool{}
+	if _, err := s.StartVoice(t.Context(), owner, channel, "owner-subject", "session", "", netip.Addr{}, func(_ context.Context, stale MediaSession) error {
+		removed[stale.Identity] = true
+		return nil
+	}); err != nil {
 		t.Fatal(err)
+	}
+	if !removed[old.Identity] || !removed[sessions[0].Identity] || len(removed) != 2 {
+		t.Fatalf("new grant skipped outstanding removals: %v", removed)
 	}
 	pending, err = s.PendingVoiceRemovals(t.Context())
 	if err != nil || len(pending) != 0 {
 		t.Fatal("acknowledged removal not cleared")
+	}
+}
+
+func TestVoiceResumeRetriesSameReplacementAfterRemovalFailure(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	channels, err := s.Channels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var voice string
+	for _, channel := range channels {
+		if channel.Kind == "voice" {
+			voice = channel.ID
+		}
+	}
+	var removed []string
+	remove := func(_ context.Context, session MediaSession) error {
+		removed = append(removed, session.Identity)
+		return nil
+	}
+	start := func(resume string, cleanup func(context.Context, MediaSession) error) (MediaSession, error) {
+		return s.StartVoice(ctx, owner, voice, "owner-subject", "session", resume, netip.Addr{}, cleanup)
+	}
+	previous, err := start("", remove)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := errors.New("transient media removal failure")
+	if _, err := start(previous.Identity, func(context.Context, MediaSession) error { return failed }); !errors.Is(err, failed) {
+		t.Fatalf("expected transient cleanup error: %v", err)
+	}
+	pending, err := s.AllVoiceSessions(ctx)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("pending replacement: %v %v", pending, err)
+	}
+	if _, err := s.VoiceSession(ctx, pending[0].Identity); !errors.Is(err, ErrDenied) {
+		t.Fatalf("replacement usable before cleanup: %v", err)
+	}
+	grant, err := start(previous.Identity, remove)
+	if err != nil || grant.Identity != pending[0].Identity || len(removed) != 1 || removed[0] != previous.Identity {
+		t.Fatalf("resume did not reuse the pending replacement: %v %v %v", grant, removed, err)
+	}
+	if _, err := start(previous.Identity, remove); !errors.Is(err, ErrDenied) {
+		t.Fatalf("completed predecessor was reusable: %v", err)
 	}
 }

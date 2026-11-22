@@ -62,14 +62,17 @@ async function start() {
       contents === window?.webContents &&
         trusted(details.requestingUrl) &&
         details.isMainFrame &&
-        permission === "media" &&
-        "mediaTypes" in details &&
-        details.mediaTypes?.every((type) => type === "audio") === true,
+        (permission === "speaker-selection" ||
+          (permission === "media" &&
+            "mediaTypes" in details &&
+            details.mediaTypes?.every((type) => type === "audio") === true)),
     ),
   );
   session.defaultSession.setPermissionCheckHandler(
-    (contents, permission, requestingOrigin) =>
-      contents === window?.webContents && trusted(requestingOrigin) && permission === "media",
+    (contents, permission, requestingOrigin, details) =>
+      contents === window?.webContents &&
+      trusted(requestingOrigin) &&
+      (permission === "media" || (permission === "speaker-selection" && details.isMainFrame)),
   );
   for (const channel of ["yapper:get-server", "yapper:set-server"])
     ipcMain.handle(channel, async (event, address: unknown) => {

@@ -16,6 +16,8 @@ await rootDatabase.query(`CREATE SCHEMA ${schema}`);
 const database = new Pool({
   connectionString: config.databaseURL,
   options: `-c search_path=${schema}`,
+  max: 2,
+  connectionTimeoutMillis: 3000,
 });
 const internalSecret = randomBytes(32).toString("hex");
 const auth = createAuth(config, database);
@@ -89,6 +91,55 @@ try {
     });
   if (!((await (await sessionCheck()).json()) as { active: boolean }).active)
     throw new Error("Active session rejected");
+  const provision = (username: string, password: string) =>
+    fetch(`${address}/internal/moderators`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${internalSecret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+      signal: AbortSignal.timeout(5000),
+    });
+  if ((await provision("invalid", "é".repeat(6))).status !== 400)
+    throw new Error("Provision accepted an under-length Unicode password");
+  const unicodeUsername = "unicode_" + "a".repeat(24);
+  const unicodePassword = "🔒".repeat(128);
+  const lock = await rootDatabase.connect();
+  await lock.query("BEGIN");
+  await lock.query("SELECT pg_advisory_xact_lock(743211)");
+  const primary = provision(unicodeUsername, unicodePassword);
+  try {
+    const deadline = Date.now() + 2000;
+    for (;;) {
+      const waiting = await rootDatabase.query(
+        "SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted AND objid=743211",
+      );
+      if (waiting.rowCount) break;
+      if (Date.now() >= deadline)
+        throw new Error("The provisioning request did not reach the lock");
+      await new Promise((resolve) => setTimeout(resolve, 15));
+    }
+    const concurrent = Promise.all(
+      Array.from({ length: 12 }, (_, index) => provision("parallel_" + index, password)),
+    );
+    const activity = await sessionCheck();
+    if (!activity.ok || !((await activity.json()) as { active: boolean }).active)
+      throw new Error("Provisioning stalled active-session checks");
+    if ((await concurrent).some((response) => response.status !== 503))
+      throw new Error("Concurrent provisioning was not rejected while the slot was busy");
+  } finally {
+    await lock.query("ROLLBACK");
+    lock.release();
+    await primary;
+  }
+  if (!(await primary).ok) throw new Error("Unicode provision failed after releasing the lock");
+  const unicodeLogin = await fetch(`${address}/api/auth/sign-in/username`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: config.baseURL },
+    body: JSON.stringify({ username: unicodeUsername, password: unicodePassword }),
+  });
+  if (!unicodeLogin.ok) throw new Error("Login rejected valid Unicode credentials");
+  console.info(
+    "PASS: bounded concurrent provisioning, live session checks and Unicode credentials.",
+  );
   const deniedInternal = await fetch(`${address}/internal/session-check`, { method: "POST" });
   if (deniedInternal.status !== 401) throw new Error("Unauthenticated internal request accepted");
   const signOut = await fetch(`${address}/api/auth/sign-out`, {

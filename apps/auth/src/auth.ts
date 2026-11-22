@@ -9,10 +9,15 @@ export function createAuth(config: AuthConfig, database: Pool) {
     baseURL: config.baseURL,
     secret: config.secret,
     trustedOrigins: [config.baseURL],
-    emailAndPassword: { enabled: true, minPasswordLength: 12 },
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 12,
+      maxPasswordLength: 256,
+      autoSignIn: false,
+    },
     session: { expiresIn: 60 * 60 * 24, updateAge: 60 * 60 },
     plugins: [
-      username(),
+      username({ maxUsernameLength: 32 }),
       jwt({
         jwt: {
           issuer: config.baseURL,

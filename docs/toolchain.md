@@ -12,16 +12,18 @@ Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH
 | Landing               | Astro CLI                                | Astro development/build pipeline                           |
 | AUTH execution        | Bun                                      | Elysia 2 RC and Better Auth runtime                        |
 | Tooling execution     | Pinned supported Node.js                 | Frontend tooling and repository scripts                    |
-| Electron desktop      | Electron                                 | Stage 1 development and first release on macOS             |
+| Electron desktop      | Electron                                 | Stage 1 development shell and historical smoke tests       |
 | Planned Rust desktop  | Rust, Cargo, GPUI                        | Native desktop builds and UI on Windows and Linux          |
 | Planned Swift desktop | Swift, Xcode                             | Native macOS client in Stage 8                             |
 | Quality               | Oxlint, Bun fmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy            |
 | Backend/mobile builds | Go, later Xcode and Gradle               | Language-specific compilation and dependencies             |
 | Deployed services     | Docker Compose                           | Runtime lifecycle and networking                           |
 
-Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser. The current desktop development client uses the Electron runtime.
+Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser. Cargo builds the Windows and Linux desktop client. The retained Stage 1 shell uses the Electron runtime.
 
 ## Planned Rust desktop toolchain
+
+The Stage 2 prototype pins Rust 1.100.0 and GPUI 0.2.2 with a committed Cargo lockfile. Run its [Cargo checks](../apps/desktop-gpui/README.md) independently of the pnpm workspace.
 
 At the Stage 2 prototype, pin the Rust toolchain and GPUI dependency, commit the application's Cargo lockfile, and record the Windows and Linux build prerequisites. Cargo owns Rust dependencies and compilation. Choose any Turbo integration after verifying task discovery, cache invalidation, and artifact restoration on the target platforms. Include the Rust toolchain and target in the cache identity. Select Windows and Linux packaging commands during Stage 4.
 

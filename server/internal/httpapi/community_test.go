@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -86,7 +88,7 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invite, err := store.Invite(t.Context(), owner.ID)
+	invite, err := store.Invite(t.Context(), owner.ID, community.InvitationOptions{ExpiresInHours: 24, MaxUses: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,21 +168,120 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 	if _, _, err = ws.Read(ctx); err != nil {
 		t.Fatal("no ready event", err)
 	}
+	recorder := httptest.NewRecorder()
+	api.catalogResult(recorder, store.SaveCategory(t.Context(), owner.ID, "", "Community"))
+	if recorder.Code != 200 {
+		t.Fatalf("catalog update=%d", recorder.Code)
+	}
+	if _, event, err := ws.Read(ctx); err != nil || !bytes.Contains(event, []byte(`"type":"catalog.changed"`)) {
+		t.Fatalf("catalog invalidation=%s, %v", event, err)
+	}
 	replay, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/events", &websocket.DialOptions{HTTPHeader: header, Subprotocols: []string{"yapper.v1", "yapper.ticket." + issued.Ticket}})
 	if err == nil {
 		replay.CloseNow()
 		t.Fatal("ticket replay accepted")
 	}
-	if err = store.Ban(t.Context(), owner.ID, participant.ID); err != nil {
+	issue := func(t *testing.T) string {
+		t.Helper()
+		response, body := request("/api/v1/events/ticket", map[string]string{}, cookie, origin)
+		if response.StatusCode != 201 {
+			t.Fatalf("ticket=%d", response.StatusCode)
+		}
+		var next struct {
+			Ticket string `json:"ticket"`
+		}
+		if err := json.Unmarshal(body, &next); err != nil {
+			t.Fatal(err)
+		}
+		return next.Ticket
+	}
+	dial := func(ctx context.Context, ticket string) (*websocket.Conn, *http.Response, error) {
+		return websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/events",
+			&websocket.DialOptions{HTTPHeader: header, Subprotocols: []string{"yapper.v1", "yapper.ticket." + ticket}})
+	}
+	t.Run("one connection can redeem a shared ticket", func(t *testing.T) {
+		ticket := issue(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		var attempts [2]struct {
+			conn *websocket.Conn
+			res  *http.Response
+			err  error
+		}
+		var group sync.WaitGroup
+		ready := make(chan struct{}, len(attempts))
+		start := make(chan struct{})
+		for i := range attempts {
+			group.Go(func() {
+				ready <- struct{}{}
+				<-start
+				attempts[i].conn, attempts[i].res, attempts[i].err = dial(ctx, ticket)
+			})
+		}
+		for range attempts {
+			<-ready
+		}
+		close(start)
+		group.Wait()
+
+		accepted := 0
+		for _, attempt := range attempts {
+			if attempt.conn != nil {
+				t.Cleanup(func() { _ = attempt.conn.CloseNow() })
+			}
+			if attempt.err == nil {
+				accepted++
+			} else if attempt.res == nil || attempt.res.StatusCode != http.StatusForbidden {
+				t.Errorf("expected HTTP 403 for the rejected handshake, got %v", attempt.err)
+			}
+		}
+		if accepted != 1 {
+			t.Fatalf("accepted %d handshakes on one ticket, want 1", accepted)
+		}
+	})
+	staleTicket := issue(t)
+	if !api.applyModeration(httptest.NewRecorder(), httptest.NewRequest("POST", "/", nil).WithContext(t.Context()), owner.ID, participant.ID, community.Kick, false) {
+		t.Fatal("kick failed")
+	}
+	if _, _, err = ws.Read(ctx); websocket.CloseStatus(err) != kickedCloseCode {
+		t.Fatalf("kick close status=%v", err)
+	}
+	if closed, _, err := dial(ctx, staleTicket); err == nil {
+		closed.CloseNow()
+		t.Fatal("ticket issued before kick survived")
+	}
+	reconnect, finishReconnect := context.WithTimeout(t.Context(), 5*time.Second)
+	defer finishReconnect()
+	ws, _, err = dial(reconnect, issue(t))
+	if err != nil {
+		t.Fatalf("fresh reconnect after kick: %v", err)
+	}
+	defer ws.CloseNow()
+	if _, _, err = ws.Read(reconnect); err != nil {
+		t.Fatal("no ready after kick", err)
+	}
+	if _, err = store.Moderate(t.Context(), owner.ID, participant.ID, community.Ban, false); err != nil {
 		t.Fatal(err)
 	}
-	api.disconnect(participant.ID)
-	if _, _, err = ws.Read(ctx); err == nil {
-		t.Fatal("banned socket remained open")
+	api.broadcast("members.changed", struct{}{})
+	ban, finishBan := context.WithTimeout(t.Context(), 5*time.Second)
+	defer finishBan()
+	for {
+		_, _, err = ws.Read(ban)
+		if err != nil {
+			if ban.Err() != nil || (websocket.CloseStatus(err) < 0 && !errors.Is(err, io.EOF)) {
+				t.Fatal("server did not close the banned socket:", err)
+			}
+			break
+		}
 	}
 	res, _ = request("/api/v1/events/ticket", map[string]string{}, cookie, origin)
 	if res.StatusCode != 403 {
 		t.Fatal("banned credential reconnected")
+	}
+	res, data = request("/api/v1/guests", map[string]string{"nickname": "rejoin"}, cookie, origin)
+	if res.StatusCode != 403 || !bytes.Contains(data, []byte(`"participant_banned"`)) {
+		t.Fatalf("banned credential was eligible for replacement: %d %s", res.StatusCode, data)
 	}
 
 	t.Run("ready is queued before broadcasts during authorization recheck", func(t *testing.T) {

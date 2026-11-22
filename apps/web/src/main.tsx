@@ -1,29 +1,28 @@
-import { StrictMode, useEffect, useState, type FormEvent } from "react";
-import { createRoot } from "react-dom/client";
 import {
-  Mic,
-  MicOff,
-  VolumeX,
-  PhoneOff,
-  Hash,
-  Headphones,
-  LogOut,
-  Plus,
-  Send,
-  Shield,
-  Volume2,
-  X,
-  ArrowRight,
-  Check,
-  Copy,
-} from "lucide-react";
+  Fragment,
+  StrictMode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ArrowRight, ChevronDown, Hash, LogOut, Send, Settings, Volume2 } from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
-import type { CommunityState, CurrentUser, Participant, Message } from "@yapper/api";
+import type { CommunityState, CurrentUser } from "@yapper/api";
 import { api, APIError, login, logout, restoreAccount } from "./api";
 import { useConversation } from "./use-conversation";
 import { useVoice } from "./use-voice";
+import { VoicePanel } from "./voice-panel";
 import { errorText } from "./errors";
+import { CatalogPanel, groupedChannels } from "./catalog-panel";
+import { ModerationPanel, isStaff } from "./moderation-panel";
+import { MessageHistory } from "./message-history";
+import { AdmissionPanel } from "./admission-panel";
+import brandIcon from "./assets/yapper-icon.jpg";
 import "./style.css";
 
 function initialLocale(): Locale {
@@ -35,6 +34,15 @@ function initialLocale(): Locale {
   }
   return saved === "pl" || (saved !== "en" && navigator.language.startsWith("pl")) ? "pl" : "en";
 }
+function Brand() {
+  return (
+    <a href="/" className="wordmark">
+      <img src={brandIcon} alt="" width={30} height={30} />
+      Yapper
+    </a>
+  );
+}
+
 function App() {
   const [locale, setLocale] = useState(initialLocale);
   const [state, setState] = useState<CommunityState | null>(null);
@@ -105,7 +113,7 @@ function App() {
     return (
       <div className="entry-shell">
         <header className="entry-header">
-          <span className="wordmark">yapper.</span>
+          <Brand />
           {language}
         </header>
         <main className="entry-main">
@@ -144,7 +152,7 @@ function App() {
   if (loading)
     return (
       <main className="loading-screen">
-        <span className="wordmark">yapper.</span>
+        <Brand />
         <output>{t.loading}</output>
       </main>
     );
@@ -156,6 +164,9 @@ function App() {
         state={state}
         locale={locale}
         language={language}
+        onAdmissionChange={(openAdmission) =>
+          setState((current) => current && { ...current, openAdmission })
+        }
         onSignOut={async () => {
           await logout();
           setUser(null);
@@ -165,9 +176,7 @@ function App() {
   return (
     <div className="entry-shell">
       <header className="entry-header">
-        <a href="/" className="wordmark">
-          yapper<span>.</span>
-        </a>
+        <Brand />
         {language}
       </header>
       <main className="entry-main">
@@ -224,6 +233,8 @@ function Entry({
     setError(null);
     try {
       if (!state.configured) {
+        const length = Array.from(field("password")).length;
+        if (length < 12 || length > 128) throw new APIError("invalid_request", 400);
         await api.setup({
           token: field("token"),
           username: field("username"),
@@ -247,7 +258,7 @@ function Entry({
   }
   return (
     <section className="entry-content">
-      <p className="eyebrow">{state.configured ? state.name : "YAPPER"}</p>
+      {state.configured && <p className="eyebrow">{state.name}</p>}
       <h1>{labels[0]}</h1>
       <p className="description">{labels[1]}</p>
       <form onSubmit={(event) => void submit(event)} className="entry-form">
@@ -321,8 +332,6 @@ function EntryFields({
               name="password"
               type="password"
               required
-              minLength={12}
-              maxLength={128}
               autoComplete={state.configured ? "current-password" : "new-password"}
               aria-describedby={!state.configured ? "password-hint" : undefined}
             />
@@ -351,35 +360,297 @@ function EntryFields({
   );
 }
 
+type ConversationPanel = "admission" | "catalog" | "moderation";
+
 function Conversation({
-  user,
+  user: initialUser,
   state,
   locale,
   language,
   onSignOut,
+  onAdmissionChange,
 }: {
   user: CurrentUser;
   state: CommunityState;
   locale: Locale;
   language: React.ReactNode;
   onSignOut: () => Promise<void>;
+  onAdmissionChange: (openAdmission: boolean) => void;
 }) {
   const t = messages[locale];
+  const [user, setUser] = useState(initialUser);
+  const [queryClient] = useState(() => new QueryClient());
+  useEffect(() => () => queryClient.clear(), [queryClient]);
   const textChannels = user.channels.filter((c) => c.kind === "text");
-  const [channel, setChannel] = useState(textChannels[0]?.id ?? "");
-  const current = textChannels.find((c) => c.id === channel);
-  const conversation = useConversation(channel);
-  const voice = useVoice();
+  const [selectedChannel, setChannel] = useState(
+    () => textChannels.find((channel) => !channel.archived)?.id ?? "",
+  );
+  const current =
+    textChannels.find((channel) => channel.id === selectedChannel) ??
+    textChannels.find((channel) => !channel.archived) ??
+    textChannels[0];
+  const channel = current?.id ?? "";
+  const channelName = current?.name ?? state.name;
+  const refreshRevision = useRef(0);
+  const appliedRevision = useRef(0);
+  const refreshCommunity = useCallback(async (signal?: AbortSignal) => {
+    const revision = ++refreshRevision.current;
+    try {
+      const next = await api.me(signal);
+      if (!signal?.aborted && revision > appliedRevision.current) {
+        appliedRevision.current = revision;
+        setUser(next);
+      }
+    } catch (error) {
+      if (revision > appliedRevision.current) throw error;
+    }
+  }, []);
+  const conversation = useConversation(channel, refreshCommunity);
+  const voice = useVoice(user.participant.micMuted, conversation.status === "kicked");
+  const [error, setError] = useState<unknown>(null);
+  const [panel, setPanel] = useState<ConversationPanel | null>(null);
+  const [moderationTarget, setModerationTarget] = useState({ id: "", request: 0 });
+  const [channelsOpen, setChannelsOpen] = useState(false);
+  const channelToggle = useRef<HTMLButtonElement>(null);
+  const channelSidebar = useRef<HTMLElement>(null);
+  const closeChannels = useCallback(() => {
+    setChannelsOpen(false);
+    if (channelToggle.current?.getClientRects().length) channelToggle.current.focus();
+  }, []);
+  useEffect(() => {
+    if (!channelsOpen || !channelToggle.current?.getClientRects().length) return;
+    const sidebar = channelSidebar.current;
+    const channel =
+      sidebar?.querySelector<HTMLElement>('[aria-current="page"]') ??
+      sidebar?.querySelector<HTMLElement>("nav button");
+    channel?.focus();
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !event.defaultPrevented) closeChannels();
+    }
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [channelsOpen, closeChannels]);
+  function togglePanel(next: ConversationPanel) {
+    closeChannels();
+    setModerationTarget((target) => ({ ...target, id: "" }));
+    setPanel((visible) => (visible === next ? null : next));
+  }
+  function closePanel() {
+    setPanel(null);
+    if (channelToggle.current?.getClientRects().length) {
+      channelToggle.current.focus();
+    } else {
+      document.getElementById("server-tools-toggle")?.focus();
+    }
+  }
+  function moderate(target: string) {
+    setModerationTarget((previous) => ({ id: target, request: previous.request + 1 }));
+    setPanel("moderation");
+  }
+  function switchChannel(id: string) {
+    closeChannels();
+    if (id === channel) return;
+    setChannel(id);
+    setError(null);
+  }
+  return (
+    <div className="chat-workspace" data-channels-open={channelsOpen}>
+      <header className="topbar">
+        <Button
+          ref={channelToggle}
+          className="mobile-channels-toggle"
+          variant="ghost"
+          size="sm"
+          aria-controls="workspace-channels workspace-profile"
+          aria-label={`${t.channels}: ${channelName}`}
+          aria-expanded={channelsOpen}
+          onClick={() => {
+            if (channelsOpen) closeChannels();
+            else setChannelsOpen(true);
+          }}
+        >
+          <Hash size={18} aria-hidden="true" />
+          <span className="mobile-channel-name">{channelName}</span>
+          <ChevronDown className="mobile-channel-chevron" size={17} aria-hidden="true" />
+        </Button>
+        <div className="channel-title">
+          <Hash size={18} aria-hidden="true" />
+          <strong>{channelName}</strong>
+        </div>
+        <div className="topbar-tools">
+          <ConnectionStatus conversation={conversation} locale={locale} />
+          {language}
+        </div>
+      </header>
+      <ConversationSidebar
+        sidebarRef={channelSidebar}
+        user={user}
+        state={state}
+        locale={locale}
+        channel={channel}
+        voice={voice}
+        onChannel={switchChannel}
+        onClose={closeChannels}
+        panel={panel}
+        onPanel={togglePanel}
+        kicked={conversation.status === "kicked"}
+      />
+      <WorkspaceProfile
+        user={user}
+        locale={locale}
+        language={language}
+        onSignOut={onSignOut}
+        onError={setError}
+      />
+      <main className="conversation">
+        <QueryClientProvider client={queryClient}>
+          <ConversationPanels
+            panel={panel}
+            user={user}
+            openAdmission={state.openAdmission}
+            locale={locale}
+            onAdmissionChange={onAdmissionChange}
+            onCatalogChange={refreshCommunity}
+            onClose={closePanel}
+            moderationTarget={moderationTarget}
+            memberRevision={conversation.memberRevision}
+          />
+        </QueryClientProvider>
+        <MessageHistory
+          key={channel}
+          items={conversation.messages}
+          hasOlder={conversation.hasOlder}
+          loadingOlder={conversation.loadingOlder}
+          onLoadOlder={conversation.loadOlder}
+          onChanged={conversation.refresh}
+          archived={current?.archived ?? false}
+          locked={conversation.status === "kicked"}
+          user={user}
+          locale={locale}
+          onModerate={moderate}
+        />
+        <div className="composer-area">
+          {(error ?? conversation.error) !== null && (
+            <p role="alert" className="error-message">
+              {errorText(error ?? conversation.error, locale)}
+            </p>
+          )}
+          {current?.archived && <p className="composer-hint">{t.archivedNotice}</p>}
+          {current && !current.archived && (
+            <MessageComposer
+              key={channel}
+              channel={channel}
+              name={current.name}
+              locale={locale}
+              onSent={conversation.refresh}
+              disabled={conversation.status === "kicked"}
+            />
+          )}
+        </div>
+      </main>
+      <VoicePanel
+        voice={voice}
+        channels={user.channels.filter((item) => item.kind === "voice")}
+        forcedMuted={user.participant.micMuted}
+        locale={locale}
+        kicked={conversation.status === "kicked"}
+      />
+    </div>
+  );
+}
+function ConnectionStatus({
+  conversation,
+  locale,
+}: {
+  conversation: ReturnType<typeof useConversation>;
+  locale: Locale;
+}) {
+  const t = messages[locale];
+  return (
+    <div className="connection-bar" data-state={conversation.status}>
+      <span
+        className={conversation.status === "connected" ? "status-dot" : "status-dot status-warning"}
+      />
+      <output>{t[conversation.status]}</output>
+      {conversation.status === "kicked" && (
+        <Button size="sm" variant="outline" onClick={conversation.reconnect}>
+          {t.reconnect}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ConversationPanels({
+  panel,
+  user,
+  locale,
+  openAdmission,
+  onAdmissionChange,
+  onCatalogChange,
+  onClose,
+  moderationTarget,
+  memberRevision,
+}: {
+  panel: ConversationPanel | null;
+  user: CurrentUser;
+  locale: Locale;
+  openAdmission: boolean;
+  onAdmissionChange: (open: boolean) => void;
+  onCatalogChange: () => Promise<void>;
+  onClose: () => void;
+  moderationTarget: { id: string; request: number };
+  memberRevision: number;
+}) {
+  if (panel === "moderation" && isStaff(user.participant)) {
+    return (
+      <ModerationPanel
+        actor={user.participant}
+        target={moderationTarget}
+        revision={memberRevision}
+        locale={locale}
+        onClose={onClose}
+      />
+    );
+  }
+  if (user.participant.role !== "owner") return null;
+  if (panel === "admission")
+    return (
+      <AdmissionPanel
+        openAdmission={openAdmission}
+        locale={locale}
+        onAdmissionChange={onAdmissionChange}
+        onClose={onClose}
+      />
+    );
+  if (panel === "catalog")
+    return (
+      <CatalogPanel catalog={user} locale={locale} onChanged={onCatalogChange} onClose={onClose} />
+    );
+  return null;
+}
+
+function MessageComposer({
+  channel,
+  name,
+  locale,
+  onSent,
+  disabled,
+}: {
+  channel: string;
+  name: string;
+  locale: Locale;
+  onSent: (channel: string) => void;
+  disabled: boolean;
+}) {
+  const t = messages[locale];
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<{ requestId: string; body: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [invitation, setInvitation] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [banTarget, setBanTarget] = useState<Participant | null>(null);
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sending || !draft.trim()) return;
+    if (disabled || sending || !draft.trim()) return;
     const input =
       pending && pending.body === draft.trim()
         ? pending
@@ -388,8 +659,8 @@ function Conversation({
     setSending(true);
     setError(null);
     try {
-      const message = await api.send(channel, input);
-      conversation.append(message);
+      await api.send(channel, input);
+      onSent(channel);
       setDraft("");
       setPending(null);
     } catch (e) {
@@ -398,394 +669,207 @@ function Conversation({
       setSending(false);
     }
   }
-  async function invite() {
-    setError(null);
-    try {
-      setInvitation((await api.invite()).token);
-      setCopied(false);
-    } catch (e) {
-      setError(e);
-    }
-  }
-  async function ban() {
-    if (!banTarget) return;
-    try {
-      await api.ban(banTarget.id);
-      setBanTarget(null);
-    } catch (e) {
-      setError(e);
-    }
-  }
-  function switchChannel(id: string) {
-    if (id === channel) return;
-    setChannel(id);
-    setDraft("");
-    setPending(null);
-    setError(null);
-  }
   return (
-    <div className="workspace chat-workspace">
-      <ConversationSidebar
-        user={user}
-        state={state}
-        locale={locale}
-        channel={channel}
-        voice={voice}
-        onChannel={switchChannel}
-        onInvite={invite}
-        onSignOut={onSignOut}
-        onError={setError}
-      />
-      <main className="conversation">
-        <header className="topbar">
-          <div className="channel-title">
-            <Hash size={20} />
-            <strong>{current?.name}</strong>
-            <span className="channel-separator" />
-            <span className="channel-subtitle">{state.name}</span>
-          </div>
-          {language}
-        </header>
-        <div className="connection-bar">
-          <span
-            className={
-              conversation.status === "connected" ? "status-dot" : "status-dot status-warning"
+    <>
+      {error !== null && (
+        <p className="error-message" role="alert">
+          {errorText(error, locale)}
+        </p>
+      )}
+      <form className="composer" onSubmit={(event) => void send(event)}>
+        <textarea
+          aria-label={t.messagePlaceholder}
+          placeholder={`${t.messagePlaceholder} #${name}`}
+          value={draft}
+          maxLength={2000}
+          rows={2}
+          disabled={disabled || sending}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              void send(event);
             }
-          />
-          <output>{t[conversation.status]}</output>
-        </div>
-        {invitation && (
-          <section className="inline-panel" aria-label={t.inviteFriend}>
-            <div className="panel-heading">
-              <strong>{t.inviteFriend}</strong>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={t.close}
-                onClick={() => setInvitation(null)}
-              >
-                <X size={16} />
-              </Button>
-            </div>
-            <p>{t.inviteNotice}</p>
-            <div className="invite-code">
-              <Input aria-label={t.invitation} value={invitation} readOnly />
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(invitation)
-                    .then(() => setCopied(true))
-                    .catch(setError)
-                }
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? t.copied : t.copy}
-              </Button>
-            </div>
-          </section>
-        )}
-        {banTarget && (
-          <section className="inline-panel" aria-labelledby="ban-title">
-            <strong id="ban-title" role="alert">
-              {t.confirmBan}
-            </strong>
-            <p>{banTarget.nickname}</p>
-            <div className="panel-actions">
-              <Button variant="destructive" onClick={() => void ban()}>
-                {t.confirm}
-              </Button>
-              <Button variant="ghost" onClick={() => setBanTarget(null)}>
-                {t.cancel}
-              </Button>
-            </div>
-          </section>
-        )}
-        <MessageHistory
-          items={conversation.messages}
-          user={user}
-          locale={locale}
-          onBan={setBanTarget}
+          }}
         />
-        <div className="composer-area">
-          {(error ?? conversation.error) !== null && (
-            <p role="alert" className="error-message">
-              {errorText(error ?? conversation.error, locale)}
-            </p>
-          )}
-          <form className="composer" onSubmit={(event) => void send(event)}>
-            <textarea
-              aria-label={t.messagePlaceholder}
-              placeholder={`${t.messagePlaceholder} #${current?.name ?? ""}`}
-              value={draft}
-              maxLength={2000}
-              rows={2}
-              disabled={sending}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  void send(event);
-                }
-              }}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={sending || !draft.trim()}
-              aria-label={sending ? t.sending : pending ? t.retrySend : t.send}
-            >
-              <Send size={19} />
-            </Button>
-          </form>
-          <p className="composer-hint">
-            {t.privacy}
-            <Headphones size={13} aria-hidden="true" />
-          </p>
-        </div>
-      </main>
-    </div>
+        <Button
+          type="submit"
+          size="icon"
+          disabled={disabled || sending || !draft.trim()}
+          aria-label={sending ? t.sending : pending ? t.retrySend : t.send}
+        >
+          <Send size={19} />
+        </Button>
+      </form>
+    </>
   );
 }
 function ConversationSidebar({
+  sidebarRef,
   user,
   state,
   locale,
   channel,
   voice,
   onChannel,
-  onInvite,
-  onSignOut,
-  onError,
+  onClose,
+  panel,
+  kicked,
+  onPanel,
 }: {
+  sidebarRef: React.Ref<HTMLElement>;
   user: CurrentUser;
   state: CommunityState;
   locale: Locale;
   channel: string;
   voice: ReturnType<typeof useVoice>;
   onChannel: (id: string) => void;
-  onInvite: () => Promise<void>;
-  onSignOut: () => Promise<void>;
-  onError: (error: unknown) => void;
+  onClose: () => void;
+  panel: ConversationPanel | null;
+  kicked: boolean;
+  onPanel: (panel: ConversationPanel) => void;
 }) {
   const t = messages[locale];
-  const textChannels = user.channels.filter((c) => c.kind === "text");
-  const voiceChannels = user.channels.filter((c) => c.kind === "voice");
+  const toolsRef = useRef<HTMLDetailsElement>(null);
+  const owner = user.participant.role === "owner";
+  function openTool(next: ConversationPanel) {
+    if (toolsRef.current) toolsRef.current.open = false;
+    onPanel(next);
+  }
   return (
-    <aside className="sidebar" aria-label={t.channels}>
-      <a className="wordmark" href="/">
-        yapper<span>.</span>
-      </a>
-      <div className="server-heading">
-        <div className="server-avatar">{state.name.slice(0, 1).toUpperCase()}</div>
-        <div>
-          <strong>{state.name}</strong>
-          <p>{t.privacy}</p>
-        </div>
+    <aside id="workspace-channels" ref={sidebarRef} className="sidebar" aria-label={t.channels}>
+      <div className="sidebar-header">
+        <Brand />
+        <strong>{state.name}</strong>
       </div>
-      <p className="section-label">{t.textChannels}</p>
-      <nav className="channel-list" aria-label={t.textChannels}>
-        {textChannels.map((c) => (
-          <Button
-            key={c.id}
-            variant="ghost"
-            className={c.id === channel ? "channel-button channel-active" : "channel-button"}
-            aria-current={c.id === channel ? "page" : undefined}
-            onClick={() => onChannel(c.id)}
-          >
-            <Hash size={18} />
-            {c.name}
-          </Button>
-        ))}
-      </nav>
-      <p className="section-label">{t.voiceChannels}</p>
-      <nav className="channel-list" aria-label={t.voiceChannels}>
-        {voiceChannels.map((c) => (
-          <Button
-            key={c.id}
-            variant="ghost"
-            className="channel-button"
-            onClick={() => void voice.join(c.id)}
-            disabled={voice.status === "connecting"}
-            title={t.joinVoice}
-          >
-            <Volume2 size={18} />
-            {c.name}
-          </Button>
-        ))}
-      </nav>
-      <div className="sidebar-bottom">
-        <VoicePanel voice={voice} voiceChannels={voiceChannels} locale={locale} onError={onError} />
-        {user.participant.role === "owner" && (
-          <Button variant="outline" onClick={() => void onInvite()}>
-            <Plus size={16} />
-            {t.inviteFriend}
-          </Button>
-        )}
-        <div className="self-row">
-          <span className="person-avatar">
-            {user.participant.nickname.slice(0, 1).toUpperCase()}
-          </span>
-          <div>
-            <strong>{user.participant.nickname}</strong>
-            <small>{t[user.participant.role]}</small>
-          </div>
-          {user.participant.role !== "participant" && (
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={t.signOut}
-              onClick={() => void onSignOut().catch(onError)}
-            >
-              <LogOut size={17} />
-            </Button>
-          )}
-        </div>
+      <div className="sidebar-scroll">
+        {(["text", "voice"] as const).map((kind) => {
+          const label = kind === "text" ? t.textChannels : t.voiceChannels;
+          return (
+            <Fragment key={kind}>
+              <p className="section-label">{label}</p>
+              <nav className="channel-list" aria-label={label}>
+                {groupedChannels(user, kind).map((group) => (
+                  <Fragment key={group.id}>
+                    {group.name && <span className="channel-category">{group.name}</span>}
+                    {group.channels.map((item) => (
+                      <Fragment key={item.id}>
+                        <Button
+                          variant="ghost"
+                          className="channel-button"
+                          aria-current={kind === "text" && item.id === channel ? "page" : undefined}
+                          aria-pressed={kind === "voice" ? item.id === voice.channel : undefined}
+                          onClick={() => {
+                            if (kind === "text") onChannel(item.id);
+                            else {
+                              onClose();
+                              void voice.join(item.id);
+                            }
+                          }}
+                          disabled={kind === "voice" && kicked}
+                          title={kind === "voice" ? t.joinVoice : undefined}
+                        >
+                          {kind === "text" ? <Hash size={16} /> : <Volume2 size={16} />}
+                          <span className="channel-name">{item.name}</span>
+                          {item.archived && <small>{t.archived}</small>}
+                        </Button>
+                        {kind === "voice" && item.id === voice.channel && (
+                          <ul className="channel-people">
+                            {voice.participants.map((person) => (
+                              <li key={person.identity} data-speaking={person.speaking}>
+                                <span className="status-dot" aria-hidden="true" />
+                                <span title={person.name}>{person.name}</span>
+                                {person.speaking && <span className="sr-only">{t.speaking}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </Fragment>
+                    ))}
+                  </Fragment>
+                ))}
+              </nav>
+            </Fragment>
+          );
+        })}
       </div>
+      {isStaff(user.participant) && (
+        <div className="sidebar-bottom">
+          <details ref={toolsRef} className="server-tools">
+            <summary id="server-tools-toggle">
+              <Settings size={16} aria-hidden="true" />
+              {t.serverTools}
+            </summary>
+            <div className="server-tools-options">
+              {owner && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-pressed={panel === "admission"}
+                    onClick={() => openTool("admission")}
+                  >
+                    {t.admissionSettings}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-pressed={panel === "catalog"}
+                    onClick={() => openTool("catalog")}
+                  >
+                    {t.manageChannels}
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-pressed={panel === "moderation"}
+                onClick={() => openTool("moderation")}
+              >
+                {t.moderation}
+              </Button>
+            </div>
+          </details>
+        </div>
+      )}
     </aside>
   );
 }
 
-function VoicePanel({
-  voice,
-  voiceChannels,
+function WorkspaceProfile({
+  user,
   locale,
+  language,
+  onSignOut,
   onError,
 }: {
-  voice: ReturnType<typeof useVoice>;
-  voiceChannels: CurrentUser["channels"];
+  user: CurrentUser;
   locale: Locale;
+  language: React.ReactNode;
+  onSignOut: () => Promise<void>;
   onError: (error: unknown) => void;
 }) {
   const t = messages[locale];
   return (
-    <>
-      {voice.channel && (
-        <section className="voice-panel" aria-label={t.voice}>
-          <div className="voice-panel-title">
-            <Volume2 size={15} />
-            <strong>{voiceChannels.find((c) => c.id === voice.channel)?.name}</strong>
-            <span>{t[voice.status]}</span>
-          </div>
-          {voice.participants.map((p) => (
-            <div
-              key={p.identity}
-              className={p.speaking ? "voice-person voice-speaking" : "voice-person"}
-            >
-              <span className="status-dot" />
-              {p.name}
-            </div>
-          ))}
-          <div className="voice-controls">
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={voice.muted ? t.unmute : t.mute}
-              aria-pressed={!voice.muted}
-              onClick={() => void voice.toggleMute()}
-            >
-              {voice.muted ? <MicOff size={17} /> : <Mic size={17} />}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={voice.deafened ? t.undeafen : t.deafen}
-              aria-pressed={voice.deafened}
-              onClick={voice.toggleDeafen}
-            >
-              {voice.deafened ? <VolumeX size={17} /> : <Headphones size={17} />}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={t.leaveVoice}
-              onClick={() => void voice.leave().catch(onError)}
-            >
-              <PhoneOff size={17} />
-            </Button>
-          </div>
-          {voice.audioBlocked && (
-            <Button variant="outline" onClick={() => void voice.startAudio()}>
-              {t.undeafen}
-            </Button>
-          )}
-        </section>
+    <div id="workspace-profile" className="self-row">
+      <span className="person-avatar">{user.participant.nickname.slice(0, 1).toUpperCase()}</span>
+      <div>
+        <strong>{user.participant.nickname}</strong>
+        <small>{t[user.participant.role]}</small>
+      </div>
+      <span className="mobile-workspace-language">{language}</span>
+      {user.account && (
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={t.signOut}
+          onClick={() => void onSignOut().catch(onError)}
+        >
+          <LogOut size={17} />
+        </Button>
       )}
-      {voice.error && (
-        <p role="alert" className="error-message">
-          {t.voiceError}
-        </p>
-      )}
-    </>
-  );
-}
-
-const timeFormatters = {
-  en: new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }),
-  pl: new Intl.DateTimeFormat("pl", { hour: "2-digit", minute: "2-digit" }),
-};
-function MessageHistory({
-  items,
-  user,
-  locale,
-  onBan,
-}: {
-  items: Message[];
-  user: CurrentUser;
-  locale: Locale;
-  onBan: (participant: Participant) => void;
-}) {
-  const t = messages[locale];
-  return (
-    <section
-      className="message-history"
-      aria-label={t.channels}
-      aria-live="polite"
-      aria-relevant="additions"
-    >
-      {items.length === 0 ? (
-        <div className="empty-chat">
-          <div className="empty-symbol">
-            <Hash size={32} />
-          </div>
-          <h2>{t.emptyChat}</h2>
-          <p>{t.emptyChatDescription}</p>
-        </div>
-      ) : (
-        items.map((message) => (
-          <article className="message-row" key={message.id}>
-            <span className="person-avatar">{message.nickname.slice(0, 1).toUpperCase()}</span>
-            <div className="message-content">
-              <header>
-                <strong>{message.nickname}</strong>
-                {message.authorId === user.participant.id && (
-                  <span className="you-label">{t.you}</span>
-                )}
-                <time dateTime={message.createdAt}>
-                  {timeFormatters[locale].format(new Date(message.createdAt))}
-                </time>
-                {user.participant.role === "owner" && message.authorId !== user.participant.id && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={`${t.ban}: ${message.nickname}`}
-                    onClick={() =>
-                      onBan({
-                        id: message.authorId,
-                        nickname: message.nickname,
-                        role: "participant",
-                      })
-                    }
-                  >
-                    <Shield size={14} />
-                  </Button>
-                )}
-              </header>
-              <p>{message.body}</p>
-            </div>
-          </article>
-        ))
-      )}
-    </section>
+    </div>
   );
 }
 

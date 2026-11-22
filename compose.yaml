@@ -12,6 +12,7 @@ x-server-environment: &server-environment
   DATABASE_URL: postgres://yapper_app@postgres:5432/yapper_app
   DATABASE_PASSWORD: ${APP_DB_PASSWORD:?Required}
   HTTP_ADDR: 0.0.0.0:8080
+  YAPPER_TRUST_INGRESS_IP: "true"
   AUTH_ISSUER: https://${YAPPER_DOMAIN:?Required}
   AUTH_JWKS_URL: http://auth:3001/api/auth/jwks
   AUTH_INTERNAL_URL: http://auth:3001

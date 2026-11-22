@@ -72,7 +72,7 @@ func run() error {
 		return err
 	}
 	defer mediaService.Close()
-	api, err := httpapi.NewCommunity(store, verifier, auth, httpapi.CommunityConfig{Media: mediaService, Origin: os.Getenv("AUTH_ISSUER"), SetupToken: os.Getenv("SETUP_TOKEN"), SetupExpires: expires})
+	api, err := httpapi.NewCommunity(store, verifier, auth, httpapi.CommunityConfig{Media: mediaService, Origin: os.Getenv("AUTH_ISSUER"), SetupToken: os.Getenv("SETUP_TOKEN"), SetupExpires: expires, TrustIngress: os.Getenv("YAPPER_TRUST_INGRESS_IP") == "true"})
 	if err != nil {
 		return err
 	}
@@ -82,6 +82,7 @@ func run() error {
 	defer stop()
 	var workers sync.WaitGroup
 	workers.Go(func() { mediaService.Reconcile(ctx) })
+	workers.Go(func() { api.RetainMessages(ctx) })
 	defer func() { stop(); workers.Wait() }()
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
