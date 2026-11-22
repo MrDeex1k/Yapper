@@ -181,7 +181,7 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 		replay.CloseNow()
 		t.Fatal("ticket replay accepted")
 	}
-	issue := func() string {
+	issue := func(t *testing.T) string {
 		t.Helper()
 		response, body := request("/api/v1/events/ticket", map[string]string{}, cookie, origin)
 		if response.StatusCode != 201 {
@@ -195,25 +195,64 @@ func TestGuestHTTPAndForcedDisconnect(t *testing.T) {
 		}
 		return next.Ticket
 	}
-	dial := func(ctx context.Context, ticket string) (*websocket.Conn, error) {
-		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/events",
+	dial := func(ctx context.Context, ticket string) (*websocket.Conn, *http.Response, error) {
+		return websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/events",
 			&websocket.DialOptions{HTTPHeader: header, Subprotocols: []string{"yapper.v1", "yapper.ticket." + ticket}})
-		return conn, err
 	}
-	staleTicket := issue()
+	t.Run("one connection can redeem a shared ticket", func(t *testing.T) {
+		ticket := issue(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		var attempts [2]struct {
+			conn *websocket.Conn
+			res  *http.Response
+			err  error
+		}
+		var group sync.WaitGroup
+		ready := make(chan struct{}, len(attempts))
+		start := make(chan struct{})
+		for i := range attempts {
+			group.Go(func() {
+				ready <- struct{}{}
+				<-start
+				attempts[i].conn, attempts[i].res, attempts[i].err = dial(ctx, ticket)
+			})
+		}
+		for range attempts {
+			<-ready
+		}
+		close(start)
+		group.Wait()
+
+		accepted := 0
+		for _, attempt := range attempts {
+			if attempt.conn != nil {
+				t.Cleanup(func() { _ = attempt.conn.CloseNow() })
+			}
+			if attempt.err == nil {
+				accepted++
+			} else if attempt.res == nil || attempt.res.StatusCode != http.StatusForbidden {
+				t.Errorf("expected HTTP 403 for the rejected handshake, got %v", attempt.err)
+			}
+		}
+		if accepted != 1 {
+			t.Fatalf("accepted %d handshakes on one ticket, want 1", accepted)
+		}
+	})
+	staleTicket := issue(t)
 	if !api.applyModeration(httptest.NewRecorder(), httptest.NewRequest("POST", "/", nil).WithContext(t.Context()), owner.ID, participant.ID, community.Kick, false) {
 		t.Fatal("kick failed")
 	}
 	if _, _, err = ws.Read(ctx); websocket.CloseStatus(err) != kickedCloseCode {
 		t.Fatalf("kick close status=%v", err)
 	}
-	if closed, err := dial(ctx, staleTicket); err == nil {
+	if closed, _, err := dial(ctx, staleTicket); err == nil {
 		closed.CloseNow()
 		t.Fatal("ticket issued before kick survived")
 	}
 	reconnect, finishReconnect := context.WithTimeout(t.Context(), 5*time.Second)
 	defer finishReconnect()
-	ws, err = dial(reconnect, issue())
+	ws, _, err = dial(reconnect, issue(t))
 	if err != nil {
 		t.Fatalf("fresh reconnect after kick: %v", err)
 	}

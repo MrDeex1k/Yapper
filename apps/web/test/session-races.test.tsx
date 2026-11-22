@@ -1,4 +1,5 @@
-import { test, expect, mock } from "bun:test";
+import { test, expect, jest, mock, spyOn } from "bun:test";
+import type { MemberPage } from "@yapper/api";
 import { Window } from "happy-dom";
 import { act, createElement, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
@@ -7,7 +8,9 @@ Object.assign(globalThis, {
   window: browser,
   document: browser.document,
   navigator: browser.navigator,
+  Node: browser.Node,
   Element: browser.Element,
+  HTMLElement: browser.HTMLElement,
   HTMLMediaElement: browser.HTMLMediaElement,
   location: browser.location,
   IS_REACT_ACT_ENVIRONMENT: true,
@@ -167,9 +170,14 @@ let readChangesOverride:
   | ((channel: string, revision: number) => Promise<{ changes: typeof changes }>)
   | undefined;
 let changes: { id: string; revision: number; message: typeof sample | null }[] = [];
+const { restoreAccount, login } = await import("../src/api");
+const readMembers = mock(async (): Promise<MemberPage> => ({ members: [], next: "" }));
+const readAudit = mock(async () => ({ events: [] }));
 mock.module("../src/api", () => ({
   api: {
     ticket: async () => ({ ticket: "ticket" }),
+    members: readMembers,
+    audit: readAudit,
     timeline: async (channel: string) => ({
       messages: [{ ...sample, channelId: channel }],
       before: 0,
@@ -211,6 +219,112 @@ const refreshCommunity = async () => {};
 const { useConversation } = await import("../src/use-conversation");
 const { useVoice } = await import("../src/use-voice");
 const { createVoiceController } = await import("../src/voice-controller");
+
+const { ModerationPanel } = await import("../src/moderation-panel");
+
+for (const { path, run } of [
+  { path: "/api/auth/get-session", run: restoreAccount },
+  { path: "/api/auth/token", run: () => login("moderator", "password") },
+]) {
+  test(`the account deadline covers the JSON body at ${path}`, async () => {
+    const immediate = setImmediate;
+    const nextTurn = () => new Promise<void>((resolve) => immediate(resolve));
+    jest.useFakeTimers();
+    const headersReceived = Promise.withResolvers<void>();
+    const fetchMock = spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (url !== path) return new Response("{}");
+      const signal = init?.signal;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("{"));
+            signal?.addEventListener("abort", () => controller.error(signal.reason), {
+              once: true,
+            });
+            headersReceived.resolve();
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    });
+    try {
+      let outcome = "pending";
+      void run().then(
+        () => {
+          outcome = "completed";
+        },
+        (error: DOMException) => {
+          outcome = error.name;
+        },
+      );
+      await headersReceived.promise;
+      await nextTurn();
+      jest.advanceTimersByTime(7999);
+      await nextTurn();
+      expect(outcome).toBe("pending");
+      jest.advanceTimersByTime(1);
+      await nextTurn();
+      expect(outcome).toBe("AbortError");
+    } finally {
+      fetchMock.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+}
+
+test("moderation retries a failed participant directory independently of the audit", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const member = {
+    id: "guest",
+    nickname: "Guest",
+    role: "participant",
+    micMuted: false,
+    banned: false,
+    registered: false,
+    canBlockIp: false,
+    ipBlocked: false,
+  } as const;
+  readMembers.mockClear();
+  readAudit.mockClear();
+  readMembers.mockRejectedValueOnce(new Error("directory unavailable"));
+  readMembers.mockResolvedValueOnce({ members: [member], next: "" });
+  readAudit.mockRejectedValueOnce(new Error("audit unavailable"));
+  const button = (label: string) => {
+    const found = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent === label,
+    );
+    if (!found) throw new Error(`missing button: ${label}`);
+    return found;
+  };
+  try {
+    await act(async () =>
+      root.render(
+        <ModerationPanel
+          actor={{ id: "staff", nickname: "Staff", role: "moderator", micMuted: false }}
+          locale="en"
+          target={{ id: "", request: 0 }}
+          revision={0}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    const selector = container.querySelector("select");
+    expect(selector?.disabled).toBe(true);
+    await act(async () => button("Reload").click());
+    expect(readMembers).toHaveBeenCalledTimes(1);
+    expect(readAudit).toHaveBeenCalledTimes(2);
+    expect(selector?.disabled).toBe(true);
+    await act(async () => button("Reload participants").click());
+    expect(selector?.disabled).toBe(false);
+    expect(selector?.options[1]?.value).toBe("guest");
+    expect(readMembers).toHaveBeenCalledTimes(2);
+    expect(readAudit).toHaveBeenCalledTimes(2);
+    expect(container.textContent).not.toContain("Could not load participants.");
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
 
 test("chat applies durable edits and reconnect deletions, ignoring a stale channel refresh", async () => {
   const container = document.createElement("div");
@@ -418,6 +532,51 @@ test("deafen blocks playback starts, including while a room is joining", async (
     controller.toggleDeafen();
     expect(audioStarts).toBe(1);
     await controller.leave();
+  } finally {
+    controller.dispose();
+  }
+});
+
+test("SDK playback without a status event cannot restore deafened remote audio", async () => {
+  const controller = createVoiceController(() => {});
+  const attached = new Set<HTMLMediaElement>();
+  const peer = { identity: "peer", setVolume: mock((_volume: number) => {}) };
+  function track() {
+    return {
+      kind: "audio",
+      attach: mock((element: HTMLMediaElement) => {
+        attached.add(element);
+        return element;
+      }),
+      detach: mock((element: HTMLMediaElement) => attached.delete(element)),
+    };
+  }
+  const before = track();
+  const during = track();
+  const unsubscribed = track();
+  try {
+    await controller.join("voice");
+    const room = TestRoom.latest;
+    room.emit("TrackSubscribed", before, null, peer);
+    expect(attached.size).toBe(1);
+    const [previous] = attached;
+
+    controller.toggleDeafen();
+    room.emit("TrackSubscribed", during, null, peer);
+    room.emit("TrackSubscribed", unsubscribed, null, peer);
+    room.emit("TrackUnsubscribed", unsubscribed);
+    // LiveKit only touches attached elements and emits no event if playback is already enabled.
+    for (const element of attached) element.muted = false;
+    expect(attached.size).toBe(0);
+    expect(previous?.muted).toBe(true);
+    expect(previous?.isConnected).toBe(false);
+    expect(during.attach).not.toHaveBeenCalled();
+
+    controller.toggleDeafen();
+    expect(attached.size).toBe(2);
+    expect(unsubscribed.attach).not.toHaveBeenCalled();
+    await controller.leave();
+    expect(attached.size).toBe(0);
   } finally {
     controller.dispose();
   }

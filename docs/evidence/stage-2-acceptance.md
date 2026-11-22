@@ -27,3 +27,11 @@ The 2026-11-22 follow-up verified the review fixes with Node 26.13.1, pnpm 12.21
 - GPUI passed the Linux arm64 format, strict and pedantic Clippy, unit test, and locked build checks. The opt-in GPUI smoke joined LiveKit through the Go signaling gate and released the grant. The server picker rendered under X11 at 640 × 600.
 
 Physical microphones, two-way speech, and a fresh Windows build were outside this follow-up. The earlier Windows and macOS acceptance applies to the build listed above.
+
+### Second CodeRabbit review
+
+The Web suite passed 18 tests. The new regressions cover aborting stalled session and token JSON bodies at the request deadline, retrying the participant directory independently of the moderation audit, and keeping remote tracks detached while deafened when the simulated SDK restarts playback without a status event. Re-enabling playback attached the current tracks, including a track added during deafen.
+
+`pnpm check` passed and React Doctor remained at 87/100. The WebSocket integration test ran 10 times under `go test -race` against disposable PostgreSQL 19. Each concurrent test accepted exactly one handshake for a fresh event ticket and rejected the other with HTTP 403.
+
+The playback regression used a simulated SDK. Playback on a physical iPhone or iPad was unverified for this change.

@@ -48,26 +48,34 @@ async function withDeadline<T>(
   }
 }
 
-function fetchAccount(path: string, init: RequestInit, timeout = 8000) {
-  return withDeadline(timeout, undefined, (signal) =>
-    fetch(path, { ...init, credentials: "same-origin", signal }),
-  );
+function fetchAccount<T>(
+  path: string,
+  init: RequestInit,
+  consume: (response: Response) => T | Promise<T>,
+  timeout = 8000,
+) {
+  return withDeadline(timeout, undefined, async (signal) => {
+    const response = await fetch(path, { ...init, credentials: "same-origin", signal });
+    return consume(response);
+  });
 }
 
 async function refreshAccount() {
-  const response = await fetchAccount("/api/auth/token", {});
-  if (!response.ok) {
-    token = null;
-    throw new APIError("access_denied", response.status);
-  }
-  const body = (await response.json()) as { token: string };
+  const body = await fetchAccount("/api/auth/token", {}, (response) => {
+    if (!response.ok) {
+      token = null;
+      throw new APIError("access_denied", response.status);
+    }
+    return response.json() as Promise<{ token: string }>;
+  });
   token = body.token;
   refreshedAt = Date.now();
 }
 export async function restoreAccount() {
-  const response = await fetchAccount("/api/auth/get-session", {});
-  if (!response.ok) throw new APIError("service_unavailable", response.status);
-  const session: unknown = await response.json();
+  const session = await fetchAccount("/api/auth/get-session", {}, (response) => {
+    if (!response.ok) throw new APIError("service_unavailable", response.status);
+    return response.json() as Promise<unknown>;
+  });
   if (session) await refreshAccount();
   else token = null;
 }
@@ -95,29 +103,33 @@ export async function request<T>(
   });
 }
 export async function login(username: string, password: string) {
-  const response = await fetchAccount(
+  await fetchAccount(
     "/api/auth/sign-in/username",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     },
+    (response) => {
+      if (!response.ok) throw new APIError("login_failed", response.status);
+    },
     10000,
   );
-  if (!response.ok) throw new APIError("login_failed", response.status);
   await refreshAccount();
 }
 export async function logout() {
-  const response = await fetchAccount(
+  await fetchAccount(
     "/api/auth/sign-out",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
     },
+    (response) => {
+      if (!response.ok) throw new APIError("service_unavailable", response.status);
+    },
     10000,
   );
-  if (!response.ok) throw new APIError("service_unavailable", response.status);
   token = null;
 }
 export const api = {

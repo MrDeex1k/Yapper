@@ -49,10 +49,24 @@ type LiveSession = {
   room: Room;
   grant: VoiceGrant;
   microphone: ReturnType<typeof createMicrophone>;
-  audio: Map<RemoteAudioTrack, HTMLMediaElement>;
+  audio: Map<RemoteAudioTrack, HTMLMediaElement | null>;
   joined: boolean;
   stopped?: Promise<void>;
 };
+function attachAudio(track: RemoteAudioTrack) {
+  const element = document.createElement("audio");
+  element.className = "remote-audio";
+  track.attach(element);
+  document.body.append(element);
+  return element;
+}
+
+function detachAudio(track: RemoteAudioTrack, element: HTMLMediaElement) {
+  element.muted = true;
+  track.detach(element);
+  element.remove();
+}
+
 type OutputPicker = MediaDevices & { selectAudioOutput?: () => Promise<MediaDeviceInfo> };
 const defaultDevice = "default";
 
@@ -141,8 +155,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
         .then(async () => {
           session.microphone.stop();
           for (const [track, element] of session.audio) {
-            track.detach(element);
-            element.remove();
+            if (element) detachAudio(track, element);
           }
           session.audio.clear();
           await session.room.disconnect();
@@ -301,20 +314,14 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
         if (!current(session) || track.kind !== Track.Kind.Audio) return;
         const audio = track as RemoteAudioTrack;
         if (session.audio.has(audio)) return;
-        const element = audio.attach();
-        element.className = "remote-audio";
-        element.muted = state.deafened;
         participant.setVolume(volumes.get(memberKey(participant.identity)) ?? 1);
-        document.body.append(element);
-        session.audio.set(audio, element);
+        session.audio.set(audio, state.deafened ? null : attachAudio(audio));
       })
       .on(RoomEvent.TrackUnsubscribed, (track) => {
         if (track.kind !== Track.Kind.Audio) return;
         const audio = track as RemoteAudioTrack;
         const element = session.audio.get(audio);
-        if (!element) return;
-        audio.detach(element);
-        element.remove();
+        if (element) detachAudio(audio, element);
         session.audio.delete(audio);
       })
       .on(RoomEvent.AudioPlaybackStatusChanged, () => {
@@ -399,10 +406,6 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
       }
     } catch {
       if (current(session)) publish({ audioBlocked: true, error: "voicePlaybackError" });
-    } finally {
-      if (current(session) && state.deafened) {
-        for (const element of session.audio.values()) element.muted = true;
-      }
     }
   }
 
@@ -457,7 +460,17 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
       }
       publish({ deafened });
       syncMic();
-      if (active) for (const element of active.audio.values()) element.muted = deafened;
+      if (active) {
+        // LiveKit can restart attached audio on iOS without emitting a playback status change.
+        for (const [track, element] of active.audio) {
+          if (deafened && element) {
+            detachAudio(track, element);
+            active.audio.set(track, null);
+          } else if (!deafened && !element) {
+            active.audio.set(track, attachAudio(track));
+          }
+        }
+      }
       if (!deafened) void startAudio();
     },
     setPushToTalk(enabled: boolean) {

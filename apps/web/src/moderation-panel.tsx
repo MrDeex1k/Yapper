@@ -49,6 +49,8 @@ export function ModerationPanel({
   const selectionKey = [target.request, selection.choice].join("/");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [directoryError, setDirectoryError] = useState(false);
+  const [directoryRetry, setDirectoryRetry] = useState(0);
   const [reload, setReload] = useState(0);
   const [saved, setSaved] = useState(false);
   const [pinned, setPinned] = useState<{
@@ -58,7 +60,7 @@ export function ModerationPanel({
   } | null>(null);
   const [auditError, setAuditError] = useState<unknown>(null);
   const [auditReload, setAuditReload] = useState(0);
-  const generation = [revision, reload].join("/");
+  const generation = [revision, reload, directoryRetry].join("/");
   const activeGeneration = useRef(generation);
   useLayoutEffect(() => {
     activeGeneration.current = generation;
@@ -73,10 +75,12 @@ export function ModerationPanel({
     void api
       .members({ signal })
       .then((data) => {
-        if (!signal.aborted) setDirectory({ generation, data });
+        if (signal.aborted) return;
+        setDirectory({ generation, data });
+        setDirectoryError(false);
       })
-      .catch((e) => {
-        if (!signal.aborted) setError(e);
+      .catch(() => {
+        if (!signal.aborted) setDirectoryError(true);
       });
     return () => controller.abort();
   }, [generation]);
@@ -94,7 +98,7 @@ export function ModerationPanel({
         if (!signal.aborted) setAuditError(e);
       });
     return () => controller.abort();
-  }, [generation, auditReload]);
+  }, [revision, reload, auditReload]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
@@ -197,6 +201,22 @@ export function ModerationPanel({
           </Button>
         )}
       </div>
+      {directoryError && (
+        <div className="panel-actions">
+          <p className="error-message" role="alert">
+            {t.participantDirectoryLoadFailed}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDirectoryError(false);
+              setDirectoryRetry((value) => value + 1);
+            }}
+          >
+            {t.retryParticipants}
+          </Button>
+        </div>
+      )}
       {selectedMember && (
         <MemberActions
           key={selectedMember.id}
