@@ -13,9 +13,12 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/signal"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"uuid"
 
@@ -23,6 +26,14 @@ import (
 )
 
 const installationName = "Stage 3 capacity"
+
+const (
+	onlineClients = 30
+	batchSize     = 3
+	eventDeadline = 2 * time.Second
+	voiceDeadline = 5 * time.Second
+	textDeadline  = 250 * time.Millisecond
+)
 
 type client struct {
 	origin string
@@ -59,13 +70,15 @@ func main() {
 	tone := flag.String("tone", "", "Ogg Opus fixture covering the warmup and test duration")
 	flag.Parse()
 
-	if err := run(*origin, *tone, *warmup, *duration); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, *origin, *tone, *warmup, *duration); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(origin, tone string, warmup, duration time.Duration) error {
+func run(ctx context.Context, origin, tone string, warmup, duration time.Duration) (runErr error) {
 	address, err := url.Parse(origin)
 	if err != nil || origin != "http://"+address.Host || address.Hostname() != "127.0.0.1" {
 		return errors.New("origin must be a loopback HTTP origin")
@@ -73,7 +86,7 @@ func run(origin, tone string, warmup, duration time.Duration) error {
 	if warmup < 0 || duration < 10*time.Second || tone == "" {
 		return errors.New("a tone file, nonnegative warmup, and duration of at least 10 seconds are required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), warmup+duration+4*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, warmup+duration+4*time.Minute)
 	defer cancel()
 
 	admin := newClient(origin)
@@ -152,26 +165,34 @@ func run(origin, tone string, warmup, duration time.Duration) error {
 		}
 		unique[guest.id] = true
 	}
-	var sockets []*websocket.Conn
-	for _, guest := range clients[:30] {
+	var sockets []*eventStream
+	defer func() {
+		for _, stream := range sockets {
+			stream.close()
+		}
+	}()
+	for _, guest := range clients[:onlineClients] {
 		connection, err := guest.openEvents(ctx)
 		if err != nil {
 			return err
 		}
 		sockets = append(sockets, connection)
-		defer connection.CloseNow()
 	}
 	voice, err := startVoiceBridge(ctx, origin)
 	if err != nil {
 		return err
 	}
 	defer voice.close()
-	for i, guest := range clients[:20] {
-		if err := voice.join(ctx, i, guest, rooms[i/10], tone); err != nil {
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		runErr = errors.Join(runErr, voice.leaveAll(cleanup))
+	}()
+	for i, guest := range clients[:voiceClients] {
+		if err := voice.join(ctx, i, guest, rooms[i/voiceRoomSize], tone); err != nil {
 			return fmt.Errorf("voice participant %d: %w", i+1, err)
 		}
 	}
-	defer voice.leaveAll(ctx)
 	fmt.Printf("Ready: 100 persisted identities including the owner, 30 event streams, 20 voice publishers with 10 per room\n")
 	select {
 	case <-ctx.Done():
@@ -182,68 +203,52 @@ func run(origin, tone string, warmup, duration time.Duration) error {
 	return sustain(ctx, clients, sockets, voice, rooms, text, tone, duration)
 }
 
-func sustain(ctx context.Context, clients []*client, sockets []*websocket.Conn, voice *voiceBridge, rooms []string, text, tone string, duration time.Duration) error {
+func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voice *voiceBridge, rooms []string, text, tone string, duration time.Duration) error {
 	started := time.Now()
 	textPath := "/api/v1/channels/" + text + "/messages"
 	var acks []time.Duration
 	var socketRecoveries []time.Duration
 	var acknowledged []message
 	var recoveries []time.Duration
-	defer func() {
-		for _, connection := range sockets {
-			_ = connection.CloseNow()
-		}
-	}()
-	tick := time.NewTicker(2 * time.Second)
-	defer tick.Stop()
+	beforeMedia := voice.packetCounts()
+	tick := time.Tick(6 * time.Second)
 	for i := 0; time.Since(started) < duration; i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-tick.C:
+		case <-tick:
 		}
-		guest := clients[i%30]
-		body := map[string]string{"requestId": uuid.New().String(), "body": fmt.Sprintf("Stage 3 load message %d", i)}
-		var committed message
-		begin := time.Now()
-		if err := guest.request(ctx, textPath, body, 200, &committed); err != nil {
+		if err := voice.verifyProgress(beforeMedia); err != nil {
 			return err
 		}
-		acks = append(acks, time.Since(begin))
-		if committed.ID == "" || committed.RequestID != body["requestId"] {
-			return errors.New("message acknowledgement did not identify its request")
-		}
-		acknowledged = append(acknowledged, committed)
-		if i%10 == 0 {
-			var retry message
-			if err := guest.request(ctx, textPath, body, 200, &retry); err != nil || retry != committed {
-				return fmt.Errorf("message retry failed idempotency: %w", errors.Join(err, errors.New("response did not preserve the committed message")))
-			}
-		}
-		if i > 0 && i%30 == 0 {
-			index := (i / 30) % 30
-			_ = sockets[index].CloseNow()
-			begin = time.Now()
-			var err error
-			sockets[index], err = clients[index].openEvents(ctx)
+		if i > 0 && i%10 == 0 {
+			index := (i / 10) % onlineClients
+			sockets[index].close()
+			begin := time.Now()
+			stream, err := clients[index].openEvents(ctx)
 			if err != nil {
 				return fmt.Errorf("text reconnect: %w", err)
 			}
+			sockets[index] = stream
 			socketRecoveries = append(socketRecoveries, time.Since(begin))
-			speaker := (i / 30) % 20
+			speaker := (i / 10) % voiceClients
 			begin = time.Now()
-			if err := voice.replace(ctx, speaker, clients[speaker], rooms[speaker/10], tone); err != nil {
+			if err := voice.replace(ctx, speaker, clients[speaker], rooms[speaker/voiceRoomSize], tone); err != nil {
 				return fmt.Errorf("voice reconnect: %w", err)
 			}
 			recoveries = append(recoveries, time.Since(begin))
 		}
-		if i%30 == 0 {
-			fmt.Printf("Progress after %s: %d acknowledged messages, %d received RTP packets\n", time.Since(started).Round(time.Second), len(acks), voice.packets.Load())
+		beforeMedia = voice.packetCounts()
+		batch, err := sendBatch(ctx, clients[:onlineClients], sockets, textPath, i)
+		if err != nil {
+			return err
 		}
-	}
-	for i, client := range clients[:30] {
-		if client.events.Load() < 2 {
-			return fmt.Errorf("participant %d did not receive a chat event", i+1)
+		for _, reply := range batch {
+			acknowledged = append(acknowledged, reply.message)
+			acks = append(acks, reply.elapsed)
+		}
+		if i%10 == 0 {
+			fmt.Printf("Progress after %s: %d acknowledged messages, %d received RTP packets\n", time.Since(started).Round(time.Second), len(acks), voice.packets.Load())
 		}
 	}
 	if err := checkHistory(ctx, clients[0], text, acknowledged); err != nil {
@@ -252,9 +257,87 @@ func sustain(ctx context.Context, clients []*client, sockets []*websocket.Conn, 
 	if err := voice.verify(); err != nil {
 		return err
 	}
+	textP95, eventP95, voiceP95 := percentile95(acks), percentile95(socketRecoveries), percentile95(recoveries)
 	fmt.Printf("Sustained %s; messages=%d; text acknowledgement p95=%s; event reconnects=%d p95=%s; voice reconnects=%d p95=%s\n",
-		time.Since(started).Round(time.Second), len(acks), percentile95(acks), len(socketRecoveries), percentile95(socketRecoveries), len(recoveries), percentile95(recoveries))
+		time.Since(started).Round(time.Second), len(acks), textP95, len(socketRecoveries), eventP95, len(recoveries), voiceP95)
+	if textP95 > textDeadline || eventP95 > eventDeadline || voiceP95 > voiceDeadline {
+		return errors.New("capacity run exceeded a latency threshold")
+	}
 	return nil
+}
+
+type acknowledgement struct {
+	message message
+	elapsed time.Duration
+	err     error
+}
+
+func sendBatch(ctx context.Context, clients []*client, sockets []*eventStream, path string, round int) ([batchSize]acknowledgement, error) {
+	var before [onlineClients]int64
+	for i, client := range clients {
+		before[i] = client.events.Load()
+	}
+	var replies [batchSize]acknowledgement
+	var workers sync.WaitGroup
+	for slot := range replies {
+		workers.Go(func() {
+			index := round*batchSize + slot
+			reply := &replies[slot]
+			guest := clients[index%onlineClients]
+			body := map[string]string{"requestId": uuid.New().String(), "body": fmt.Sprintf("Stage 3 load message %d", index)}
+			begin := time.Now()
+			reply.err = guest.request(ctx, path, body, 200, &reply.message)
+			reply.elapsed = time.Since(begin)
+			if reply.err != nil {
+				return
+			}
+			if reply.message.ID == "" || reply.message.RequestID != body["requestId"] {
+				reply.err = errors.New("message acknowledgement did not identify its request")
+				return
+			}
+			if index%10 == 0 {
+				var replay message
+				reply.err = guest.request(ctx, path, body, 200, &replay)
+				if reply.err == nil && replay != reply.message {
+					reply.err = errors.New("message retry changed the committed message")
+				}
+			}
+		})
+	}
+	workers.Wait()
+	for _, reply := range replies {
+		if reply.err != nil {
+			return replies, reply.err
+		}
+	}
+	return replies, awaitEvents(ctx, clients, sockets, before)
+}
+
+func awaitEvents(ctx context.Context, clients []*client, sockets []*eventStream, before [onlineClients]int64) error {
+	deadline, cancel := context.WithTimeout(ctx, eventDeadline)
+	defer cancel()
+	tick := time.Tick(10 * time.Millisecond)
+	for {
+		waiting := 0
+		for i, c := range clients {
+			select {
+			case <-sockets[i].stopped:
+				return fmt.Errorf("participant %d lost its event stream", i+1)
+			default:
+			}
+			if c.events.Load()-before[i] < batchSize {
+				waiting++
+			}
+		}
+		if waiting == 0 {
+			return nil
+		}
+		select {
+		case <-deadline.Done():
+			return fmt.Errorf("%d participants missed chat events: %w", waiting, deadline.Err())
+		case <-tick:
+		}
+	}
 }
 
 func checkHistory(ctx context.Context, guest *client, text string, messages []message) error {
@@ -339,7 +422,14 @@ func (c *client) request(ctx context.Context, route string, body any, status int
 	return json.UnmarshalRead(response.Body, output)
 }
 
-func (c *client) openEvents(ctx context.Context) (*websocket.Conn, error) {
+type eventStream struct {
+	connection *websocket.Conn
+	stopped    chan struct{}
+}
+
+func (s *eventStream) close() { _ = s.connection.CloseNow() }
+
+func (c *client) openEvents(ctx context.Context) (*eventStream, error) {
 	var ticket struct {
 		Value string `json:"ticket"`
 	}
@@ -363,8 +453,9 @@ func (c *client) openEvents(ctx context.Context) (*websocket.Conn, error) {
 		_ = connection.CloseNow()
 		return nil, errors.New("event stream did not send ready")
 	}
-	c.events.Add(1)
+	stream := &eventStream{connection: connection, stopped: make(chan struct{})}
 	go func() {
+		defer close(stream.stopped)
 		for {
 			_, data, err := connection.Read(ctx)
 			if err != nil {
@@ -378,7 +469,7 @@ func (c *client) openEvents(ctx context.Context) (*websocket.Conn, error) {
 			}
 		}
 	}()
-	return connection, nil
+	return stream, nil
 }
 
 func percentile95(values []time.Duration) time.Duration {

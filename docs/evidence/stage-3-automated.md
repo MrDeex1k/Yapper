@@ -47,6 +47,8 @@ go build -o stage3-load ./cmd/stage3-load
 
 Supply `STAGE3_SETUP_TOKEN` to the test process from the private Compose environment. Record idle and sustained Docker statistics separately. The runner accepts a fresh loopback installation and creates test accounts and messages. Use a separate disposable project for each run.
 
+The current runner sends three messages concurrently every six seconds. It checks delivery to every open event stream and that each voice client continues to receive RTP from all its room peers. It exits with an error when application latency or RTP exceeds the declared thresholds. The operator checks the container resource thresholds from the Docker samples.
+
 ## Physical LAN smoke
 
 On 2026-11-23, the Stage 3 Compose stack at `5629a77` hosted a call in Lounge between Windows GPUI and Brave on macOS. The Windows GPUI client was built from `381786b`, whose GPUI source tree matches `5629a77`. The maintainer confirmed clear, intelligible speech in both directions using the physical microphones. The synthetic load generator was idle during this call.
@@ -85,3 +87,13 @@ The five services used 128.08 MiB at idle. Their aggregate CPU peaked at 59.78% 
 On 2026-11-23, the maintainer confirmed the Windows GPUI and macOS Web conversation using physical microphones while the server was under load. This completes the Stage 3 real-device conversation gate.
 
 The capacity figures apply to the local Mac and OrbStack environment. Raspberry Pi 5 and public WAN/TURN deployment were outside these runs.
+
+## Verification after review
+
+On 2026-11-23, the Stage 3 review follow-up passed `pnpm check`, the race-enabled Go suite against PostgreSQL, the AUTH integration, the Compose smoke suite, and the isolated TURN/TLS integration.
+
+- A running AUTH container with an overridden secret and a running one-off migration each blocked a backup before services stopped. SIGTERM during a dump resumed the five original services and left no complete archive. A subsequent verified backup restored both databases into clean volumes. The restored owner could sign in with the replacement password and issue a JWT accepted by Go. Guest identity and committed history also survived.
+- Owner recovery rejected an active LiveKit service and completed after all application and media services stopped. Stopping AUTH alone left Go and LiveKit diagnosable. Stopping PostgreSQL yielded failed database readiness while preserving the diagnostic counters from Go's HTTP 503 response.
+- With 100 expired signing-key rows present, AUTH issued 20 concurrent tokens with one signing key and Go verified the token against the published JWKS. AUTH retained both keys during the simulated grace period and withdrew the expired key after it.
+- Docker rejected the second fixed TURN subnet while the original network existed. The same subnet could be created after the original was released. The existing TURN/TLS probe passed on the test network.
+- The revised harness ran for 72 seconds with 30 event streams and 20 voice publishers, including one event reconnect and one voice reconnect. It reconciled 36 acknowledgements against 36 distinct database entries. Text acknowledgement p95 was 32.70 ms, event reconnect took 21.77 ms, and voice reconnect took 48.79 ms. A missing audio file and a one-second audio fixture were rejected. The success and both failure scenarios left zero active voice grants or pending removals. The original 30-minute figures above came from the earlier sequential harness.

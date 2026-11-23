@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { setImmediate } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -50,6 +51,20 @@ const maintenance = [
   ...(values.turn ? ["tls-router", "turn-proxy"] : []),
 ];
 let envFile = resolve(values["env-file"]);
+function deploymentEnvironment() {
+  const env = { ...process.env };
+  // Compose gives the shell precedence over --env-file. Keep Docker client
+  // settings, but resolve deployment values entirely from the selected file.
+  const sources = [...files.map((file) => join(root, file)), envFile];
+  for (const path of sources) {
+    const source = readFileSync(path, "utf8");
+    for (const [, braced, bare] of source.matchAll(/\$(?:\{([A-Za-z_]\w*)|([A-Za-z_]\w*))/g)) {
+      const name = braced ?? bare;
+      if (name) delete env[name];
+    }
+  }
+  return env;
+}
 const compose = (...args: string[]) => [
   "compose",
   "--project-name",
@@ -60,15 +75,20 @@ const compose = (...args: string[]) => [
   ...args,
 ];
 const docker = (...args: string[]) =>
-  execFileSync("docker", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  execFileSync("docker", args, {
+    cwd: root,
+    env: args[0] === "compose" ? deploymentEnvironment() : process.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 const services = () =>
   docker(...compose("ps", "--services", "--status", "running"))
     .trim()
     .split(/\s+/);
 
-async function checksum(path: string) {
+async function checksum(path: string, signal?: AbortSignal) {
   const hash = createHash("sha256");
-  for await (const bytes of createReadStream(path, { flags: "r" })) hash.update(bytes);
+  for await (const bytes of createReadStream(path, { flags: "r", signal })) hash.update(bytes);
   return hash.digest("hex");
 }
 
@@ -81,6 +101,87 @@ type Manifest = {
   createdAt: string;
   files: Record<string, string>;
 };
+
+type ComposeService = {
+  image?: string;
+  environment?: Record<string, string | null>;
+  volumes?: { source: string; target: string }[];
+};
+
+const migrationServices = ["auth-migrate", "server-migrate"];
+function checkMigrations() {
+  for (const service of migrationServices) {
+    const ids = docker(
+      "ps",
+      "--quiet",
+      "--filter",
+      "label=com.docker.compose.project=" + project,
+      "--filter",
+      "label=com.docker.compose.service=" + service,
+    );
+    if (ids.trim()) throw new Error("Wait for the running " + service + " before maintenance");
+  }
+}
+
+function sourceConfiguration() {
+  const model = JSON.parse(docker(...compose("config", "--format", "json"))) as {
+    services: Record<string, ComposeService>;
+  };
+  const containers = docker(
+    "ps",
+    "--all",
+    "--quiet",
+    "--filter",
+    "label=com.docker.compose.project=" + project,
+  )
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (containers.length === 0) throw new Error("The backup project has no containers");
+  const installed = JSON.parse(docker("inspect", ...containers)) as {
+    Config: { Env: string[]; Image: string; Labels: Record<string, string> };
+    Mounts: { Source: string; Destination: string }[];
+  }[];
+  for (const { Config: config, Mounts } of installed) {
+    if (config.Labels["com.docker.compose.oneoff"] === "True") continue;
+    const service = config.Labels["com.docker.compose.service"];
+    if (!service)
+      throw new Error("The backup project contains a container without a service label");
+    const expected = model.services[service];
+    if (!expected)
+      throw new Error("The selected profile omits the installed " + service + " service");
+    if (expected.image && config.Image !== expected.image) {
+      throw new Error("The installed " + service + " image differs from the archive configuration");
+    }
+    if (service === "livekit" && values.turn) {
+      const expectedPath = expected.volumes?.find(({ target }) => target === "/turn-certs")?.source;
+      const mount = Mounts.find(({ Destination }) => Destination === "/turn-certs");
+      if (!expectedPath || mount?.Source !== expectedPath) {
+        throw new Error(
+          "The installed TURN certificate mount differs from the archive configuration",
+        );
+      }
+    }
+    const actual = new Map(
+      config.Env.map((entry) => {
+        const index = entry.indexOf("=");
+        return [entry.slice(0, index), entry.slice(index + 1)];
+      }),
+    );
+    for (const [key, value] of Object.entries(expected.environment ?? {})) {
+      if (value !== null && actual.get(key) !== value) {
+        throw new Error(
+          "The installed " +
+            service +
+            " service differs from the archive environment (" +
+            key +
+            ")",
+        );
+      }
+    }
+  }
+  return model;
+}
 
 async function verify(directory: string) {
   const manifest = JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8")) as Manifest;
@@ -143,6 +244,7 @@ function transferDatabase(
   try {
     const result = spawnSync("docker", databaseCommand(database, program, args), {
       cwd: root,
+      env: deploymentEnvironment(),
       stdio: output ? ["ignore", fd, "pipe"] : [fd, "ignore", "pipe"],
     });
     if (result.status !== 0) throw new Error(mode + " failed for " + database.name);
@@ -152,38 +254,60 @@ function transferDatabase(
 }
 
 async function backup(directory: string) {
+  checkMigrations();
   const running = services();
   const paused = maintenance.filter((service) => running.includes(service));
   if (!running.includes("postgres")) throw new Error("PostgreSQL is not running");
+  const environment = readFileSync(envFile);
+  const config = sourceConfiguration();
+  if (!environment.equals(readFileSync(envFile)))
+    throw new Error("The environment file changed during backup validation");
   mkdirSync(directory, { mode: 0o700 });
+  const interruption = new AbortController();
+  const interrupt = (signal: NodeJS.Signals) => {
+    interruption.abort(new Error("Backup interrupted by " + signal));
+    process.exitCode = signal === "SIGINT" ? 130 : 143;
+  };
+  process.on("SIGINT", interrupt);
+  process.on("SIGTERM", interrupt);
+  let needsResume = paused.length > 0;
   let complete = false;
   try {
-    if (paused.length > 0) docker(...compose("stop", ...paused));
+    if (needsResume) docker(...compose("stop", ...paused));
+    await setImmediate(undefined, { signal: interruption.signal });
+    checkMigrations();
     const manifest: Manifest = {
       format: 1,
       project,
       profile,
       createdAt: new Date().toISOString(),
       dirtySource: Boolean(
-        execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim(),
+        execFileSync("git", ["status", "--porcelain"], {
+          cwd: root,
+          encoding: "utf8",
+        }).trim(),
       ),
-      revision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
+      revision: execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: root,
+        encoding: "utf8",
+      }).trim(),
       files: {},
     };
-    writeFileSync(join(directory, ".env"), readFileSync(envFile), { mode: 0o600 });
+    writeFileSync(join(directory, ".env"), environment, { mode: 0o600 });
     writeFileSync(
       join(directory, "images.json"),
       docker(...compose("images", "--format", "json")),
       { mode: 0o600 },
     );
     for (const name of files) {
-      writeFileSync(join(directory, name), readFileSync(join(root, name)), { mode: 0o600 });
+      writeFileSync(join(directory, name), readFileSync(join(root, name)), {
+        mode: 0o600,
+      });
     }
     if (turnFiles.length > 0) {
-      const config = JSON.parse(docker(...compose("config", "--format", "json"))) as {
-        services: { livekit: { volumes: { source: string; target: string }[] } };
-      };
-      const mount = config.services.livekit.volumes.find(({ target }) => target === "/turn-certs");
+      const mount = config.services.livekit?.volumes?.find(
+        ({ target }) => target === "/turn-certs",
+      );
       if (!mount) throw new Error("TURN certificate mount is missing");
       for (const name of turnFiles) {
         writeFileSync(join(directory, name), readFileSync(join(mount.source, name)), {
@@ -194,15 +318,27 @@ async function backup(directory: string) {
     for (const db of databases) {
       transferDatabase(directory, db, "dump");
       transferDatabase(directory, db, "list");
+      await setImmediate(undefined, { signal: interruption.signal });
     }
-    for (const name of archiveFiles) manifest.files[name] = await checksum(join(directory, name));
+    if (needsResume && !values["leave-stopped"]) {
+      docker(...compose("start", ...paused));
+      needsResume = false;
+    }
+    for (const name of archiveFiles) {
+      manifest.files[name] = await checksum(join(directory, name), interruption.signal);
+    }
     writeFileSync(join(directory, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", {
       mode: 0o600,
     });
     complete = true;
+  } catch (error) {
+    throw interruption.signal.reason ?? error;
   } finally {
-    if (paused.length > 0 && (!complete || !values["leave-stopped"])) {
-      docker(...compose("start", ...paused));
+    try {
+      if (needsResume && !complete) docker(...compose("start", ...paused));
+    } finally {
+      process.off("SIGINT", interrupt);
+      process.off("SIGTERM", interrupt);
     }
   }
   console.info("Verified coordinated backup written to " + directory);
@@ -238,8 +374,9 @@ async function restore(directory: string) {
 }
 
 function recoverOwner() {
-  if (services().some((service) => ["ingress", "server", "auth"].includes(service))) {
-    throw new Error("Stop ingress, server and auth before recovering the owner");
+  checkMigrations();
+  if (services().some((service) => maintenance.includes(service))) {
+    throw new Error("Stop the application, ingress and media services before recovering the owner");
   }
   if (process.stdin.isTTY) throw new Error("Provide the password from a private file on stdin");
   const result = spawnSync(
@@ -247,6 +384,7 @@ function recoverOwner() {
     compose("run", "--rm", "--no-deps", "-T", "auth", "bun", "src/operator.ts"),
     {
       cwd: root,
+      env: deploymentEnvironment(),
       stdio: "inherit",
     },
   );
@@ -268,27 +406,37 @@ function diagnostics() {
     };
   });
   let checks: unknown = null;
-  if (services().includes("auth")) {
+  if (services().some((service) => ["auth", "server", "livekit"].includes(service))) {
     try {
       checks = JSON.parse(
         docker(
           ...compose(
-            "exec",
+            "run",
+            "--rm",
+            "--no-deps",
+            "--pull",
+            "never",
             "-T",
-            "auth",
+            "--entrypoint",
             "bun",
+            "auth",
             "-e",
             `
-        const read = async (url) => {
+        const read = async (url, fields) => {
           try {
             const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
-            if (!response.ok) return { ready: false };
-            return await response.json();
+            if (!response.ok && response.status !== 503) return { ready: false };
+            const body = await response.json();
+            return Object.fromEntries(Object.entries(fields)
+              .filter(([key, type]) => typeof body[key] === type)
+              .map(([key]) => [key, body[key]]));
           } catch { return { ready: false }; }
         };
         const [application, auth, media] = await Promise.all([
-          read("http://server:8080/internal/diagnostics"),
-          read("http://127.0.0.1:3001/readyz"),
+          read("http://server:8080/internal/diagnostics", {
+            ready: "boolean", database: "boolean", eventStreams: "number", activeGrants: "number",
+          }),
+          read("http://auth:3001/readyz", { ready: "boolean" }),
           fetch("http://livekit:7880/", { signal: AbortSignal.timeout(2500) }).then(
             (response) => ({ ready: response.ok }), () => ({ ready: false }),
           ),
@@ -356,5 +504,5 @@ try {
       ? error.message
       : "Operator command failed. Review the local service state.",
   );
-  process.exitCode = 1;
+  process.exitCode ??= 1;
 }

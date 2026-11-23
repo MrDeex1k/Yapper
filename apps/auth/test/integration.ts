@@ -28,6 +28,12 @@ try {
   const migrations = await getMigrations(auth.options);
   await migrations.runMigrations();
   await migrateInternal(database);
+  await database.query(`
+    INSERT INTO jwks (id, "publicKey", "privateKey", "createdAt", "expiresAt")
+    SELECT 'expired-test-key-' || n, '{}', '{}', now() - interval '60 days',
+           now() - interval '30 days'
+    FROM generate_series(1, 100) n
+  `);
   const name = `probe${randomBytes(6).toString("hex")}`;
   const password = randomBytes(24).toString("hex");
   const account = await auth.api.signUpEmail({
@@ -56,11 +62,32 @@ try {
     .map((cookie) => cookie.split(";")[0])
     .join("; ");
   if (!cookies) throw new Error("Login did not issue a session cookie");
-  const tokenResponse = await fetch(`${address}/api/auth/token`, {
-    headers: { Cookie: cookies, Origin: config.baseURL },
-  });
-  if (!tokenResponse.ok) throw new Error(`Token issuance failed (${tokenResponse.status})`);
-  const { token } = (await tokenResponse.json()) as { token: string };
+  const issueToken = async () => {
+    const response = await fetch(`${address}/api/auth/token`, {
+      headers: { Cookie: cookies, Origin: config.baseURL },
+    });
+    if (!response.ok) throw new Error(`Token issuance failed (${response.status})`);
+    return ((await response.json()) as { token: string }).token;
+  };
+  const publishedKeyIDs = async () => {
+    const response = await fetch(`${address}/api/auth/jwks`);
+    if (!response.ok) throw new Error(`JWKS failed (${response.status})`);
+    const { keys } = (await response.json()) as { keys: { kid: string }[] };
+    return keys.map(({ kid }) => kid);
+  };
+  const tokenKeyID = (token: string) =>
+    (JSON.parse(Buffer.from(token.split(".")[0]!, "base64url").toString()) as { kid: string }).kid;
+  const tokens = await Promise.all(Array.from({ length: 20 }, issueToken));
+  const [token] = tokens;
+  if (!token) throw new Error("Token issuance returned no token");
+  const kid = tokenKeyID(token);
+  const keys = await publishedKeyIDs();
+  if (keys.length !== 1 || keys[0] !== kid) {
+    throw new Error("JWKS did not publish the active token key after 100 expired rows");
+  }
+  if (tokens.some((value) => tokenKeyID(value) !== kid)) {
+    throw new Error("Concurrent first issuance used multiple signing keys");
+  }
   const tokenFile = join(directory, "token");
   await writeFile(tokenFile, token, { mode: 0o600 });
   const child = Bun.spawn(
@@ -79,6 +106,27 @@ try {
     },
   );
   if ((await child.exited) !== 0) throw new Error("Go rejected the Better Auth JWT");
+  await database.query(`UPDATE jwks SET "expiresAt" = now() - interval '5 seconds' WHERE id = $1`, [
+    kid,
+  ]);
+  const rotated = tokenKeyID(await issueToken());
+  const overlap = await publishedKeyIDs();
+  if (
+    rotated === kid ||
+    overlap.length !== 2 ||
+    !overlap.includes(kid) ||
+    !overlap.includes(rotated)
+  ) {
+    throw new Error("The JWKS did not preserve both signing keys during rotation");
+  }
+  await database.query(
+    `UPDATE jwks SET "expiresAt" = now() - interval '11 minutes' WHERE id = $1`,
+    [kid],
+  );
+  const retired = await publishedKeyIDs();
+  if (retired.length !== 1 || retired[0] !== rotated) {
+    throw new Error("The JWKS kept a key past its grace period");
+  }
   const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString()) as {
     sid: string;
     sub: string;
@@ -86,7 +134,10 @@ try {
   const sessionCheck = () =>
     fetch(`${address}/internal/session-check`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${internalSecret}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${internalSecret}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ sessionId: payload.sid, subject: payload.sub }),
     });
   if (!((await (await sessionCheck()).json()) as { active: boolean }).active)
@@ -94,7 +145,10 @@ try {
   const provision = (username: string, password: string) =>
     fetch(`${address}/internal/moderators`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${internalSecret}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${internalSecret}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ username, password }),
       signal: AbortSignal.timeout(5000),
     });
@@ -134,17 +188,26 @@ try {
   const unicodeLogin = await fetch(`${address}/api/auth/sign-in/username`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: config.baseURL },
-    body: JSON.stringify({ username: unicodeUsername, password: unicodePassword }),
+    body: JSON.stringify({
+      username: unicodeUsername,
+      password: unicodePassword,
+    }),
   });
   if (!unicodeLogin.ok) throw new Error("Login rejected valid Unicode credentials");
   console.info(
     "PASS: bounded concurrent provisioning, live session checks and Unicode credentials.",
   );
-  const deniedInternal = await fetch(`${address}/internal/session-check`, { method: "POST" });
+  const deniedInternal = await fetch(`${address}/internal/session-check`, {
+    method: "POST",
+  });
   if (deniedInternal.status !== 401) throw new Error("Unauthenticated internal request accepted");
   const signOut = await fetch(`${address}/api/auth/sign-out`, {
     method: "POST",
-    headers: { Cookie: cookies, Origin: config.baseURL, "Content-Type": "application/json" },
+    headers: {
+      Cookie: cookies,
+      Origin: config.baseURL,
+      "Content-Type": "application/json",
+    },
     body: "{}",
   });
   if (!signOut.ok) throw new Error("Logout failed");
