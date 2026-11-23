@@ -787,6 +787,16 @@ export interface operations {
           "application/json": components["schemas"]["Participant"];
         };
       };
+      /** @description Request rate limit reached. */
+      429: {
+        headers: {
+          "Retry-After"?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
       /** @description Stable error code */
       default: {
         headers: {
@@ -1041,6 +1051,16 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Message"];
+        };
+      };
+      /** @description Request rate limit reached. */
+      429: {
+        headers: {
+          "Retry-After"?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
         };
       };
       /** @description Stable error code */

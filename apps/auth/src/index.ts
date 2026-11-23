@@ -13,7 +13,9 @@ const database = new Pool({
 const auth = createAuth(config, database);
 const internalSecret = process.env.AUTH_INTERNAL_SECRET ?? "";
 if (internalSecret.length < 32) throw new Error("AUTH_INTERNAL_SECRET is required");
-const app = createApp(auth, internalHandler(auth, database, internalSecret)).listen({
+const app = createApp(auth, internalHandler(auth, database, internalSecret), () =>
+  database.query("SELECT 1"),
+).listen({
   port: config.port,
   hostname: process.env.AUTH_HOST ?? "127.0.0.1",
   maxRequestBodySize: 16384,

@@ -4,9 +4,19 @@ import type { createAuth } from "./auth";
 export function createApp(
   auth: ReturnType<typeof createAuth>,
   internal?: (request: Request) => Promise<Response>,
+  ping?: () => Promise<unknown>,
 ) {
   return new Elysia()
     .get("/healthz", () => ({ status: "ok", service: "auth" }))
+    .get("/readyz", async () => {
+      if (!ping) return Response.json({ service: "auth", ready: false }, { status: 503 });
+      try {
+        await ping();
+        return { service: "auth", ready: true };
+      } catch {
+        return Response.json({ service: "auth", ready: false }, { status: 503 });
+      }
+    })
     .all("/internal/*", ({ request }) =>
       internal ? internal(request) : new Response(null, { status: 404 }),
     )

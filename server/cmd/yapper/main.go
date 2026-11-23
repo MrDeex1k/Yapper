@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -72,7 +73,20 @@ func run() error {
 		return err
 	}
 	defer mediaService.Close()
-	api, err := httpapi.NewCommunity(store, verifier, auth, httpapi.CommunityConfig{Media: mediaService, Origin: os.Getenv("AUTH_ISSUER"), SetupToken: os.Getenv("SETUP_TOKEN"), SetupExpires: expires, TrustIngress: os.Getenv("YAPPER_TRUST_INGRESS_IP") == "true"})
+	guestRate, err := requestRate("YAPPER_GUEST_JOINS_PER_MINUTE", 180)
+	if err != nil {
+		return err
+	}
+	messageRate, err := requestRate("YAPPER_MESSAGES_PER_MINUTE", 120)
+	if err != nil {
+		return err
+	}
+	api, err := httpapi.NewCommunity(store, verifier, auth, httpapi.CommunityConfig{
+		Media: mediaService, Origin: os.Getenv("AUTH_ISSUER"),
+		SetupToken: os.Getenv("SETUP_TOKEN"), SetupExpires: expires,
+		TrustIngress:        os.Getenv("YAPPER_TRUST_INGRESS_IP") == "true",
+		GuestJoinsPerMinute: guestRate, MessagesPerMinute: messageRate,
+	})
 	if err != nil {
 		return err
 	}
@@ -107,4 +121,16 @@ func run() error {
 		}
 		return err
 	}
+}
+
+func requestRate(name string, fallback int) (int, error) {
+	raw, found := os.LookupEnv(name)
+	if !found {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 || value > 100000 {
+		return 0, errors.New(name + " must be an integer from 0 to 100000")
+	}
+	return value, nil
 }

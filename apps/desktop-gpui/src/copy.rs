@@ -175,6 +175,10 @@ impl Language {
                 "The server denied the request. Check your invitation or permissions.",
                 "Serwer odrzucił żądanie. Sprawdź zaproszenie lub uprawnienia.",
             ),
+            Failure::RateLimited => (
+                "Too many requests. Wait a moment and try again.",
+                "Za dużo żądań. Odczekaj chwilę i spróbuj ponownie.",
+            ),
             Failure::Data => (
                 "The server returned an unexpected response.",
                 "Serwer zwrócił nieoczekiwaną odpowiedź.",
