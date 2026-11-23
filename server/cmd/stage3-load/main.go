@@ -17,7 +17,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"uuid"
@@ -40,7 +39,6 @@ type client struct {
 	http   *http.Client
 	token  string
 	id     string
-	events atomic.Int64
 }
 
 type state struct {
@@ -85,6 +83,9 @@ func run(ctx context.Context, origin, tone string, warmup, duration time.Duratio
 	}
 	if warmup < 0 || duration < 10*time.Second || tone == "" {
 		return errors.New("a tone file, nonnegative warmup, and duration of at least 10 seconds are required")
+	}
+	if err := validateTone(tone); err != nil {
+		return fmt.Errorf("validate test tone: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, warmup+duration+4*time.Minute)
 	defer cancel()
@@ -205,6 +206,7 @@ func run(ctx context.Context, origin, tone string, warmup, duration time.Duratio
 
 func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voice *voiceBridge, rooms []string, text, tone string, duration time.Duration) error {
 	started := time.Now()
+	mediaStart := voice.snapshot()
 	textPath := "/api/v1/channels/" + text + "/messages"
 	var acks []time.Duration
 	var socketRecoveries []time.Duration
@@ -233,7 +235,10 @@ func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voi
 			socketRecoveries = append(socketRecoveries, time.Since(begin))
 			speaker := (i / 10) % voiceClients
 			begin = time.Now()
-			if err := voice.replace(ctx, speaker, clients[speaker], rooms[speaker/voiceRoomSize], tone); err != nil {
+			recoveryCtx, cancel := context.WithDeadline(ctx, begin.Add(voiceDeadline))
+			err = voice.replace(recoveryCtx, speaker, clients[speaker], rooms[speaker/voiceRoomSize], tone)
+			cancel()
+			if err != nil {
 				return fmt.Errorf("voice reconnect: %w", err)
 			}
 			recoveries = append(recoveries, time.Since(begin))
@@ -248,18 +253,21 @@ func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voi
 			acks = append(acks, reply.elapsed)
 		}
 		if i%10 == 0 {
-			fmt.Printf("Progress after %s: %d acknowledged messages, %d received RTP packets\n", time.Since(started).Round(time.Second), len(acks), voice.packets.Load())
+			packets := voice.snapshot().since(mediaStart).packets
+			fmt.Printf("Progress after %s: %d acknowledged messages, %d received RTP packets\n", time.Since(started).Round(time.Second), len(acks), packets)
 		}
 	}
+	elapsed := time.Since(started)
+	media := voice.snapshot().since(mediaStart)
 	if err := checkHistory(ctx, clients[0], text, acknowledged); err != nil {
 		return err
 	}
-	if err := voice.verify(); err != nil {
+	if err := voice.verify(media); err != nil {
 		return err
 	}
 	textP95, eventP95, voiceP95 := percentile95(acks), percentile95(socketRecoveries), percentile95(recoveries)
 	fmt.Printf("Sustained %s; messages=%d; text acknowledgement p95=%s; event reconnects=%d p95=%s; voice reconnects=%d p95=%s\n",
-		time.Since(started).Round(time.Second), len(acks), textP95, len(socketRecoveries), eventP95, len(recoveries), voiceP95)
+		elapsed.Round(time.Second), len(acks), textP95, len(socketRecoveries), eventP95, len(recoveries), voiceP95)
 	if textP95 > textDeadline || eventP95 > eventDeadline || voiceP95 > voiceDeadline {
 		return errors.New("capacity run exceeded a latency threshold")
 	}
@@ -273,9 +281,12 @@ type acknowledgement struct {
 }
 
 func sendBatch(ctx context.Context, clients []*client, sockets []*eventStream, path string, round int) ([batchSize]acknowledgement, error) {
-	var before [onlineClients]int64
-	for i, client := range clients {
-		before[i] = client.events.Load()
+	var requested [batchSize]string
+	for i := range requested {
+		requested[i] = uuid.New().String()
+	}
+	for _, stream := range sockets {
+		stream.expectBatch(requested)
 	}
 	var replies [batchSize]acknowledgement
 	var workers sync.WaitGroup
@@ -284,7 +295,7 @@ func sendBatch(ctx context.Context, clients []*client, sockets []*eventStream, p
 			index := round*batchSize + slot
 			reply := &replies[slot]
 			guest := clients[index%onlineClients]
-			body := map[string]string{"requestId": uuid.New().String(), "body": fmt.Sprintf("Stage 3 load message %d", index)}
+			body := map[string]string{"requestId": requested[slot], "body": fmt.Sprintf("Stage 3 load message %d", index)}
 			begin := time.Now()
 			reply.err = guest.request(ctx, path, body, 200, &reply.message)
 			reply.elapsed = time.Since(begin)
@@ -305,27 +316,30 @@ func sendBatch(ctx context.Context, clients []*client, sockets []*eventStream, p
 		})
 	}
 	workers.Wait()
-	for _, reply := range replies {
+	var acknowledged [batchSize]message
+	for i, reply := range replies {
 		if reply.err != nil {
 			return replies, reply.err
 		}
+		acknowledged[i] = reply.message
 	}
-	return replies, awaitEvents(ctx, clients, sockets, before)
+	return replies, awaitEvents(ctx, sockets, acknowledged)
 }
 
-func awaitEvents(ctx context.Context, clients []*client, sockets []*eventStream, before [onlineClients]int64) error {
+func awaitEvents(ctx context.Context, sockets []*eventStream, acknowledged [batchSize]message) error {
 	deadline, cancel := context.WithTimeout(ctx, eventDeadline)
 	defer cancel()
-	tick := time.Tick(10 * time.Millisecond)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
 	for {
 		waiting := 0
-		for i, c := range clients {
+		for i, stream := range sockets {
 			select {
-			case <-sockets[i].stopped:
+			case <-stream.stopped:
 				return fmt.Errorf("participant %d lost its event stream", i+1)
 			default:
 			}
-			if c.events.Load()-before[i] < batchSize {
+			if !stream.receivedBatch(acknowledged) {
 				waiting++
 			}
 		}
@@ -335,7 +349,7 @@ func awaitEvents(ctx context.Context, clients []*client, sockets []*eventStream,
 		select {
 		case <-deadline.Done():
 			return fmt.Errorf("%d participants missed chat events: %w", waiting, deadline.Err())
-		case <-tick:
+		case <-tick.C:
 		}
 	}
 }
@@ -425,9 +439,39 @@ func (c *client) request(ctx context.Context, route string, body any, status int
 type eventStream struct {
 	connection *websocket.Conn
 	stopped    chan struct{}
+	mu         sync.Mutex
+	received   [batchSize]message
 }
 
 func (s *eventStream) close() { _ = s.connection.CloseNow() }
+
+func (s *eventStream) expectBatch(requestIDs [batchSize]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, id := range requestIDs {
+		s.received[i] = message{RequestID: id}
+	}
+}
+
+func (s *eventStream) recordMessage(created message) {
+	if created.ID == "" || created.RequestID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, pending := range s.received {
+		if pending.RequestID == created.RequestID && pending.ID == "" {
+			s.received[i] = created
+			return
+		}
+	}
+}
+
+func (s *eventStream) receivedBatch(acknowledged [batchSize]message) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.received == acknowledged
+}
 
 func (c *client) openEvents(ctx context.Context) (*eventStream, error) {
 	var ticket struct {
@@ -462,10 +506,11 @@ func (c *client) openEvents(ctx context.Context) (*eventStream, error) {
 				return
 			}
 			var msg struct {
-				Type string `json:"type"`
+				Type    string  `json:"type"`
+				Payload message `json:"payload"`
 			}
 			if json.Unmarshal(data, &msg) == nil && msg.Type == "message.created" {
-				c.events.Add(1)
+				stream.recordMessage(msg.Payload)
 			}
 		}
 	}()

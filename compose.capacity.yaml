@@ -1,4 +1,5 @@
 # Disposable local capacity run. Apply after compose.yaml and compose.smoke.yaml.
+name: yapper-stage3-capacity
 services:
   auth-migrate:
     environment:

@@ -34,7 +34,12 @@ Across 56 sustained samples, aggregate Docker CPU peaked at 65.96% of one logica
 
 ## Repeat the capacity run
 
-Use a fresh, disposable Compose project and a privately generated configuration containing a valid setup token and distinct service secrets. Set `STAGE3_MEDIA_IP` to the test host address used for ICE. Start Compose with `compose.yaml`, `compose.smoke.yaml`, and `compose.capacity.yaml` in that order. For example, use the project name `yapper-stage3-capacity` and the profile's default loopback origin `http://127.0.0.1:18090`.
+Use a fresh, disposable Compose project and a privately generated configuration containing a valid setup token and distinct service secrets. Set `STAGE3_MEDIA_IP` to the test host address used for ICE. The capacity overlay defaults to project `yapper-stage3-capacity` and loopback origin `http://127.0.0.1:18090`. Use the same project name, environment file, and overlay order for startup and teardown. Pass `-p` with a distinct name for another disposable project.
+
+```sh
+docker compose -p yapper-stage3-capacity --env-file /protected/capacity.env \
+  -f compose.yaml -f compose.smoke.yaml -f compose.capacity.yaml up -d --wait
+```
 
 From `server/`, build `./cmd/stage3-load` with the repository Go version. Generate a test tone for longer than the planned warm-up and sustained test using FFmpeg.
 
@@ -47,7 +52,14 @@ go build -o stage3-load ./cmd/stage3-load
 
 Supply `STAGE3_SETUP_TOKEN` to the test process from the private Compose environment. Record idle and sustained Docker statistics separately. The runner accepts a fresh loopback installation and creates test accounts and messages. Use a separate disposable project for each run.
 
-The current runner sends three messages concurrently every six seconds. It checks delivery to every open event stream and that each voice client continues to receive RTP from all its room peers. It exits with an error when application latency or RTP exceeds the declared thresholds. The operator checks the container resource thresholds from the Docker samples.
+The current runner validates the Ogg Opus fixture before configuring the installation and sends three messages concurrently every six seconds. It matches each acknowledged message to the event payload on every stream. A voice reconnect completes when fresh RTP flows in both directions between the replacement and its room peers. The runner applies the RTP thresholds to the sustained interval after warm-up. The operator checks the container resource thresholds from the Docker samples.
+
+After recording the results, remove the disposable installation and its test volumes from the repository root.
+
+```sh
+docker compose -p yapper-stage3-capacity --env-file /protected/capacity.env \
+  -f compose.yaml -f compose.smoke.yaml -f compose.capacity.yaml down --volumes
+```
 
 ## Physical LAN smoke
 
@@ -97,3 +109,24 @@ On 2026-11-23, the Stage 3 review follow-up passed `pnpm check`, the race-enable
 - With 100 expired signing-key rows present, AUTH issued 20 concurrent tokens with one signing key and Go verified the token against the published JWKS. AUTH retained both keys during the simulated grace period and withdrew the expired key after it.
 - Docker rejected the second fixed TURN subnet while the original network existed. The same subnet could be created after the original was released. The existing TURN/TLS probe passed on the test network.
 - The revised harness ran for 72 seconds with 30 event streams and 20 voice publishers, including one event reconnect and one voice reconnect. It reconciled 36 acknowledgements against 36 distinct database entries. Text acknowledgement p95 was 32.70 ms, event reconnect took 21.77 ms, and voice reconnect took 48.79 ms. A missing audio file and a one-second audio fixture were rejected. The success and both failure scenarios left zero active voice grants or pending removals. The original 30-minute figures above came from the earlier sequential harness.
+
+## Verification of the pull request review fixes
+
+- `go test -race -count=1 ./...` and `pnpm check` passed.
+- Rendering Compose confirmed the capacity overlay uses its own default project and PostgreSQL volume. An explicit project override still works.
+- The race-enabled regressions cover exact event delivery on every stream, early arrivals, duplicate and unrelated events, and closure. They also cover two-way RTP after replacing a voice session, lost or truncated grant responses, and RTP thresholds that would pass if warm-up traffic were included.
+- On a disposable PostgreSQL and LiveKit stack, missing and invalid Ogg files left the installation unconfigured and the participant table empty. The same stack verified that leaving by the old identity kept a committed replacement active after its response was discarded. A participant-scoped leave revoked that replacement and kept the other guest's grant active.
+
+The follow-up run on macOS with OrbStack sustained 10 minutes after a 60-second warm-up. It used 100 persisted identities, 30 event streams, and 20 voice publishers in two rooms. Each stream received all 300 acknowledged message IDs. PostgreSQL held 300 distinct author/request pairs and had zero active media sessions or pending removals after disconnect. All five containers stayed up without restarts or out-of-memory kills.
+
+| Metric                                         | Observed                               | Threshold |
+| ---------------------------------------------- | -------------------------------------- | --------- |
+| Text acknowledgement p95                       | 38.08 ms                               | 250 ms    |
+| Event reconnect p95                            | 36.18 ms across 9 cycles               | 2 s       |
+| Voice reconnect p95 with confirmed two-way RTP | 201.84 ms across 9 cycles              | 5 s       |
+| Forward RTP sequence gaps                      | 3 across 5,400,310 packets (0.000056%) | 1%        |
+| Mean RTP inter-arrival variation               | 0.943 ms                               | 20 ms     |
+| Peak aggregate container memory                | 321.23 MiB                             | 2 GiB     |
+| Memory growth from the first sustained sample  | 39.21 MiB                              | 256 MiB   |
+
+The 23 sustained container samples peaked at 53.13% of one logical CPU. The idle container baseline was 128.80 MiB. The RTP figures cover the sustained phase.
