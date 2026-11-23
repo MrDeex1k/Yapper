@@ -47,6 +47,10 @@ const ASSETS: &[(&str, &[u8])] = &[
         include_bytes!("../../assets/icons/hash.svg"),
     ),
     (
+        "icons/headphones.svg",
+        include_bytes!("../../assets/icons/headphones.svg"),
+    ),
+    (
         "icons/loader.svg",
         include_bytes!("../../assets/icons/loader.svg"),
     ),
@@ -67,8 +71,24 @@ const ASSETS: &[(&str, &[u8])] = &[
         include_bytes!("../../assets/icons/panel-left.svg"),
     ),
     (
+        "icons/pencil.svg",
+        include_bytes!("../../assets/icons/pencil.svg"),
+    ),
+    (
         "icons/phone-off.svg",
         include_bytes!("../../assets/icons/phone-off.svg"),
+    ),
+    (
+        "icons/shield.svg",
+        include_bytes!("../../assets/icons/shield.svg"),
+    ),
+    (
+        "icons/sliders-horizontal.svg",
+        include_bytes!("../../assets/icons/sliders-horizontal.svg"),
+    ),
+    (
+        "icons/trash-2.svg",
+        include_bytes!("../../assets/icons/trash-2.svg"),
     ),
     (
         "icons/volume-2.svg",

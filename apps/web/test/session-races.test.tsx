@@ -1,5 +1,5 @@
 import { test, expect, jest, mock, spyOn } from "bun:test";
-import type { MemberPage } from "@yapper/api";
+import type { CurrentUser, MemberPage } from "@yapper/api";
 import { Window } from "happy-dom";
 import { act, createElement, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
@@ -173,16 +173,17 @@ let changes: { id: string; revision: number; message: typeof sample | null }[] =
 const { restoreAccount, login } = await import("../src/api");
 const readMembers = mock(async (): Promise<MemberPage> => ({ members: [], next: "" }));
 const readAudit = mock(async () => ({ events: [] }));
+const readTimeline = mock(async (channel: string) => ({
+  messages: [{ ...sample, channelId: channel }],
+  before: 0,
+  revision: 1,
+}));
 mock.module("../src/api", () => ({
   api: {
     ticket: async () => ({ ticket: "ticket" }),
     members: readMembers,
     audit: readAudit,
-    timeline: async (channel: string) => ({
-      messages: [{ ...sample, channelId: channel }],
-      before: 0,
-      revision: 1,
-    }),
+    timeline: readTimeline,
     messageChanges: async (channel: string, revision: number) => {
       calls.push(channel);
       if (readChangesOverride) return readChangesOverride(channel, revision);
@@ -221,6 +222,7 @@ const { useVoice } = await import("../src/use-voice");
 const { createVoiceController } = await import("../src/voice-controller");
 
 const { ModerationPanel } = await import("../src/moderation-panel");
+const { MessageHistory } = await import("../src/message-history");
 
 for (const { path, run } of [
   { path: "/api/auth/get-session", run: restoreAccount },
@@ -321,6 +323,73 @@ test("moderation retries a failed participant directory independently of the aud
     expect(readMembers).toHaveBeenCalledTimes(2);
     expect(readAudit).toHaveBeenCalledTimes(2);
     expect(container.textContent).not.toContain("Could not load participants.");
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+test("chat shows the empty state only after the new channel's history resolves empty", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const emptyText = "Tutaj zaczyna się rozmowa.";
+  const user: CurrentUser = {
+    participant: { id: "viewer", nickname: "Viewer", role: "participant", micMuted: false },
+    channels: [],
+    categories: [],
+    account: false,
+  };
+  function Harness({ channel }: { channel: string }) {
+    const conversation = useConversation(channel, refreshCommunity);
+    return (
+      <MessageHistory
+        key={channel}
+        items={conversation.messages}
+        historyReady={conversation.historyReady}
+        loadingHistory={conversation.loadingHistory}
+        hasOlder={conversation.hasOlder}
+        loadingOlder={conversation.loadingOlder}
+        onLoadOlder={conversation.loadOlder}
+        onChanged={conversation.refresh}
+        onModerate={() => {}}
+        archived={false}
+        locked={false}
+        user={user}
+        locale="pl"
+      />
+    );
+  }
+  type Page = Awaited<ReturnType<typeof readTimeline>>;
+  const secondPage = Promise.withResolvers<Page>();
+  const emptyPage = Promise.withResolvers<Page>();
+  const busy = () => container.querySelector("section")?.getAttribute("aria-busy");
+  try {
+    await act(async () => root.render(<Harness channel="a" />));
+    await act(async () => TestSocket.last.emit("ready"));
+    expect(container.textContent).toContain("before");
+
+    readTimeline.mockImplementationOnce(() => secondPage.promise);
+    await act(async () => root.render(<Harness channel="b" />));
+    await act(async () => TestSocket.last.emit("ready"));
+    expect(busy()).toBe("true");
+    expect(container.textContent).not.toContain("before");
+    expect(container.textContent).not.toContain(emptyText);
+    await act(async () =>
+      secondPage.resolve({
+        messages: [{ ...sample, channelId: "b", body: "Second channel" }],
+        before: 0,
+        revision: 1,
+      }),
+    );
+    expect(container.textContent).toContain("Second channel");
+    expect(busy()).toBe("false");
+
+    readTimeline.mockImplementationOnce(() => emptyPage.promise);
+    await act(async () => root.render(<Harness channel="c" />));
+    await act(async () => TestSocket.last.emit("ready"));
+    expect(container.textContent).not.toContain(emptyText);
+    await act(async () => emptyPage.resolve({ messages: [], before: 0, revision: 0 }));
+    expect(container.textContent).toContain(emptyText);
+    expect(busy()).toBe("false");
   } finally {
     await act(async () => root.unmount());
   }

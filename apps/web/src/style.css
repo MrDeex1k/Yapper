@@ -527,14 +527,27 @@ h1 {
 .message-content header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   min-height: 24px;
 }
-.message-content strong {
+.message-author {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+.message-author strong {
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-author .ui-button {
+  flex-shrink: 0;
 }
 .message-content time,
 .you-label {
@@ -548,9 +561,6 @@ h1 {
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.message-content header .ui-button {
-  margin-left: auto;
 }
 .composer-area {
   padding: 6px var(--gutter) 12px;
@@ -764,28 +774,42 @@ h1 {
 .history-pagination {
   padding: 6px 0 10px;
 }
-.message-content header {
-  flex-wrap: wrap;
-}
 .message-content header small {
   color: var(--muted);
   font-size: 11px;
 }
 .message-action {
   display: grid;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 12px;
+  max-inline-size: 34rem;
+  min-inline-size: 0;
+  margin-block-start: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.message-action[data-action="delete"] {
+  border-inline-start-color: var(--danger);
+}
+.message-action p {
+  margin: 0;
 }
 .message-action textarea {
   min-width: 0;
   padding: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 8px;
   color: inherit;
-  background: transparent;
+  background: var(--navigation);
+}
+.message-action output {
+  overflow-wrap: anywhere;
 }
 .message-action .panel-actions {
   flex-wrap: wrap;
+  gap: 8px;
 }
 .message-retention {
   margin-top: 16px;

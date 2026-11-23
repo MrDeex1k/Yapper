@@ -9,6 +9,13 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
 import { ArrowRight, ChevronDown, Hash, LogOut, Send, Settings, Volume2 } from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
@@ -382,15 +389,19 @@ function Conversation({
   const [queryClient] = useState(() => new QueryClient());
   useEffect(() => () => queryClient.clear(), [queryClient]);
   const textChannels = user.channels.filter((c) => c.kind === "text");
-  const [selectedChannel, setChannel] = useState(
-    () => textChannels.find((channel) => !channel.archived)?.id ?? "",
-  );
+  const { channel: selectedChannel } = workspaceRoute.useSearch();
+  const navigate = workspaceRoute.useNavigate();
   const current =
     textChannels.find((channel) => channel.id === selectedChannel) ??
     textChannels.find((channel) => !channel.archived) ??
     textChannels[0];
   const channel = current?.id ?? "";
   const channelName = current?.name ?? state.name;
+  useEffect(() => {
+    if (channel !== selectedChannel && (channel || selectedChannel)) {
+      void navigate({ search: channel ? { channel } : {}, replace: true });
+    }
+  }, [channel, navigate, selectedChannel]);
   const refreshRevision = useRef(0);
   const appliedRevision = useRef(0);
   const refreshCommunity = useCallback(async (signal?: AbortSignal) => {
@@ -450,7 +461,7 @@ function Conversation({
   function switchChannel(id: string) {
     closeChannels();
     if (id === channel) return;
-    setChannel(id);
+    void navigate({ search: { channel: id } });
     setError(null);
   }
   return (
@@ -519,6 +530,8 @@ function Conversation({
         <MessageHistory
           key={channel}
           items={conversation.messages}
+          historyReady={conversation.historyReady}
+          loadingHistory={conversation.loadingHistory}
           hasOlder={conversation.hasOlder}
           loadingOlder={conversation.loadingOlder}
           onLoadOlder={conversation.loadOlder}
@@ -873,10 +886,28 @@ function WorkspaceProfile({
   );
 }
 
+const rootRoute = createRootRoute();
+const workspaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  validateSearch: (search: Record<string, unknown>): { channel?: string } =>
+    typeof search.channel === "string" ? { channel: search.channel } : {},
+  component: App,
+});
+const router = createRouter({
+  routeTree: rootRoute.addChildren([workspaceRoute]),
+  ...(location.protocol === "file:" ? { history: createMemoryHistory() } : {}),
+});
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </StrictMode>,
 );

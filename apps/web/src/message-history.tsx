@@ -18,6 +18,8 @@ export function MessageHistory({
   locale,
   archived,
   locked,
+  historyReady,
+  loadingHistory,
   hasOlder,
   loadingOlder,
   onLoadOlder,
@@ -29,6 +31,8 @@ export function MessageHistory({
   locale: Locale;
   archived: boolean;
   locked: boolean;
+  historyReady: boolean;
+  loadingHistory: boolean;
   hasOlder: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
@@ -47,6 +51,7 @@ export function MessageHistory({
       ref={history}
       className="message-history"
       aria-label={t.messageHistory}
+      aria-busy={loadingHistory}
       aria-live="polite"
       aria-relevant="additions text"
       onScroll={(event) => {
@@ -70,7 +75,7 @@ export function MessageHistory({
           </Button>
         </div>
       )}
-      {items.length === 0 && !hasOlder && (
+      {historyReady && items.length === 0 && !hasOlder && (
         <div className="empty-chat">
           <div className="empty-symbol">
             <Hash size={32} />
@@ -172,49 +177,51 @@ function MessageRow({
       <span className="person-avatar">{message.nickname.slice(0, 1).toUpperCase()}</span>
       <div className="message-content">
         <header>
-          <strong>{message.nickname}</strong>
+          <div className="message-author">
+            <strong>{message.nickname}</strong>
+            {staff && !own && (
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`${t.moderateParticipant}: ${message.nickname}`}
+                onClick={() => onModerate(message.authorId)}
+              >
+                <Shield size={14} />
+              </Button>
+            )}
+            {own && !archived && (
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={t.editMessage}
+                disabled={locked || busy}
+                onClick={(e) =>
+                  open(
+                    { kind: "edit", body: message.body, revision: message.revision },
+                    e.currentTarget,
+                  )
+                }
+              >
+                <Pencil size={14} aria-hidden="true" />
+              </Button>
+            )}
+            {(own || staff) && (
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={t.deleteMessage}
+                disabled={locked || busy}
+                onClick={(e) => open({ kind: "delete" }, e.currentTarget)}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+              </Button>
+            )}
+          </div>
           {own && <span className="you-label">{t.you}</span>}
           <time dateTime={message.createdAt}>
             {timeFormatters[locale].format(new Date(message.createdAt))}
           </time>
           {message.editedAt && <small>{t.messageEdited}</small>}
-          {staff && !own && (
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={`${t.moderateParticipant}: ${message.nickname}`}
-              onClick={() => onModerate(message.authorId)}
-            >
-              <Shield size={14} />
-            </Button>
-          )}
-          {own && !archived && (
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={t.editMessage}
-              disabled={locked || busy}
-              onClick={(e) =>
-                open(
-                  { kind: "edit", body: message.body, revision: message.revision },
-                  e.currentTarget,
-                )
-              }
-            >
-              <Pencil size={14} aria-hidden="true" />
-            </Button>
-          )}
-          {(own || staff) && (
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={t.deleteMessage}
-              disabled={locked || busy}
-              onClick={(e) => open({ kind: "delete" }, e.currentTarget)}
-            >
-              <Trash2 size={14} aria-hidden="true" />
-            </Button>
-          )}
         </header>
         {action?.kind !== "edit" && <p>{message.body}</p>}
         {action && (
@@ -274,7 +281,13 @@ function MessageActionForm({
 }) {
   const t = messages[locale];
   return (
-    <form className="message-action" ref={form} onSubmit={(event) => void onSave(event)}>
+    <form
+      className="message-action"
+      data-action={action.kind}
+      aria-label={action.kind === "delete" ? t.deleteMessage : t.editMessage}
+      ref={form}
+      onSubmit={(event) => void onSave(event)}
+    >
       {action.kind === "edit" ? (
         <textarea
           aria-label={t.editMessage}

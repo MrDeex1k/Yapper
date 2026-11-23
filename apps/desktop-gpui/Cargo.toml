@@ -7,6 +7,7 @@ publish = false
 
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
 async-trait = "=0.1.89"
+futures-util = { version = "=0.3.34", default-features = false, features = ["std"] }
 gpui = "=0.2.2"
 gpui-component = "=0.5.1"
 keyring = "=4.2.0"

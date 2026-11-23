@@ -2,7 +2,7 @@ use crate::{
     copy::Language,
     server::{Admission, Failure, Installation, PendingAdmission, Server, Session},
     signaling,
-    voice::{self, Command, Event},
+    voice::{self, Command, Event, Peer},
 };
 use gpui::{
     AppContext, Application, Bounds, Context, Entity, FocusHandle, Task, Window, WindowBounds,
@@ -12,8 +12,15 @@ use gpui_component::{
     Root,
     input::{InputEvent, InputState},
 };
+use livekit::{PlayoutDeviceInfo, RecordingDeviceInfo};
+use preferences::Preferences;
 use push_to_talk::MicrophoneMode;
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+    sync::Arc,
+};
 use tokio::{
     runtime::Handle,
     sync::{Notify, mpsc, watch},
@@ -22,6 +29,8 @@ use tokio::{
 mod appearance;
 mod chat;
 mod chat_view;
+mod events;
+mod preferences;
 mod push_to_talk;
 mod view;
 
@@ -69,7 +78,10 @@ pub fn run() -> gpui::Result<()> {
 struct Yapper {
     runtime: Handle,
     language: Language,
+    preferences: Preferences,
     address: Entity<InputState>,
+    username: Entity<InputState>,
+    password: Entity<InputState>,
     nickname: Entity<InputState>,
     invitation: Entity<InputState>,
     message_input: Entity<InputState>,
@@ -78,6 +90,9 @@ struct Yapper {
     guest: Option<Admission>,
     pending_admission: Option<PendingAdmission>,
     catalog_task: Option<Task<()>>,
+    catalog_refresh: Arc<Notify>,
+    event_task: Option<Task<()>>,
+    events_connected: bool,
     call: Option<Call>,
     chat: Option<chat::Chat>,
     inactive_chats: HashMap<String, chat::Chat>,
@@ -85,16 +100,23 @@ struct Yapper {
     chat_refresh: Arc<Notify>,
     microphone_mode: MicrophoneMode,
     channels_open: bool,
+    signing_in: bool,
+    switching_server: bool,
+    switching_channel: Option<(Session, String, String)>,
     pending: bool,
     error: Option<Failure>,
 }
 
 struct Call {
     channel_id: String,
-    commands: mpsc::Sender<Command>,
+    commands: mpsc::UnboundedSender<Command>,
     microphone_intent: watch::Sender<bool>,
     name: String,
-    peers: Vec<String>,
+    peers: Vec<Peer>,
+    microphones: Vec<RecordingDeviceInfo>,
+    outputs: Vec<PlayoutDeviceInfo>,
+    deafened: bool,
+    muted_peers: HashSet<String>,
     state: CallState,
     can_publish: bool,
     microphone: bool,
@@ -113,6 +135,14 @@ impl Yapper {
         let address = cx.new(|cx| InputState::new(window, cx).placeholder("voice.example.com"));
         let nickname = cx.new(|cx| InputState::new(window, cx));
         let invitation = cx.new(|cx| InputState::new(window, cx).masked(true));
+        let username = cx.new(|cx| InputState::new(window, cx));
+        let password = cx.new(|cx| InputState::new(window, cx).masked(true));
+        cx.subscribe_in(&password, window, |app, _, event, window, cx| {
+            if matches!(event, InputEvent::PressEnter { secondary: false }) {
+                app.sign_in(window, cx);
+            }
+        })
+        .detach();
         let message_input = cx.new(|cx| {
             InputState::new(window, cx).placeholder(Language::English.copy().message_placeholder)
         });
@@ -133,10 +163,18 @@ impl Yapper {
             }
         })
         .detach();
+        let preferences = Preferences::load();
+        let language = match preferences.language.as_deref() {
+            Some("pl") => Language::Polish,
+            _ => Language::English,
+        };
         Self {
             runtime,
-            language: Language::English,
+            language,
+            preferences,
             address,
+            username,
+            password,
             nickname,
             invitation,
             message_input,
@@ -145,6 +183,9 @@ impl Yapper {
             guest: None,
             pending_admission: None,
             catalog_task: None,
+            catalog_refresh: Arc::new(Notify::new()),
+            event_task: None,
+            events_connected: false,
             call: None,
             chat: None,
             inactive_chats: HashMap::new(),
@@ -152,31 +193,107 @@ impl Yapper {
             chat_refresh: Arc::new(Notify::new()),
             microphone_mode: MicrophoneMode::Manual,
             channels_open: false,
+            signing_in: false,
+            switching_server: false,
+            switching_channel: None,
             pending: false,
             error: None,
         }
     }
 
-    fn connect(&mut self, cx: &mut Context<Self>) {
-        let address = self.address.read(cx).value().to_string();
+    fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.connect_address(self.address.read(cx).value().to_string(), window, cx);
+    }
+
+    fn connect_address(&mut self, address: String, window: &mut Window, cx: &mut Context<Self>) {
+        if self.pending {
+            return;
+        }
         self.pending = true;
         self.error = None;
         let result = self.runtime.spawn(async move {
             let (server, installation) = Server::connect(&address).await?;
-            let admission = server.restore().await?;
+            let admission = server.restore().await;
             Ok::<_, Failure>((server, installation, admission))
         });
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = result.await.unwrap_or(Err(Failure::Network));
-            let _ = this.update(cx, |app, cx| {
+            let _ = this.update_in(cx, |app, window, cx| {
                 app.pending = false;
                 match result {
                     Ok((server, installation, admission)) => {
+                        app.preferences
+                            .remember(server.origin(), installation.name.clone());
                         app.installation = Some((server, installation));
-                        app.guest = admission;
+                        match admission {
+                            Ok(admission) => app.guest = admission,
+                            Err(error) => app.error = Some(error),
+                        }
                         app.open_default_text(cx);
                         app.refresh_catalog(cx);
+                        app.watch_events(window, cx);
                     }
+                    Err(error) => app.error = Some(error),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn sign_in(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.pending || !self.signing_in {
+            return;
+        }
+        let Some((server, _)) = &self.installation else {
+            return;
+        };
+        let server = server.clone();
+        let username = self.username.read(cx).value().trim().to_string();
+        let password = self.password.read(cx).value().to_string();
+        self.password
+            .update(cx, |input, cx| input.set_value("", window, cx));
+        self.pending = true;
+        self.error = None;
+        let result = self
+            .runtime
+            .spawn(async move { server.sign_in(username, password).await });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = result.await.unwrap_or(Err(Failure::Network));
+            let _ = this.update_in(cx, |app, window, cx| {
+                app.pending = false;
+                match result {
+                    Ok(guest) => {
+                        app.guest = Some(guest);
+                        app.open_default_text(cx);
+                        app.refresh_catalog(cx);
+                        app.watch_events(window, cx);
+                    }
+                    Err(error) => app.error = Some(error),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn sign_out(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.pending || self.call.is_some() {
+            return;
+        }
+        let Some(session) = self.guest.as_ref().map(|guest| guest.session.clone()) else {
+            return;
+        };
+        self.pending = true;
+        let result = self.runtime.spawn(async move { session.sign_out().await });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = result.await.unwrap_or(Err(Failure::Network));
+            let _ = this.update_in(cx, |app, window, cx| {
+                app.pending = false;
+                match result {
+                    Ok(()) => app.clear_session(window, cx),
                     Err(error) => app.error = Some(error),
                 }
                 cx.notify();
@@ -218,6 +335,7 @@ impl Yapper {
                                 app.guest = Some(guest);
                                 app.open_default_text(cx);
                                 app.refresh_catalog(cx);
+                                app.watch_events(window, cx);
                             }
                             Err(error) => {
                                 app.pending_admission = Some(pending);
@@ -234,11 +352,24 @@ impl Yapper {
         cx.notify();
     }
 
-    fn join_voice(&mut self, session: Session, id: String, name: String, cx: &mut Context<Self>) {
-        if self.call.is_some() {
+    fn join_voice(
+        &mut self,
+        session: Session,
+        id: String,
+        name: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(call) = &mut self.call {
+            if call.channel_id != id && !self.switching_server {
+                self.switching_channel = Some((session, id, name));
+                call.leave();
+            }
+            self.channels_open = false;
+            cx.notify();
             return;
         }
-        let (commands, receive) = mpsc::channel(4);
+        let (commands, receive) = mpsc::unbounded_channel();
         let (microphone_intent, desired_microphone) = watch::channel(false);
         let (send, mut events) = mpsc::unbounded_channel();
         self.error = None;
@@ -249,18 +380,29 @@ impl Yapper {
             commands,
             microphone_intent,
             peers: Vec::new(),
+            microphones: Vec::new(),
+            outputs: Vec::new(),
+            deafened: false,
+            muted_peers: HashSet::new(),
             state: CallState::Joining,
             can_publish: false,
             microphone: false,
         });
         self.runtime
             .spawn(voice::run(session, id, receive, desired_microphone, send));
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             while let Some(event) = events.recv().await {
                 let ended = matches!(&event, Event::Ended(_));
                 if this
-                    .update(cx, |app, cx| {
+                    .update_in(cx, |app, window, cx| {
                         app.on_call_event(event);
+                        if ended && app.switching_server {
+                            app.change_server(window, cx);
+                        } else if ended
+                            && let Some((session, id, name)) = app.switching_channel.take()
+                        {
+                            app.join_voice(session, id, name, window, cx);
+                        }
                         cx.notify();
                     })
                     .is_err()
@@ -271,11 +413,16 @@ impl Yapper {
                     return;
                 }
             }
-            let _ = this.update(cx, |app, cx| {
+            let _ = this.update_in(cx, |app, window, cx| {
                 app.microphone_mode.release_key();
                 if app.call.take().is_some() {
                     app.error = Some(Failure::Voice);
                     cx.notify();
+                }
+                if app.switching_server {
+                    app.change_server(window, cx);
+                } else if let Some((session, id, name)) = app.switching_channel.take() {
+                    app.join_voice(session, id, name, window, cx);
                 }
             });
         })
@@ -296,6 +443,17 @@ impl Yapper {
                 call.peers = peers;
             }
             Event::Peers(peers) => call.peers = peers,
+            Event::Devices(microphones, outputs) => {
+                call.microphones = microphones;
+                call.outputs = outputs;
+            }
+            Event::CanPublish(allowed) => {
+                call.can_publish = allowed;
+                if !allowed {
+                    call.microphone_intent.send_replace(false);
+                    self.microphone_mode.release_key();
+                }
+            }
             Event::Microphone(active) => {
                 call.microphone = active;
                 self.error = None;
@@ -324,10 +482,25 @@ impl Yapper {
     }
 
     fn change_server(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(call) = &mut self.call {
+            self.switching_server = true;
+            self.switching_channel = None;
+            call.leave();
+            cx.notify();
+            return;
+        }
+        self.switching_server = false;
         self.installation = None;
+        self.clear_session(window, cx);
+        cx.notify();
+    }
+
+    fn clear_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.guest = None;
         self.pending_admission = None;
         self.catalog_task = None;
+        self.event_task = None;
+        self.events_connected = false;
         self.invitation
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.chat_task = None;
@@ -336,7 +509,16 @@ impl Yapper {
         self.message_input
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.channels_open = false;
+        self.signing_in = false;
         self.error = None;
         cx.notify();
+    }
+}
+
+impl Call {
+    fn leave(&mut self) {
+        self.state = CallState::Leaving;
+        self.microphone_intent.send_replace(false);
+        let _ = self.commands.send(Command::Leave);
     }
 }

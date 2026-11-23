@@ -24,7 +24,7 @@ impl MicrophoneMode {
 
 impl Call {
     fn can_speak(&self) -> bool {
-        self.state == CallState::Connected && self.can_publish
+        self.state == CallState::Connected && self.can_publish && !self.deafened
     }
 }
 
