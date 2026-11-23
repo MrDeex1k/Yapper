@@ -1,7 +1,9 @@
 use super::Yapper;
 use crate::server::{Failure, Message, MessageChange, Timeline};
 use gpui::{Context, ScrollHandle, Window, px};
+use std::collections::HashMap;
 use std::time::Duration;
+use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(2);
@@ -14,6 +16,7 @@ pub(super) struct Chat {
     pub(super) messages: Option<Vec<Message>>,
     pub(super) error: Option<Failure>,
     pub(super) send_error: Option<Failure>,
+    pub(super) action_error: Option<Failure>,
     pub(super) sending: bool,
     pub(super) scroll: ScrollHandle,
     pub(super) before: i64,
@@ -49,6 +52,7 @@ impl Chat {
             messages: None,
             error: None,
             send_error: None,
+            action_error: None,
             sending: false,
             scroll: ScrollHandle::new(),
             before: 0,
@@ -141,6 +145,29 @@ impl Chat {
     }
 }
 
+fn record_chat_action_result(
+    active_chat: Option<&mut Chat>,
+    inactive_chats: &mut HashMap<String, Chat>,
+    channel_id: &str,
+    generation: Uuid,
+    result: Result<(), Failure>,
+) -> bool {
+    if let Some(chat) = active_chat.filter(|chat| chat.generation == generation) {
+        if let Err(error) = result {
+            chat.action_error = Some(error);
+        }
+        return true;
+    }
+    if let Err(error) = result
+        && let Some(chat) = inactive_chats
+            .get_mut(channel_id)
+            .filter(|chat| chat.generation == generation)
+    {
+        chat.action_error = Some(error);
+    }
+    false
+}
+
 fn upsert(messages: &mut Vec<Message>, next: Message) {
     if let Some(current) = messages.iter_mut().find(|message| message.id == next.id) {
         if current.revision < next.revision {
@@ -157,16 +184,16 @@ impl Yapper {
             return;
         }
         if let Some(id) = self
-            .guest
+            .admission
             .as_ref()
-            .and_then(|guest| {
-                guest
+            .and_then(|admission| {
+                admission
                     .membership
                     .channels
                     .iter()
                     .find(|channel| channel.kind == "text" && !channel.archived)
                     .or_else(|| {
-                        guest
+                        admission
                             .membership
                             .channels
                             .iter()
@@ -200,8 +227,10 @@ impl Yapper {
     }
 
     fn open_text(&mut self, id: String, cx: &mut Context<Self>) {
-        let Some(guest) = &self.guest else { return };
-        let session = guest.session.clone();
+        let Some(admission) = &self.admission else {
+            return;
+        };
+        let session = admission.session.clone();
         let chat = self
             .inactive_chats
             .remove(&id)
@@ -326,43 +355,60 @@ impl Yapper {
         }
     }
 
-    pub(super) fn confirm_message_delete(&mut self, id: &str, cx: &mut Context<Self>) {
+    pub(super) fn confirm_message_delete(&mut self, message_id: &str, cx: &mut Context<Self>) {
         let Some(chat) = &mut self.chat else { return };
-        if chat.delete_confirmation.as_deref() == Some(id) {
+        if chat.delete_confirmation.as_deref() == Some(message_id) {
             chat.delete_confirmation = None;
-            self.message_action(id.to_owned(), None, cx);
+            self.delete_message(message_id.to_owned(), cx);
             cx.notify();
         }
     }
 
-    pub(super) fn message_action(
-        &mut self,
-        id: String,
-        moderation: Option<&'static str>,
-        cx: &mut Context<Self>,
-    ) {
-        let (Some(chat), Some(guest)) = (&self.chat, &self.guest) else {
+    fn delete_message(&self, message_id: String, cx: &mut Context<Self>) {
+        let (Some(chat), Some(admission)) = (&self.chat, &self.admission) else {
             return;
         };
-        let session = guest.session.clone();
-        let channel = chat.channel_id.clone();
+        let session = admission.session.clone();
+        let channel_id = chat.channel_id.clone();
+        let request = self
+            .runtime
+            .spawn(async move { session.delete_message(&channel_id, &message_id).await });
+        Self::track_chat_action(chat, request, cx);
+    }
+
+    pub(super) fn moderate_participant(
+        &self,
+        participant_id: String,
+        action: &'static str,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(chat), Some(admission)) = (&self.chat, &self.admission) else {
+            return;
+        };
+        let session = admission.session.clone();
+        let request = self
+            .runtime
+            .spawn(async move { session.moderate_participant(&participant_id, action).await });
+        Self::track_chat_action(chat, request, cx);
+    }
+
+    fn track_chat_action(
+        chat: &Chat,
+        request: JoinHandle<Result<(), Failure>>,
+        cx: &mut Context<Self>,
+    ) {
+        let channel_id = chat.channel_id.clone();
         let generation = chat.generation;
-        let request = self.runtime.spawn(async move {
-            if let Some(action) = moderation {
-                session.moderate(&id, action).await
-            } else {
-                session.update_message(&channel, &id, None).await
-            }
-        });
         cx.spawn(async move |this, cx| {
             let result = request.await.unwrap_or(Err(Failure::Network));
             let _ = this.update(cx, |app, cx| {
-                if let Some(chat) = app
-                    .chat
-                    .as_mut()
-                    .filter(|chat| chat.generation == generation)
-                {
-                    chat.send_error = result.err();
+                if record_chat_action_result(
+                    app.chat.as_mut(),
+                    &mut app.inactive_chats,
+                    &channel_id,
+                    generation,
+                    result,
+                ) {
                     app.chat_refresh.notify_one();
                     cx.notify();
                 }
@@ -372,8 +418,10 @@ impl Yapper {
     }
 
     pub(super) fn refresh_catalog(&mut self, cx: &mut Context<Self>) {
-        let Some(guest) = &self.guest else { return };
-        let session = guest.session.clone();
+        let Some(admission) = &self.admission else {
+            return;
+        };
+        let session = admission.session.clone();
         let runtime = self.runtime.clone();
         let refresh = self.catalog_refresh.clone();
         self.catalog_task = Some(cx.spawn(async move |this, cx| {
@@ -392,10 +440,10 @@ impl Yapper {
                 };
                 if this
                     .update(cx, |app, cx| {
-                        if let Some(guest) = &mut app.guest
-                            && guest.membership != membership
+                        if let Some(admission) = &mut app.admission
+                            && admission.membership != membership
                         {
-                            guest.membership = membership;
+                            admission.membership = membership;
                             app.open_default_text(cx);
                             cx.notify();
                         }
@@ -409,10 +457,10 @@ impl Yapper {
     }
 
     pub(super) fn send_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (Some(chat), Some(guest)) = (&mut self.chat, &self.guest) else {
+        let (Some(chat), Some(admission)) = (&mut self.chat, &self.admission) else {
             return;
         };
-        let writable = guest
+        let writable = admission
             .membership
             .channels
             .iter()
@@ -423,7 +471,7 @@ impl Yapper {
             return;
         }
         let submission = chat.begin_submission(&body);
-        let session = guest.session.clone();
+        let session = admission.session.clone();
         let channel = chat.channel_id.clone();
         let generation = chat.generation;
         let origin = channel.clone();
@@ -438,7 +486,7 @@ impl Yapper {
                     revision,
                 } => {
                     session
-                        .update_message(&channel, &message_id, Some((&body, revision)))
+                        .edit_message(&channel, &message_id, &body, revision)
                         .await
                 }
             }
@@ -535,5 +583,73 @@ mod tests {
             Submission::Send(request_id) if request_id != original_request_id
         ));
         assert_eq!(chat.finish_submission(Ok(()), true), Some(String::new()));
+    }
+
+    #[test]
+    fn chat_action_error_stays_with_its_original_channel() {
+        let original = Chat::new("general".to_owned());
+        let generation = original.generation;
+        let mut inactive_chats = HashMap::from([(original.channel_id.clone(), original)]);
+        let mut active_chat = Chat::new("other".to_owned());
+
+        assert!(!record_chat_action_result(
+            Some(&mut active_chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Err(Failure::Denied),
+        ));
+        assert!(!record_chat_action_result(
+            Some(&mut active_chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Ok(()),
+        ));
+        assert_eq!(active_chat.action_error, None);
+        let restored_chat = inactive_chats.remove("general").expect("cached chat");
+        assert_eq!(restored_chat.action_error, Some(Failure::Denied));
+
+        let mut replacement = Chat::new("general".to_owned());
+        assert!(!record_chat_action_result(
+            Some(&mut replacement),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Err(Failure::Denied),
+        ));
+        assert_eq!(replacement.action_error, None);
+    }
+
+    #[test]
+    fn active_chat_keeps_action_error_after_success_and_message_submission() {
+        let mut chat = Chat::new("general".to_owned());
+        let generation = chat.generation;
+        let mut inactive_chats = HashMap::new();
+
+        assert!(record_chat_action_result(
+            Some(&mut chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Err(Failure::Denied),
+        ));
+        assert!(record_chat_action_result(
+            Some(&mut chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Ok(()),
+        ));
+        assert_eq!(chat.action_error, Some(Failure::Denied));
+        assert_eq!(chat.send_error, None);
+
+        let _ = chat.begin_submission("new message");
+        assert_eq!(chat.finish_submission(Err(Failure::Network), true), None);
+        assert_eq!(chat.send_error, Some(Failure::Network));
+        let _ = chat.begin_submission("new message");
+        assert_eq!(chat.finish_submission(Ok(()), true), Some(String::new()));
+        assert_eq!(chat.send_error, None);
+        assert_eq!(chat.action_error, Some(Failure::Denied));
     }
 }

@@ -140,9 +140,9 @@ func (s *Store) RecordVoiceAddress(ctx context.Context, mediaIdentity string, ad
 	})
 }
 
-func (s *Store) RevokeVoice(ctx context.Context, id string) (MediaSession, error) {
+func (s *Store) RevokeVoice(ctx context.Context, participantID string) (MediaSession, error) {
 	var m MediaSession
-	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 RETURNING participant_id::text,identity,channel_id::text", id).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
+	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 RETURNING participant_id::text,identity,channel_id::text", participantID).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
 	return m, err
 }
 func (s *Store) ForgetVoice(ctx context.Context, identity string) error {
@@ -172,9 +172,9 @@ func (s *Store) RevokeVoiceIdentity(ctx context.Context, identity string) (Media
 	return m, err
 }
 
-func (s *Store) RevokeOwnedVoice(ctx context.Context, id, identity string) (MediaSession, error) {
+func (s *Store) RevokeOwnedVoice(ctx context.Context, participantID, mediaIdentity string) (MediaSession, error) {
 	var m MediaSession
-	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 AND (identity=$2 OR resume_from=$2) RETURNING participant_id::text,identity,channel_id::text", id, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
+	err := s.Pool.QueryRow(ctx, "UPDATE media_sessions SET revoked=true WHERE participant_id=$1 AND (identity=$2 OR resume_from=$2) RETURNING participant_id::text,identity,channel_id::text", participantID, mediaIdentity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID)
 	return m, err
 }
 

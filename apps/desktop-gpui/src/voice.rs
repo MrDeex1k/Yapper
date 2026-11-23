@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, mpsc::error::TryRecvError, watch};
 pub enum Command {
     Leave,
     RefreshDevices,
-    Microphone(RecordingDeviceId),
+    SelectMicrophone(RecordingDeviceId),
     Output(PlayoutDeviceId),
     Deafen(bool),
     MutePeer(String, bool),
@@ -24,7 +24,7 @@ pub enum Event {
     Peers(Vec<Peer>),
     Devices(Vec<RecordingDeviceInfo>, Vec<PlayoutDeviceInfo>),
     CanPublish(bool),
-    Microphone(bool),
+    MicrophoneActiveChanged(bool),
     Reconnecting,
     Ended(Option<Failure>),
     Failed(Failure),
@@ -87,7 +87,7 @@ impl VoiceCommands {
             None | Some(Command::Leave) => return ControlFlow::Break(()),
             // Each new connection publishes a fresh device list.
             Some(Command::RefreshDevices) => {}
-            Some(Command::Microphone(id)) => self.recording_device = Some(id),
+            Some(Command::SelectMicrophone(id)) => self.recording_device = Some(id),
             Some(Command::Output(id)) => self.playout_device = Some(id),
             Some(Command::Deafen(value)) => self.playback.deafened = value,
             Some(Command::MutePeer(id, muted)) => self.playback.mute_peer(id, muted),
@@ -274,7 +274,7 @@ async fn call(
             command = controls.receiver.recv() => match command {
                 Some(Command::Leave) | None => break Ok(()),
                 Some(Command::RefreshDevices) => publish_devices(&audio, events),
-                Some(Command::Microphone(id)) => {
+                Some(Command::SelectMicrophone(id)) => {
                     controls.select_recording_device(id, &audio, events);
                     publish_devices(&audio, events);
                 }
@@ -289,7 +289,7 @@ async fn call(
                             track.mute();
                         }
                         enabled = false;
-                        let _ = events.send(Event::Microphone(false));
+                        let _ = events.send(Event::MicrophoneActiveChanged(false));
                     }
                     controls.playback.apply(&room);
                 }
@@ -320,7 +320,7 @@ async fn call(
                 }
                 if next != enabled {
                     enabled = next;
-                    let _ = events.send(Event::Microphone(enabled));
+                    let _ = events.send(Event::MicrophoneActiveChanged(enabled));
                 }
             },
             event = room_events.recv() => match event {
@@ -340,7 +340,7 @@ async fn call(
                             track.mute();
                         }
                         enabled = false;
-                        let _ = events.send(Event::Microphone(false));
+                        let _ = events.send(Event::MicrophoneActiveChanged(false));
                     }
                     let _ = events.send(Event::CanPublish(can_publish));
                 }
@@ -413,7 +413,8 @@ mod tests {
             send.send(Command::Deafen(true)).unwrap();
             send.send(Command::MutePeer("peer".to_owned(), true))
                 .unwrap();
-            send.send(Command::Microphone(recording.clone())).unwrap();
+            send.send(Command::SelectMicrophone(recording.clone()))
+                .unwrap();
             send.send(Command::Output(playout.clone())).unwrap();
             assert!(futures_util::poll!(&mut waiting).is_pending());
             finish.send(()).unwrap();
@@ -482,7 +483,7 @@ mod tests {
             .await
             .expect("read guest membership");
         assert_eq!(guest.membership.participant.nickname, "GPUI smoke");
-        if guest.saved {
+        if guest.credential_saved {
             let restored = server
                 .restore()
                 .await

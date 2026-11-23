@@ -12,23 +12,23 @@ type HistoryState = { messages: Message[]; hasOlder: boolean; loadingOlder: bool
 const emptyHistory: HistoryState = { messages: [], hasOlder: false, loadingOlder: false };
 
 export function useConversation(
-  channel: string,
+  channelId: string,
   refreshCommunity: (signal: AbortSignal) => Promise<void>,
 ) {
-  const activeChannel = useRef(channel);
+  const activeChannelId = useRef(channelId);
   const subscription = useRef<ReturnType<typeof subscribeConversation> | null>(null);
   useLayoutEffect(() => {
-    activeChannel.current = channel;
-  }, [channel]);
+    activeChannelId.current = channelId;
+  }, [channelId]);
   const [history, setHistory] = useState<HistoryState | null>(null);
   const [status, setStatus] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<unknown>(null);
   const [timelineError, setTimelineError] = useState<unknown>(null);
   const [memberRevision, setMemberRevision] = useState(0);
   const paused = status === "kicked";
-  const [previousChannel, setPreviousChannel] = useState(channel);
-  if (previousChannel !== channel) {
-    setPreviousChannel(channel);
+  const [previousChannelId, setPreviousChannelId] = useState(channelId);
+  if (previousChannelId !== channelId) {
+    setPreviousChannelId(channelId);
     setHistory(null);
     if (!paused) setStatus("connecting");
     setError(null);
@@ -36,9 +36,9 @@ export function useConversation(
   }
   useEffect(() => {
     if (paused) return;
-    const next = subscribeConversation(channel, refreshCommunity, {
+    const next = subscribeConversation(channelId, refreshCommunity, {
       setHistory: (page) => {
-        if (activeChannel.current === channel) setHistory(page);
+        if (activeChannelId.current === channelId) setHistory(page);
       },
       setStatus,
       setError,
@@ -50,9 +50,9 @@ export function useConversation(
       subscription.current = null;
       next.close();
     };
-  }, [channel, paused, refreshCommunity]);
+  }, [channelId, paused, refreshCommunity]);
 
-  const historyReady = history !== null || channel === "";
+  const historyReady = history !== null || channelId === "";
   return {
     ...(history ?? emptyHistory),
     historyReady,
@@ -61,10 +61,10 @@ export function useConversation(
     error: error ?? timelineError,
     memberRevision,
     reconnect: () => setStatus("connecting"),
-    refresh: (changedChannel: string) => {
+    refresh: (changedChannelId: string) => {
       if (
-        activeChannel.current === changedChannel &&
-        subscription.current?.channel === changedChannel
+        activeChannelId.current === changedChannelId &&
+        subscription.current?.channelId === changedChannelId
       )
         subscription.current.sync();
     },
@@ -81,13 +81,13 @@ type ConversationObserver = {
 };
 
 function subscribeConversation(
-  channel: string,
+  channelId: string,
   refreshCommunity: (signal: AbortSignal) => Promise<void>,
   observer: ConversationObserver,
 ) {
   const controller = new AbortController();
   const { signal } = controller;
-  const timeline = subscribeTimeline(channel, signal, observer);
+  const timeline = subscribeTimeline(channelId, signal, observer);
   let socket: WebSocket | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   async function connect() {
@@ -119,7 +119,7 @@ function subscribeConversation(
         }
         if (
           (envelope.type === "message.created" || envelope.type === "messages.changed") &&
-          envelope.payload?.channelId === channel
+          envelope.payload?.channelId === channelId
         )
           timeline.sync();
       };
@@ -145,7 +145,7 @@ function subscribeConversation(
   }
   void connect();
   return {
-    channel,
+    channelId,
     ...timeline,
     close() {
       controller.abort();
@@ -160,10 +160,10 @@ function subscribeConversation(
 
 // Page reads and change reads share a queue. A late page response cannot restore
 // a message whose deletion was already applied by the same subscription.
-function subscribeTimeline(channel: string, signal: AbortSignal, observer: ConversationObserver) {
+function subscribeTimeline(channelId: string, signal: AbortSignal, observer: ConversationObserver) {
   const messages = new Map<string, Message>();
   let revision: number | null = null;
-  let before = 0;
+  let olderPageBeforeSequence = 0;
   let loadingOlder = false;
   let dirty = false;
   let queued = false;
@@ -175,7 +175,7 @@ function subscribeTimeline(channel: string, signal: AbortSignal, observer: Conve
     if (signal.aborted) return;
     observer.setHistory({
       messages: [...messages.values()].sort((a, b) => a.sequence - b.sequence),
-      hasOlder: before !== 0,
+      hasOlder: olderPageBeforeSequence !== 0,
       loadingOlder,
     });
   }
@@ -188,28 +188,28 @@ function subscribeTimeline(channel: string, signal: AbortSignal, observer: Conve
         if (!signal.aborted) observer.setTimelineError(e);
       });
   }
-  async function readPage(cursor: number) {
-    const page = await api.timeline(channel, cursor, signal);
+  async function readPage(beforeSequence: number) {
+    const page = await api.timeline(channelId, beforeSequence, signal);
     for (const message of page.messages) messages.set(message.id, message);
-    before = page.before;
-    if (cursor === 0) revision = page.revision;
+    olderPageBeforeSequence = page.before;
+    if (beforeSequence === 0) revision = page.revision;
   }
-  async function readChanges(after: number) {
-    let cursor = after;
+  async function readChanges(afterRevision: number) {
     while (!signal.aborted) {
-      const { changes } = await api.messageChanges(channel, cursor, signal);
+      const { changes } = await api.messageChanges(channelId, afterRevision, signal);
       for (const change of changes) {
         if (!change.message) messages.delete(change.id);
-        else if (change.message.sequence >= before) messages.set(change.id, change.message);
-        cursor = change.revision;
+        else if (change.message.sequence >= olderPageBeforeSequence)
+          messages.set(change.id, change.message);
+        afterRevision = change.revision;
       }
-      revision = cursor;
+      revision = afterRevision;
       publish();
       if (changes.length < 100) return;
     }
   }
   function sync() {
-    if (!channel || signal.aborted) return;
+    if (!channelId || signal.aborted) return;
     dirty = true;
     clearTimeout(retry);
     if (queued) return;
@@ -237,12 +237,12 @@ function subscribeTimeline(channel: string, signal: AbortSignal, observer: Conve
   return {
     sync,
     loadOlder() {
-      if (signal.aborted || loadingOlder || before === 0) return;
+      if (signal.aborted || loadingOlder || olderPageBeforeSequence === 0) return;
       loadingOlder = true;
       publish();
       enqueue(async () => {
         try {
-          await readPage(before);
+          await readPage(olderPageBeforeSequence);
         } finally {
           loadingOlder = false;
           publish();

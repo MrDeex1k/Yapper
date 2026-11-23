@@ -163,8 +163,8 @@ func (a *CommunityAPI) retentionResult(w http.ResponseWriter, days int, err erro
 	writeJSON(w, 200, map[string]int{"days": days})
 }
 
-// RetainMessages runs from startup and yields between bounded cleanup passes.
-func (a *CommunityAPI) RetainMessages(ctx context.Context) {
+// RunMessageRetention runs from startup and yields between bounded cleanup passes.
+func (a *CommunityAPI) RunMessageRetention(ctx context.Context) {
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
 	for {

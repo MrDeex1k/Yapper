@@ -64,7 +64,7 @@ export function useVoice(forcedMuted = false, kicked = false) {
     if (!pushToTalk || state.status !== "connected") return;
     const events = new AbortController();
     const { signal } = events;
-    const release = () => controller.current?.press(false);
+    const release = () => controller.current?.setPushToTalkHeld(false);
     window.addEventListener("blur", release, { signal });
     window.addEventListener("pagehide", release, { signal });
     document.addEventListener("visibilitychange", release, { signal });
@@ -90,7 +90,7 @@ export function useVoice(forcedMuted = false, kicked = false) {
         )
           return;
         event.preventDefault();
-        controller.current?.press(true);
+        controller.current?.setPushToTalkHeld(true);
       },
       { signal },
     );

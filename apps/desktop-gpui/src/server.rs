@@ -121,13 +121,13 @@ pub struct Session {
 pub struct Admission {
     pub session: Session,
     pub membership: Membership,
-    pub saved: bool,
+    pub credential_saved: bool,
 }
 
 #[derive(Clone)]
 pub struct PendingAdmission {
     session: Session,
-    saved: bool,
+    credential_saved: bool,
 }
 
 impl PendingAdmission {
@@ -136,7 +136,7 @@ impl PendingAdmission {
         Ok(Admission {
             session: self.session.clone(),
             membership,
-            saved: self.saved,
+            credential_saved: self.credential_saved,
         })
     }
 }
@@ -176,7 +176,7 @@ impl Server {
         };
         let pending = PendingAdmission {
             session: self.session(&secret)?,
-            saved: true,
+            credential_saved: true,
         };
         pending.finish().await.map(Some)
     }
@@ -203,14 +203,17 @@ impl Server {
             .ok_or(Failure::Data)?;
         let session = self.session(&secret)?;
         let origin = self.origin.origin().ascii_serialization();
-        let saved = matches!(
+        let credential_saved = matches!(
             tokio::task::spawn_blocking(move || {
                 keyring::Entry::new(SERVICE, &origin)?.set_password(&secret)
             })
             .await,
             Ok(Ok(()))
         );
-        Ok(PendingAdmission { session, saved })
+        Ok(PendingAdmission {
+            session,
+            credential_saved,
+        })
     }
 
     fn cookie_name(&self) -> &'static str {
@@ -359,32 +362,54 @@ impl Session {
         Ok(result.changes)
     }
 
-    pub async fn update_message(
+    pub async fn edit_message(
         &self,
-        channel: &str,
-        id: &str,
-        edit: Option<(&str, i64)>,
+        channel_id: &str,
+        message_id: &str,
+        body: &str,
+        revision: i64,
     ) -> Result<(), Failure> {
-        let channel = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
-        let id = uuid::Uuid::parse_str(id).map_err(|_| Failure::Data)?;
-        let (action, body) = edit.map_or_else(
-            || ("delete", json!({})),
-            |(body, revision)| ("edit", json!({"body": body, "revision": revision})),
-        );
+        self.mutate_message(
+            channel_id,
+            message_id,
+            "edit",
+            json!({"body": body, "revision": revision}),
+        )
+        .await
+    }
+
+    pub async fn delete_message(&self, channel_id: &str, message_id: &str) -> Result<(), Failure> {
+        self.mutate_message(channel_id, message_id, "delete", json!({}))
+            .await
+    }
+
+    async fn mutate_message(
+        &self,
+        channel_id: &str,
+        message_id: &str,
+        action: &str,
+        body: Value,
+    ) -> Result<(), Failure> {
+        let channel_id = uuid::Uuid::parse_str(channel_id).map_err(|_| Failure::Data)?;
+        let message_id = uuid::Uuid::parse_str(message_id).map_err(|_| Failure::Data)?;
         self.send(
             Method::POST,
-            &format!("/api/v1/channels/{channel}/messages/{id}/{action}"),
+            &format!("/api/v1/channels/{channel_id}/messages/{message_id}/{action}"),
             Some(body),
         )
         .await?;
         Ok(())
     }
 
-    pub async fn moderate(&self, participant: &str, action: &str) -> Result<(), Failure> {
-        let id = uuid::Uuid::parse_str(participant).map_err(|_| Failure::Data)?;
+    pub async fn moderate_participant(
+        &self,
+        participant_id: &str,
+        action: &str,
+    ) -> Result<(), Failure> {
+        let participant_id = uuid::Uuid::parse_str(participant_id).map_err(|_| Failure::Data)?;
         self.send(
             Method::POST,
-            &format!("/api/v1/participants/{id}/moderate"),
+            &format!("/api/v1/participants/{participant_id}/moderate"),
             Some(json!({"action": action})),
         )
         .await?;

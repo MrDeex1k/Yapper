@@ -189,7 +189,7 @@ func (a *CommunityAPI) authenticate(r *http.Request) (principal, error) {
 		if err != nil {
 			return principal{}, err
 		}
-		if err = a.auth.Active(r.Context(), account); err != nil {
+		if err = a.auth.CheckSessionActive(r.Context(), account); err != nil {
 			return principal{}, err
 		}
 		p, err := a.store.AccountIdentity(r.Context(), account.Subject)
@@ -243,7 +243,9 @@ func (a *CommunityAPI) setup(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "invalid_request")
 		return
 	}
-	err := a.store.Setup(r.Context(), body.Name, body.Username, func(ctx context.Context) (string, error) { return a.auth.Provision(ctx, body.Username, body.Password) })
+	err := a.store.Setup(r.Context(), body.Name, body.Username, func(ctx context.Context) (string, error) {
+		return a.auth.BootstrapOwner(ctx, body.Username, body.Password)
+	})
 	if err != nil {
 		resultError(w, err)
 		return
@@ -383,7 +385,7 @@ func (a *CommunityAPI) current(ctx context.Context, p principal) error {
 		if p.account.ExpiresAt == nil || time.Now().After(p.account.ExpiresAt.Time) {
 			return identity.ErrUnauthorized
 		}
-		return a.auth.Active(ctx, *p.account)
+		return a.auth.CheckSessionActive(ctx, *p.account)
 	}
 	return a.store.CheckGuestAddress(ctx, p.address)
 }

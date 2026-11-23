@@ -77,7 +77,7 @@ export function createMicrophone(
     }
   }
 
-  function enable(enabled: boolean, input: string) {
+  function setEnabled(enabled: boolean, inputDeviceId: string) {
     const version = ++generation;
     const current = () => generation === version;
     if (!enabled) quiet();
@@ -89,7 +89,7 @@ export function createMicrophone(
           return;
         }
         if (track?.mediaStreamTrack.readyState === "ended") await removeTrack();
-        if (!track) await capture(input, current);
+        if (!track) await capture(inputDeviceId, current);
         if (!current() || !track) return;
         await track.unmute();
         if (current()) onMuted(false);
@@ -115,7 +115,7 @@ export function createMicrophone(
   }
 
   return {
-    enable,
+    setEnabled,
     reset,
     stop() {
       ++generation;

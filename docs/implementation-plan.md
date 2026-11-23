@@ -97,6 +97,8 @@ Deliverables:
 
 Use TanStack Router in Web for shareable channel URLs and browser history. Verify direct links and reloads. Keep the voice session in a shared layout above channel routes.
 
+The [Stage 4 naming audit](evidence/stage-4-naming.md) and its Web, Go, and GPUI fixes are complete. A GPUI regression test covers failed actions that finish after a text channel switch.
+
 **Completion gate:** the full first-release checklist passes, including desktop protocol, identity, media, and package checks on Windows and Linux. Friends can follow the instructions without developer-only commands. The UI and landing describe only verified distribution and voice capabilities. Release publishing is a distinct action from local artifact preparation.
 
 Suggested branches: `feat/implement-gpui-desktop`, `feat/package-desktop-client`, `feat/implement-bilingual-landing`, `docs/document-private-release`.

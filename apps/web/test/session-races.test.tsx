@@ -668,9 +668,9 @@ test("push-to-talk releases pending capture, applies the selected microphone and
     await controller.join("voice");
     await controller.setDevice("audioinput", "selection");
     controller.setPushToTalk(true);
-    controller.press(true);
+    controller.setPushToTalkHeld(true);
     expect((await requested.promise).audio).toMatchObject({ deviceId: { exact: "selection" } });
-    controller.press(false);
+    controller.setPushToTalkHeld(false);
     pending.resolve(mockStream(raw));
     await new Promise<void>((resolve) => queueMicrotask(resolve));
     expect(raw.readyState).toBe("ended");
@@ -678,7 +678,7 @@ test("push-to-talk releases pending capture, applies the selected microphone and
 
     const selected = new RawMicrophone();
     capture = async () => mockStream(selected);
-    controller.press(true);
+    controller.setPushToTalkHeld(true);
     await speaking.promise;
     expect(publications).toEqual([false]);
     expect(selected.enabled).toBe(true);
@@ -686,7 +686,7 @@ test("push-to-talk releases pending capture, applies the selected microphone and
     expect(selected.enabled).toBe(false);
     controller.toggleDeafen();
     controller.setForcedMuted(true);
-    controller.press(true);
+    controller.setPushToTalkHeld(true);
     expect(selected.enabled).toBe(false);
     await controller.leave();
     expect(selected.readyState).toBe("ended");

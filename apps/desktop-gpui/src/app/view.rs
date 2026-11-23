@@ -44,8 +44,8 @@ impl Render for Yapper {
             .capture_key_down(cx.listener(Self::key_down))
             .capture_key_up(cx.listener(Self::key_up));
         let width = f32::from(window.viewport_size().width);
-        if let (Some((_, installation)), Some(guest)) = (&self.installation, &self.guest) {
-            surface.child(self.workspace(&installation.name, guest, width, window, cx))
+        if let (Some((_, installation)), Some(admission)) = (&self.installation, &self.admission) {
+            surface.child(self.workspace(&installation.name, admission, width, window, cx))
         } else {
             surface.child(self.entry(width, window, cx))
         }
@@ -150,36 +150,36 @@ impl Yapper {
                         .child(server_identity(&installation.name, &server.origin())),
                 )
                 .child(entry_title(
-                    if self.signing_in {
+                    if self.show_sign_in_form {
                         copy.sign_in
                     } else {
                         copy.join_heading
                     },
                     width,
                 ))
-                .when(!self.signing_in, |content| {
+                .when(!self.show_sign_in_form, |content| {
                     content.child(entry_description(copy.join_description))
                 });
             let admitted = self.pending_admission.is_some();
-            if self.signing_in {
+            if self.show_sign_in_form {
                 form = form
                     .child(field(
                         copy.username,
                         &self.username,
-                        self.pending,
+                        self.session_request_pending,
                         window,
                         cx,
                     ))
                     .child(field(
                         copy.password,
                         &self.password,
-                        self.pending,
+                        self.session_request_pending,
                         window,
                         cx,
                     ))
                     .children(self.render_error())
                     .child(
-                        primary_entry("sign-in", copy.sign_in, self.pending)
+                        primary_entry("sign-in", copy.sign_in, self.session_request_pending)
                             .on_click(cx.listener(|app, _, window, cx| app.sign_in(window, cx))),
                     );
             } else {
@@ -188,7 +188,7 @@ impl Yapper {
                         form.child(field(
                             copy.nickname,
                             &self.nickname,
-                            self.pending,
+                            self.session_request_pending,
                             window,
                             cx,
                         ))
@@ -196,7 +196,7 @@ impl Yapper {
                             form.child(field(
                                 copy.invitation,
                                 &self.invitation,
-                                self.pending,
+                                self.session_request_pending,
                                 window,
                                 cx,
                             ))
@@ -211,7 +211,7 @@ impl Yapper {
                             } else {
                                 copy.join
                             },
-                            self.pending,
+                            self.session_request_pending,
                         )
                         .on_click(cx.listener(|app, _, window, cx| app.admit(window, cx))),
                     )
@@ -228,14 +228,14 @@ impl Yapper {
                     form.child(
                         Button::new("switch-entry-mode")
                             .ghost()
-                            .label(if self.signing_in {
+                            .label(if self.show_sign_in_form {
                                 copy.continue_as_guest
                             } else {
                                 copy.sign_in
                             })
-                            .disabled(self.pending)
+                            .disabled(self.session_request_pending)
                             .on_click(cx.listener(|app, _, window, cx| {
-                                app.signing_in = !app.signing_in;
+                                app.show_sign_in_form = !app.show_sign_in_form;
                                 app.password
                                     .update(cx, |input, cx| input.set_value("", window, cx));
                                 app.error = None;
@@ -248,7 +248,7 @@ impl Yapper {
                         .ghost()
                         .h(px(40.))
                         .label(copy.change_server)
-                        .disabled(self.pending)
+                        .disabled(self.session_request_pending)
                         .on_click(cx.listener(|app, _, window, cx| app.change_server(window, cx))),
                 );
         } else {
@@ -258,10 +258,16 @@ impl Yapper {
                 form = form.border_t_1().border_color(rgb(LINE)).pt(px(16.));
             }
             form = form
-                .child(field(copy.address, &self.address, self.pending, window, cx))
+                .child(field(
+                    copy.address,
+                    &self.address,
+                    self.session_request_pending,
+                    window,
+                    cx,
+                ))
                 .children(self.render_error())
                 .child(
-                    primary_entry("connect", copy.connect, self.pending)
+                    primary_entry("connect", copy.connect, self.session_request_pending)
                         .on_click(cx.listener(|app, _, window, cx| app.connect(window, cx))),
                 );
         }
@@ -314,7 +320,7 @@ impl Yapper {
                         )
                         .into_any_element(),
                 )
-                .disabled(self.pending)
+                .disabled(self.session_request_pending)
                 .on_click(cx.listener(move |app, _, window, cx| {
                     app.connect_address(address.clone(), window, cx)
                 }))
@@ -332,32 +338,32 @@ impl Yapper {
     fn workspace(
         &self,
         name: &str,
-        guest: &Admission,
+        admission: &Admission,
         width: f32,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let body = match (&self.chat, self.selected_text(guest)) {
+        let body = match (&self.chat, self.selected_text(admission)) {
             (Some(chat), Some(channel)) => self.chat_view(
-                guest,
+                admission,
                 chat,
                 channel,
                 (width * 0.03).clamp(18., 34.),
                 window,
                 cx,
             ),
-            _ => self.workspace_body(guest),
+            _ => self.workspace_body(admission),
         };
         if width <= COMPACT_WIDTH {
             div()
                 .size_full()
                 .flex()
                 .flex_col()
-                .child(self.topbar(guest, WorkspaceLayout::Compact, width, cx))
+                .child(self.topbar(admission, WorkspaceLayout::Compact, width, cx))
                 .when(self.channels_open, |workspace| {
                     workspace
-                        .child(self.sidebar(name, guest, WorkspaceLayout::Compact, cx))
-                        .child(self.profile(guest, WorkspaceLayout::Compact, cx))
+                        .child(self.sidebar(name, admission, WorkspaceLayout::Compact, cx))
+                        .child(self.profile(admission, WorkspaceLayout::Compact, cx))
                 })
                 .child(body)
                 .children(
@@ -379,13 +385,13 @@ impl Yapper {
                         .bg(rgb(NAVIGATION))
                         .border_r_1()
                         .border_color(rgb(LINE))
-                        .child(self.sidebar(name, guest, WorkspaceLayout::Desktop, cx))
+                        .child(self.sidebar(name, admission, WorkspaceLayout::Desktop, cx))
                         .children(
                             self.call
                                 .as_ref()
                                 .map(|call| self.voice_dock(call, WorkspaceLayout::Desktop, cx)),
                         )
-                        .child(self.profile(guest, WorkspaceLayout::Desktop, cx)),
+                        .child(self.profile(admission, WorkspaceLayout::Desktop, cx)),
                 )
                 .child(
                     div()
@@ -393,7 +399,7 @@ impl Yapper {
                         .flex_col()
                         .flex_1()
                         .min_w(px(0.))
-                        .child(self.topbar(guest, WorkspaceLayout::Desktop, width, cx))
+                        .child(self.topbar(admission, WorkspaceLayout::Desktop, width, cx))
                         .child(body),
                 )
         }
@@ -402,7 +408,7 @@ impl Yapper {
     fn sidebar(
         &self,
         name: &str,
-        guest: &Admission,
+        admission: &Admission,
         layout: WorkspaceLayout,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
@@ -412,14 +418,14 @@ impl Yapper {
         for (kind, heading) in [("text", copy.text_channels), ("voice", copy.voice_channels)] {
             let mut rows = Vec::new();
             let categories = std::iter::once(("", "")).chain(
-                guest
+                admission
                     .membership
                     .categories
                     .iter()
                     .map(|category| (category.id.as_str(), category.name.as_str())),
             );
             for (id, title) in categories {
-                let channels = guest.membership.channels.iter().filter(|channel| {
+                let channels = admission.membership.channels.iter().filter(|channel| {
                     channel.kind == kind
                         && channel.category_id == id
                         && (kind == "text" || !channel.archived)
@@ -429,7 +435,7 @@ impl Yapper {
                         if kind == "text" {
                             self.text_channel(channel, if compact { 40. } else { 36. }, cx)
                         } else {
-                            self.voice_channel(channel, &guest.session, layout, cx)
+                            self.voice_channel(channel, &admission.session, layout, cx)
                         }
                     })
                     .collect::<Vec<_>>();
@@ -619,12 +625,12 @@ impl Yapper {
 
     fn profile(
         &self,
-        guest: &Admission,
+        admission: &Admission,
         layout: WorkspaceLayout,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let compact = layout == WorkspaceLayout::Compact;
-        let nickname = &guest.membership.participant.nickname;
+        let nickname = &admission.membership.participant.nickname;
         let initial: String = nickname
             .chars()
             .take(1)
@@ -665,7 +671,7 @@ impl Yapper {
                             .child(nickname.clone()),
                     )
                     .child(div().text_size(px(11.)).text_color(rgb(MUTED)).child(
-                        match guest.membership.participant.role.as_str() {
+                        match admission.membership.participant.role.as_str() {
                             "owner" => self.language.copy().owner,
                             "moderator" => self.language.copy().moderator,
                             _ => self.language.copy().participant,
@@ -673,12 +679,12 @@ impl Yapper {
                     )),
             )
             .when(compact, |profile| profile.child(self.language_menu(cx)))
-            .when(guest.session.is_account(), |profile| {
+            .when(admission.session.is_account(), |profile| {
                 profile.child(
                     Button::new("sign-out")
                         .ghost()
                         .label(self.language.copy().sign_out)
-                        .disabled(self.pending || self.call.is_some())
+                        .disabled(self.session_request_pending || self.call.is_some())
                         .on_click(cx.listener(|app, _, window, cx| app.sign_out(window, cx))),
                 )
             })
@@ -686,14 +692,14 @@ impl Yapper {
 
     fn topbar(
         &self,
-        guest: &Admission,
+        admission: &Admission,
         layout: WorkspaceLayout,
         width: f32,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let compact = layout == WorkspaceLayout::Compact;
         let copy = self.language.copy();
-        let channel = self.selected_text(guest);
+        let channel = self.selected_text(admission);
         let title = match (channel, &self.call) {
             (Some(channel), _) => channel.name.clone(),
             (_, Some(call)) => call.name.clone(),
@@ -768,13 +774,13 @@ impl Yapper {
                 Button::new("change-server")
                     .ghost()
                     .label(copy.change_server)
-                    .disabled(self.pending || self.switching_server)
+                    .disabled(self.session_request_pending || self.switching_server)
                     .on_click(cx.listener(|app, _, window, cx| app.change_server(window, cx))),
             )
             .when(!compact, |bar| bar.child(self.language_menu(cx)))
     }
 
-    fn workspace_body(&self, guest: &Admission) -> Div {
+    fn workspace_body(&self, admission: &Admission) -> Div {
         let copy = self.language.copy();
         div()
             .flex_1()
@@ -794,7 +800,7 @@ impl Yapper {
                     .text_size(px(14.))
                     .text_color(rgb(MUTED))
                     .when(self.call.is_none(), |body| body.child(copy.select_voice))
-                    .when(!guest.saved, |body| {
+                    .when(!admission.credential_saved, |body| {
                         body.child(
                             div()
                                 .text_size(px(12.))
@@ -820,7 +826,7 @@ impl Yapper {
             CallState::Leaving => copy.disconnecting,
             CallState::Connected if !call.can_publish => copy.listening_only,
             CallState::Connected if call.deafened => copy.deafen,
-            CallState::Connected if call.microphone => copy.microphone_on_status,
+            CallState::Connected if call.microphone_active => copy.microphone_on_status,
             CallState::Connected => copy.microphone_muted_status,
         };
         let summary = div()
@@ -832,7 +838,11 @@ impl Yapper {
             .child(icon(
                 "icons/volume-2.svg",
                 16.,
-                if call.microphone { ACCENT } else { MUTED },
+                if call.microphone_active {
+                    ACCENT
+                } else {
+                    MUTED
+                },
             ))
             .child(
                 div()
@@ -923,13 +933,20 @@ impl Yapper {
 
     fn voice_controls(&self, call: &Call, size: f32, cx: &mut Context<Self>) -> Div {
         let copy = self.language.copy();
-        let (mic_label, mic_icon, mic_color) = if call.microphone {
+        let (mic_label, mic_icon, mic_color) = if call.microphone_active {
             (copy.microphone_off, "icons/mic.svg", TEXT)
         } else {
             (copy.microphone_on, "icons/mic-off.svg", MUTED)
         };
         let mic_style = ButtonCustomVariant::new(cx)
-            .color(rgb(if call.microphone { SELECTED } else { HOVER }).into())
+            .color(
+                rgb(if call.microphone_active {
+                    SELECTED
+                } else {
+                    HOVER
+                })
+                .into(),
+            )
             .hover(rgb(SELECTED).into())
             .active(rgb(SELECTED).into());
         let leave_style = ButtonCustomVariant::new(cx)
@@ -1026,7 +1043,7 @@ impl Yapper {
                 menu = menu.item(
                     PopupMenuItem::new(format!("{} · {}", copy.microphone_devices, device.name))
                         .on_click(move |_, _, _| {
-                            let _ = sender.send(Command::Microphone(id.clone()));
+                            let _ = sender.send(Command::SelectMicrophone(id.clone()));
                         }),
                 );
             }

@@ -237,7 +237,7 @@ function Entry({
   const labels = {
     setup: [t.setup, t.setupDescription, t.createServer],
     join: [t.join, t.joinDescription, t.joinAction],
-    login: [t.adminLogin, t.admin, t.signIn],
+    login: [t.staffSignIn, t.admin, t.signIn],
   }[view];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -312,7 +312,7 @@ function Entry({
             setError(null);
           }}
         >
-          {mode === "join" ? t.adminLogin : t.back}
+          {mode === "join" ? t.staffSignIn : t.back}
         </Button>
       )}
       {state.configured && mode === "join" && <p className="identity-notice">{t.identityNotice}</p>}
@@ -413,19 +413,19 @@ function Conversation({
   const [queryClient] = useState(() => new QueryClient());
   useEffect(() => () => queryClient.clear(), [queryClient]);
   const textChannels = user.channels.filter((c) => c.kind === "text");
-  const { channel: selectedChannel } = workspaceRoute.useSearch();
+  const { channel: requestedChannelId } = workspaceRoute.useSearch();
   const navigate = workspaceRoute.useNavigate();
-  const current =
-    textChannels.find((channel) => channel.id === selectedChannel) ??
+  const selectedTextChannel =
+    textChannels.find((channel) => channel.id === requestedChannelId) ??
     textChannels.find((channel) => !channel.archived) ??
     textChannels[0];
-  const channel = current?.id ?? "";
-  const channelName = current?.name ?? state.name;
+  const channelId = selectedTextChannel?.id ?? "";
+  const channelName = selectedTextChannel?.name ?? state.name;
   useEffect(() => {
-    if (channel !== selectedChannel && (channel || selectedChannel)) {
-      void navigate({ search: channel ? { channel } : {}, replace: true });
+    if (channelId !== requestedChannelId && (channelId || requestedChannelId)) {
+      void navigate({ search: channelId ? { channel: channelId } : {}, replace: true });
     }
-  }, [channel, navigate, selectedChannel]);
+  }, [channelId, navigate, requestedChannelId]);
   const refreshRevision = useRef(0);
   const appliedRevision = useRef(0);
   const refreshCommunity = useCallback(async (signal?: AbortSignal) => {
@@ -440,7 +440,7 @@ function Conversation({
       if (revision > appliedRevision.current) throw error;
     }
   }, []);
-  const conversation = useConversation(channel, refreshCommunity);
+  const conversation = useConversation(channelId, refreshCommunity);
   const voice = useVoice(user.participant.micMuted, conversation.status === "kicked");
   const [error, setError] = useState<unknown>(null);
   const [panel, setPanel] = useState<ConversationPanel | null>(null);
@@ -455,10 +455,10 @@ function Conversation({
   useEffect(() => {
     if (!channelsOpen || !channelToggle.current?.getClientRects().length) return;
     const sidebar = channelSidebar.current;
-    const channel =
+    const channelButton =
       sidebar?.querySelector<HTMLElement>('[aria-current="page"]') ??
       sidebar?.querySelector<HTMLElement>("nav button");
-    channel?.focus();
+    channelButton?.focus();
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape" && !event.defaultPrevented) closeChannels();
     }
@@ -482,10 +482,10 @@ function Conversation({
     setModerationTarget((previous) => ({ id: target, request: previous.request + 1 }));
     setPanel("moderation");
   }
-  function switchChannel(id: string) {
+  function switchChannel(nextChannelId: string) {
     closeChannels();
-    if (id === channel) return;
-    void navigate({ search: { channel: id } });
+    if (nextChannelId === channelId) return;
+    void navigate({ search: { channel: nextChannelId } });
     setError(null);
   }
   return (
@@ -522,7 +522,7 @@ function Conversation({
         user={user}
         state={state}
         locale={locale}
-        channel={channel}
+        channelId={channelId}
         voice={voice}
         onChannel={switchChannel}
         onClose={closeChannels}
@@ -552,7 +552,7 @@ function Conversation({
           />
         </QueryClientProvider>
         <MessageHistory
-          key={channel}
+          key={channelId}
           items={conversation.messages}
           historyReady={conversation.historyReady}
           loadingHistory={conversation.loadingHistory}
@@ -560,7 +560,7 @@ function Conversation({
           loadingOlder={conversation.loadingOlder}
           onLoadOlder={conversation.loadOlder}
           onChanged={conversation.refresh}
-          archived={current?.archived ?? false}
+          archived={selectedTextChannel?.archived ?? false}
           locked={conversation.status === "kicked"}
           user={user}
           locale={locale}
@@ -572,12 +572,12 @@ function Conversation({
               {errorText(error ?? conversation.error, locale)}
             </p>
           )}
-          {current?.archived && <p className="composer-hint">{t.archivedNotice}</p>}
-          {current && !current.archived && (
+          {selectedTextChannel?.archived && <p className="composer-hint">{t.archivedNotice}</p>}
+          {selectedTextChannel && !selectedTextChannel.archived && (
             <MessageComposer
-              key={channel}
-              channel={channel}
-              name={current.name}
+              key={channelId}
+              channelId={channelId}
+              name={selectedTextChannel.name}
               locale={locale}
               onSent={conversation.refresh}
               disabled={conversation.status === "kicked"}
@@ -668,16 +668,16 @@ function ConversationPanels({
 }
 
 function MessageComposer({
-  channel,
+  channelId,
   name,
   locale,
   onSent,
   disabled,
 }: {
-  channel: string;
+  channelId: string;
   name: string;
   locale: Locale;
-  onSent: (channel: string) => void;
+  onSent: (channelId: string) => void;
   disabled: boolean;
 }) {
   const t = messages[locale];
@@ -696,8 +696,8 @@ function MessageComposer({
     setSending(true);
     setError(null);
     try {
-      await api.send(channel, input);
-      onSent(channel);
+      await api.send(channelId, input);
+      onSent(channelId);
       setDraft("");
       setPending(null);
     } catch (e) {
@@ -746,7 +746,7 @@ function ConversationSidebar({
   user,
   state,
   locale,
-  channel,
+  channelId,
   voice,
   onChannel,
   onClose,
@@ -758,9 +758,9 @@ function ConversationSidebar({
   user: CurrentUser;
   state: CommunityState;
   locale: Locale;
-  channel: string;
+  channelId: string;
   voice: ReturnType<typeof useVoice>;
-  onChannel: (id: string) => void;
+  onChannel: (channelId: string) => void;
   onClose: () => void;
   panel: ConversationPanel | null;
   kicked: boolean;
@@ -794,7 +794,9 @@ function ConversationSidebar({
                         <Button
                           variant="ghost"
                           className="channel-button"
-                          aria-current={kind === "text" && item.id === channel ? "page" : undefined}
+                          aria-current={
+                            kind === "text" && item.id === channelId ? "page" : undefined
+                          }
                           aria-pressed={kind === "voice" ? item.id === voice.channel : undefined}
                           onClick={() => {
                             if (kind === "text") onChannel(item.id);

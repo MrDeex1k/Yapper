@@ -51,7 +51,7 @@ type LiveSession = {
   microphone: ReturnType<typeof createMicrophone>;
   audio: Map<RemoteAudioTrack, HTMLMediaElement | null>;
   joined: boolean;
-  stopped?: Promise<void>;
+  stopPromise?: Promise<void>;
 };
 function attachAudio(track: RemoteAudioTrack) {
   const element = document.createElement("audio");
@@ -96,8 +96,8 @@ const recoverable = new Set([
   DisconnectReason.SERVER_SHUTDOWN,
   DisconnectReason.UNKNOWN_REASON,
 ]);
-function memberKey(identity: string) {
-  return identity.split(":", 1)[0] ?? identity;
+function participantIdFromMediaIdentity(mediaIdentity: string) {
+  return mediaIdentity.split(":", 1)[0] ?? mediaIdentity;
 }
 
 export function createVoiceController(onState: (next: VoiceState) => void) {
@@ -110,7 +110,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
   let disposed = false;
   let forcedMuted = false;
   let continuous = false;
-  let held = false;
+  let pushToTalkHeld = false;
   const volumes = new Map<string, number>();
 
   function publish(patch: Partial<VoiceState>) {
@@ -118,25 +118,25 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
     if (!disposed) onState(state);
   }
 
-  function current(session: LiveSession) {
-    return active === session && !session.stopped && !disposed;
+  function isCurrentSession(session: LiveSession) {
+    return active === session && !session.stopPromise && !disposed;
   }
 
   function syncMic() {
-    if (!active || !current(active)) return;
+    if (!active || !isCurrentSession(active)) return;
     const wanted =
       state.status === "connected" &&
       state.canPublish &&
       !forcedMuted &&
       !state.deafened &&
-      (state.pushToTalk ? held : continuous);
-    void active.microphone.enable(wanted, state.input);
+      (state.pushToTalk ? pushToTalkHeld : continuous);
+    void active.microphone.setEnabled(wanted, state.input);
   }
 
-  function press(value: boolean) {
-    if (held === value) return;
-    held = value;
-    if (value) publish({ error: false });
+  function setPushToTalkHeld(held: boolean) {
+    if (pushToTalkHeld === held) return;
+    pushToTalkHeld = held;
+    if (held) publish({ error: false });
     syncMic();
   }
 
@@ -149,9 +149,9 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
   }
 
   function stop(session: LiveSession) {
-    if (!session.stopped) {
+    if (!session.stopPromise) {
       // Schedule only once and fence off room events before it begins.
-      session.stopped = Promise.resolve()
+      session.stopPromise = Promise.resolve()
         .then(async () => {
           session.microphone.stop();
           for (const [track, element] of session.audio) {
@@ -162,7 +162,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
         })
         .catch(() => {});
     }
-    return session.stopped;
+    return session.stopPromise;
   }
 
   async function open(version: number, channel: string | null, resumeIdentity?: string) {
@@ -210,14 +210,14 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
     const microphone = createMicrophone(
       room,
       (muted) => {
-        if (!current(session)) return;
+        if (!isCurrentSession(session)) return;
         publish({ muted });
         if (!muted && state.devices.every((device) => !device.label)) void refreshDevices();
       },
       (error) => {
-        if (!current(session)) return;
+        if (!isCurrentSession(session)) return;
         continuous = false;
-        held = false;
+        pushToTalkHeld = false;
         publish({ error, muted: true });
         void refreshDevices();
       },
@@ -235,14 +235,14 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
     publish({ canPublish: grant.canPublish });
     try {
       await room.connect(grant.url, grant.token);
-      if (!current(session)) return;
+      if (!isCurrentSession(session)) return;
       session.joined = true;
       publish({ status: "connected" });
       updateParticipants(session);
       void refreshDevices();
       void startAudio();
     } catch (e) {
-      if (!current(session)) return;
+      if (!isCurrentSession(session)) return;
       active = null;
       await stop(session);
       await release(grant.identity);
@@ -252,7 +252,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
 
   function select(channel: string | null, resumeIdentity?: string) {
     const version = ++generation;
-    held = false;
+    pushToTalkHeld = false;
     continuous = false;
     if (active) void stop(active);
     publish({
@@ -282,7 +282,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
   }
 
   function updateParticipants(session: LiveSession) {
-    if (!current(session)) return;
+    if (!isCurrentSession(session)) return;
     const { room } = session;
     function view(participant: Participant, local: boolean): VoiceParticipant {
       return {
@@ -290,7 +290,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
         name: participant.name || participant.identity,
         speaking: participant.isSpeaking,
         local,
-        volume: volumes.get(memberKey(participant.identity)) ?? 1,
+        volume: volumes.get(participantIdFromMediaIdentity(participant.identity)) ?? 1,
       };
     }
     publish({
@@ -311,10 +311,12 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
       .on(RoomEvent.ParticipantDisconnected, update)
       .on(RoomEvent.ActiveSpeakersChanged, update)
       .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-        if (!current(session) || track.kind !== Track.Kind.Audio) return;
+        if (!isCurrentSession(session) || track.kind !== Track.Kind.Audio) return;
         const audio = track as RemoteAudioTrack;
         if (session.audio.has(audio)) return;
-        participant.setVolume(volumes.get(memberKey(participant.identity)) ?? 1);
+        participant.setVolume(
+          volumes.get(participantIdFromMediaIdentity(participant.identity)) ?? 1,
+        );
         session.audio.set(audio, state.deafened ? null : attachAudio(audio));
       })
       .on(RoomEvent.TrackUnsubscribed, (track) => {
@@ -325,15 +327,15 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
         session.audio.delete(audio);
       })
       .on(RoomEvent.AudioPlaybackStatusChanged, () => {
-        if (current(session)) publish({ audioBlocked: !room.canPlaybackAudio });
+        if (isCurrentSession(session)) publish({ audioBlocked: !room.canPlaybackAudio });
       })
       .on(RoomEvent.ConnectionStateChanged, (status) => {
-        if (!current(session) || !session.joined) return;
+        if (!isCurrentSession(session) || !session.joined) return;
         if (
           status === ConnectionState.Reconnecting ||
           status === ConnectionState.SignalReconnecting
         ) {
-          held = false;
+          pushToTalkHeld = false;
           continuous = false;
           publish({ status: "reconnecting" });
           syncMic();
@@ -343,7 +345,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
         }
       })
       .on(RoomEvent.Disconnected, (reason) => {
-        if (!current(session) || !session.joined) return;
+        if (!isCurrentSession(session) || !session.joined) return;
         const { channelId } = session.grant;
         if (!recovery && reason !== undefined && recoverable.has(reason)) {
           void select(channelId, session.grant.identity);
@@ -371,13 +373,13 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
 
   function setDevice(kind: AudioDeviceKind, id: string) {
     const session = active;
-    if (!session || !current(session)) return Promise.resolve();
+    if (!session || !isCurrentSession(session)) return Promise.resolve();
     deviceOperations = deviceOperations
       .then(async () => {
-        if (!current(session)) return;
+        if (!isCurrentSession(session)) return;
         publish({ error: false });
         if (kind === "audioinput") {
-          held = false;
+          pushToTalkHeld = false;
           continuous = false;
           publish({ input: id });
           await session.microphone.reset();
@@ -387,25 +389,25 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
             id === defaultDevice ? "" : id,
           );
           if (!success) throw new Error("audio output unavailable");
-          if (current(session)) publish({ output: id });
+          if (isCurrentSession(session)) publish({ output: id });
         }
       })
       .catch(() => {
-        if (current(session)) publish({ error: "voiceDeviceError" });
+        if (isCurrentSession(session)) publish({ error: "voiceDeviceError" });
       });
     return deviceOperations;
   }
 
   async function startAudio() {
     const session = active;
-    if (!session || !current(session) || state.deafened) return;
+    if (!session || !isCurrentSession(session) || state.deafened) return;
     try {
       await session.room.startAudio();
-      if (current(session)) {
+      if (isCurrentSession(session)) {
         publish({ audioBlocked: !session.room.canPlaybackAudio });
       }
     } catch {
-      if (current(session)) publish({ audioBlocked: true, error: "voicePlaybackError" });
+      if (isCurrentSession(session)) publish({ audioBlocked: true, error: "voicePlaybackError" });
     }
   }
 
@@ -434,7 +436,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
       forcedMuted = value;
       if (value) {
         continuous = false;
-        held = false;
+        pushToTalkHeld = false;
       }
       syncMic();
     },
@@ -456,7 +458,7 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
       const deafened = !state.deafened;
       if (deafened) {
         continuous = false;
-        held = false;
+        pushToTalkHeld = false;
       }
       publish({ deafened });
       syncMic();
@@ -475,16 +477,16 @@ export function createVoiceController(onState: (next: VoiceState) => void) {
     },
     setPushToTalk(enabled: boolean) {
       continuous = false;
-      held = false;
+      pushToTalkHeld = false;
       publish({ pushToTalk: enabled });
       syncMic();
     },
-    press,
+    setPushToTalkHeld,
     setVolume(identity: string, volume: number) {
       const session = active;
       const participant = session?.room.remoteParticipants.get(identity);
-      if (!session || !participant || !current(session)) return;
-      volumes.set(memberKey(identity), volume);
+      if (!session || !participant || !isCurrentSession(session)) return;
+      volumes.set(participantIdFromMediaIdentity(identity), volume);
       participant.setVolume(volume);
       updateParticipants(session);
     },
