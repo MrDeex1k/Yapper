@@ -45,38 +45,60 @@ If an additional proxy or tunnel is placed in front of Caddy, the connection pee
 
 ## Installation
 
-The baseline operator has a Linux VPS/publicly reachable server, a domain, and Docker Compose. One Compose project hosts one community. A setup workflow must:
+Use a Linux host with Docker and Compose 2.24.4 or newer. Build for the host architecture with the repository's pinned Dockerfile. The full Stage 3 rehearsal used arm64 in OrbStack. Verify resource capacity on the actual deployment host before putting it into use.
 
-1. Validate required configuration, supported CPU/OS, domain resolution, certificates, public address, and firewall/media ports.
-2. Generate distinct secrets and persistent signing/identity material; store them outside committed source.
-3. Initialize application and AUTH databases with separate roles and service-owned migrations.
-4. Start ingress, Go, AUTH, PostgreSQL, and LiveKit, with readiness checks and persistent volumes.
-5. Provide the owner setup token through a host-side channel and invalidate it after setup.
-6. Verify a real client connection and media path, including TURN fallback where configured.
+1. Point a trusted domain at the host, set `YAPPER_DOMAIN` and `YAPPER_PUBLIC_IP` in a protected `.env`, and set the distinct credentials listed in [the environment template](../.env.example). `node scripts/setup-dev.ts` generates distinct random values and a setup token with a 24-hour expiry. Set the production domain and media IP before starting Compose. Keep `.env` readable only by the operator.
+2. Allow TCP 80/443 and 7881 and UDP 443 and 7882. PostgreSQL 5432, AUTH 3001, Go 8080, and LiveKit signaling 7880 stay on the private Compose network. Use the TURN overlay above for additional ports and certificate requirements.
+3. Run `docker compose --env-file .env up -d --build --wait`. PostgreSQL creates two separate databases and roles. Compose runs each service migration before starting its dependent service. Open the configured HTTPS origin and supply the one-time setup token locally. A configured installation rejects reuse of that token.
+4. Check `GET /api/v1/health` through the trusted HTTPS origin. Sign in, join as a guest, send a message, and verify voice and any configured TURN path with a real client. Use the diagnostics command below to check dependent services.
 
-Use private networking for internal services. Document all exposed ports and any additional media/TURN domain requirements. A healthy HTTP endpoint does not prove voice connectivity.
+Set `YAPPER_AUTH_IMAGE`, `YAPPER_SERVER_IMAGE`, and `YAPPER_INGRESS_IMAGE` to release-specific references and retain the corresponding images or reproducible source. Record the installed source revision and all image IDs. The Web client is served by the same installation.
 
-The deployed Web application is served locally by the installation. No central Yapper website is necessary for client login or normal operation.
+## Coordinated backup and restore
 
-## Updates and backups
+Run operator commands with Node 26 and the repository checked out. Supply the installed project's name and environment file when backing it up. Use the same profile flag for backup, verification, and restore. Choose `--turn` for an installation using the TURN overlay or `--smoke` for a disposable loopback drill.
 
-Updates are manual and may disconnect conversations. Use versioned images and a release manifest tying AUTH, Go, Web, desktop package versions, protocol compatibility, and schema versions together.
+```sh
+node scripts/operations.ts backup --project yapper --env-file .env /protected/yapper-backup
+node scripts/operations.ts verify /protected/yapper-backup
+node scripts/operations.ts restore --project yapper-restore /protected/yapper-backup
+```
 
-Stage 1 starts PostgreSQL 19 with fresh volumes because there is no existing Yapper database to migrate. If upgrading a separate PostgreSQL 18 installation, keep the original volume and migrate both databases to a fresh PostgreSQL 19 volume before switching. Test the coordinated backup and restore with both database roles and verify owners, guest identities, and message history before promotion.
+Announce downtime first. Backup stops the running application, auth, ingress and media services, then dumps both databases with writes paused. It resumes the stopped services unless `--leave-stopped` is specified and a complete archive was written. Direct writers outside this stack must also be stopped for the maintenance window. Run mutations from one operator account per project, and check for active commands before clearing a stale host operator lock. The new directory holds both custom-format dumps, the protected environment, Compose files, image inventory, and a SHA-256 manifest. The AUTH dump and its original secret preserve signing and login material. The TURN profile includes its certificate and key. Caddy can reacquire managed HTTPS certificates on the restored host.
 
-Before updating, announce maintenance, stop new writes or use a documented coordinated consistency method, and back up both databases plus configuration, secrets, and signing material. Apply migrations in a defined order and run post-update smoke checks before returning to service.
+Only accept an archive from protected operator storage. Checksums detect corruption. Keep backup copies off the host, restrict their access, and expire them under the installation's retention policy, including copies containing expired chat history. Keep the archive out of version control.
 
-Store backups separately from the live volume and restrict access; an archive contains private data and credentials. Define retention, verification, and the operator's responsibility to move backups off-host. Message-retention expiry does not automatically purge older backups.
+Restore validates the checksums and Compose configuration before provisioning a separate, empty project. On the destination, check out the source used for backup, retain the recorded images, and restore any TURN certificate files to the directory referenced in the archived environment. If import is interrupted, investigate and use a fresh destination project. The command leaves application services stopped until both databases are present. To resume on the clean destination, start the matching images using the archived environment and verify owner login, the prior guest identity, message history, roles, and voice admission.
 
-Rollback across an incompatible migration restores the corresponding backup and configuration together. It may lose writes after the backup point. Merely starting an older image is not a complete rollback procedure.
+## Manual update and rollback
 
-Restore drills must use a clean environment and verify owner access, existing identities, history, permissions, and voice. Host-side owner recovery must revoke replaced credentials/sessions and produce a local audit event without printing reusable secrets into routine logs.
+1. Announce downtime and take a verified backup with `--leave-stopped`. Record the old and new source revisions and image IDs. The backup timestamp is the recovery point.
+2. On the new release checkout, keep the existing project and original environment. Build or load the selected image set. Run `docker compose run --rm --no-deps auth-migrate` and then `docker compose run --rm --no-deps server-migrate` with the same project, environment and overlays. Keep the public services stopped until both commands pass.
+3. Run `docker compose up -d --wait` with the same arguments. Check diagnostics, sign-in, guest continuity, chat, and voice before reopening traffic. Monitor for failures during the maintenance window.
+4. If a migration fails or the checks require rollback, keep the failed instance stopped. Restore to a clean Compose project using the corresponding old revision and image set. Confirm the restored snapshot before switching the ingress. The restored state omits writes made after the archived recovery point.
 
-## Diagnostics
+A major PostgreSQL version change requires restoring logical dumps into a compatible fresh version. Never point a newer major version at an older version's data directory.
 
-Provide local health/readiness, service versions, active connection counts, media/admission failures, and bounded logs with request identifiers. Exclude message bodies, passwords, session cookies, bearer tokens, and private signing keys.
+## Owner recovery and signing keys
 
-A diagnostic export is operator-triggered, reviewed/redacted locally, and shared only deliberately. No automatic external telemetry or crash upload is enabled.
+On the host, stop ingress, Go, AUTH, and LiveKit, leaving PostgreSQL available. Back up the installation first. Supply the replacement password in a private file on stdin, run the host-only command, and remove the temporary file when finished.
+
+```sh
+node scripts/operations.ts recover-owner --project yapper --env-file .env < /protected/new-password
+docker compose --env-file .env up -d --wait
+```
+
+The command changes the bootstrapped owner's credential for the existing account, deletes its existing sessions in the same transaction, and records an operator audit event with the revoked session count. Session protection in Go applies to HTTP, existing WebSockets and voice grants. The stops above prevent concurrent sign-in during the change and disconnect live clients. Other roles, guest identities, and chat history remain intact.
+
+Signing keys rotate lazily on token issuance after a 30-day lifetime. AUTH publishes retired public keys for a further 10 minutes, covering the maximum five-minute JWT lifetime and normal verifier refresh. Migration assigns an expiry to existing keys without one. Preserve the AUTH secret and database together across restore. Test the overlap and retirement against both AUTH and Go. Go refreshes its JWKS on a new key and rate-limits refresh attempts to protect AUTH.
+
+## Diagnostics and request limits
+
+Run `node scripts/operations.ts diagnostics --project yapper --env-file .env` on the host. The structured output contains Compose service state and image references, application database readiness, AUTH readiness, LiveKit reachability, active event streams and unrevoked voice grants. Save the output privately and review it before sharing. The export omits raw logs and credentials.
+
+After origin and ingress-address validation, Go includes a generated `X-Request-ID` on application responses and records the matching ID, route template and status for rejected API POST requests, including media grants and guest admission. Inspect local logs using `docker compose logs --tail 100 server`. The Compose local log driver keeps three files of up to 10 MB per service before compression. Diagnostic HTTP endpoints are private. A grant count measures authenticated approvals and can include a client that has yet to establish media.
+
+Set `YAPPER_GUEST_JOINS_PER_MINUTE` (default 180, by verified client IP) and `YAPPER_MESSAGES_PER_MINUTE` (default 120, by participant). Zero disables the corresponding limit. One installation uses a bounded in-process minute window. A rejected request returns HTTP 429 and `Retry-After`. A shared IP shares its admission budget, so size the limit for the expected network. Keep Go unpublished and the trusted-ingress address configuration in place. Guests' existing messages and request ID deduplication are preserved across retries.
 
 ## Client distribution
 

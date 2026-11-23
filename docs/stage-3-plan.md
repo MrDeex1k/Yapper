@@ -1,6 +1,6 @@
 # Stage 3 implementation plan
 
-**Status** Proposed implementation. The isolated verification branch `test/verify-stage-3` uses the accepted Stage 2 PR revision while that PR is open. Start production implementation from `main` after the Stage 2 merge. The goal is to make one self-hosted Yapper installation reproducible, recoverable, and measurable. See the [automated evidence](evidence/stage-3-automated.md).
+**Status** Stage 3 implementation and acceptance are complete on `test/verify-stage-3`, based on `main` after the Stage 2 merge. The local capacity run met all recorded thresholds. The maintainer confirmed the Windows GPUI and macOS Web call under load. See the [verification record](evidence/stage-3-automated.md#stage-3-implementation-verification).
 
 The [implementation roadmap](implementation-plan.md#stage-3--operational-reliability-and-capacity), [operations plan](operations.md), and [validation criteria](validation.md#capacity-gate) define the scope. The current baseline includes Docker Compose, separate PostgreSQL databases for AUTH and the application, local ingress and persistence smoke tests, and an isolated TURN/TLS test. The production restore, failed-update drill, and capacity run are Stage 3 deliverables.
 
@@ -50,4 +50,4 @@ Suggested branch `test/verify-capacity-and-recovery`.
 - Keep the current Compose and application stack. Add TanStack Table only if the participant directory or moderation audit needs sortable and filterable columns. Define server-side filtering and stable ordering across the entire result set before connecting a paginated table.
 - Stage 4 owns full GPUI/Web parity, desktop packages, and the release device matrix.
 
-The first deliverable is a backup and restore drill with one populated source and one clean destination. The update work reuses that procedure. Final Stage 3 acceptance requires the clean restore, the demonstrated recovery from a failed update, the access-control checks, and the measured capacity run.
+The [physical acceptance record](evidence/stage-3-automated.md#physical-acceptance-under-load) documents the device test and the deployment limits of the run.
