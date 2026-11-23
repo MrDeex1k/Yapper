@@ -15,6 +15,7 @@ pub enum Failure {
     CredentialStore,
     Setup,
     Denied,
+    RateLimited,
     Data,
     Voice,
     Microphone,
@@ -239,8 +240,8 @@ impl Server {
             StatusCode::BAD_REQUEST
             | StatusCode::UNAUTHORIZED
             | StatusCode::FORBIDDEN
-            | StatusCode::CONFLICT
-            | StatusCode::TOO_MANY_REQUESTS => Err(Failure::Denied),
+            | StatusCode::CONFLICT => Err(Failure::Denied),
+            StatusCode::TOO_MANY_REQUESTS => Err(Failure::RateLimited),
             _ => Err(Failure::Data),
         }
     }

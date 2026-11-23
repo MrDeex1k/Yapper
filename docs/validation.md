@@ -1,6 +1,8 @@
 # Validation and release evidence
 
-Stages 0, 1, and 2 have passed their scoped acceptance gates. The first private release covers GPUI on Windows and Linux, and Web on the supported browsers. See the [Stage 0 evidence](evidence/stage-0.md), the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21), and the [Stage 2 acceptance record](evidence/stage-2-acceptance.md).
+Stages 0 through 3 have passed their scoped acceptance gates. The first private release covers GPUI on Windows and Linux, and Web on the supported browsers. See the [Stage 0 evidence](evidence/stage-0.md), the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21), and the [Stage 2 acceptance record](evidence/stage-2-acceptance.md).
+
+The [Stage 3 verification record](evidence/stage-3-automated.md#stage-3-implementation-verification) documents the local operational drills and capacity measurements. The maintainer confirmed the Windows GPUI and macOS Web [conversation during load](evidence/stage-3-automated.md#physical-acceptance-under-load).
 
 The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the current version baseline and compatibility exceptions. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
 

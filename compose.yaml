@@ -1,4 +1,9 @@
 name: yapper
+x-local-logging: &local-logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
 x-auth-environment: &auth-environment
   AUTH_DATABASE_URL: postgres://yapper_auth@postgres:5432/yapper_auth
   AUTH_DATABASE_PASSWORD: ${AUTH_DB_PASSWORD:?Required}
@@ -17,6 +22,8 @@ x-server-environment: &server-environment
   AUTH_JWKS_URL: http://auth:3001/api/auth/jwks
   AUTH_INTERNAL_URL: http://auth:3001
   AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Required}
+  YAPPER_GUEST_JOINS_PER_MINUTE: ${YAPPER_GUEST_JOINS_PER_MINUTE:-180}
+  YAPPER_MESSAGES_PER_MINUTE: ${YAPPER_MESSAGES_PER_MINUTE:-120}
   SETUP_TOKEN: ${SETUP_TOKEN:?Required}
   SETUP_TOKEN_EXPIRES_AT: ${SETUP_TOKEN_EXPIRES_AT:?Required}
   LIVEKIT_INTERNAL_URL: http://livekit:7880
@@ -24,6 +31,7 @@ x-server-environment: &server-environment
   LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Required}
 services:
   postgres:
+    logging: *local-logging
     image: postgres:19.0-alpine@sha256:8b0ff4cdf221f0c53d7fcda681d3b461be725c492cd881c5ec9c0ad25023f188
     restart: unless-stopped
     environment:
@@ -39,14 +47,16 @@ services:
       timeout: 3s
       retries: 20
   auth-migrate:
-    image: yapper-auth:0.1.0-dev
+    logging: *local-logging
+    image: ${YAPPER_AUTH_IMAGE:-yapper-auth:0.1.0-dev}
     build: { context: ., target: auth }
     environment: *auth-environment
     command: [bun, src/migrate.ts]
     depends_on:
       postgres: { condition: service_healthy }
   auth:
-    image: yapper-auth:0.1.0-dev
+    logging: *local-logging
+    image: ${YAPPER_AUTH_IMAGE:-yapper-auth:0.1.0-dev}
     build: { context: ., target: auth }
     restart: unless-stopped
     environment: *auth-environment
@@ -54,24 +64,21 @@ services:
       auth-migrate: { condition: service_completed_successfully }
     healthcheck:
       test:
-        [
-          CMD,
-          bun,
-          -e,
-          "const r=await fetch('http://127.0.0.1:3001/healthz');process.exit(r.ok?0:1)",
-        ]
+        [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3001/readyz');process.exit(r.ok?0:1)"]
       interval: 5s
       timeout: 3s
       retries: 12
   server-migrate:
-    image: yapper-server:0.1.0-dev
+    logging: *local-logging
+    image: ${YAPPER_SERVER_IMAGE:-yapper-server:0.1.0-dev}
     build: { context: ., target: server }
     environment: *server-environment
     command: [migrate]
     depends_on:
       postgres: { condition: service_healthy }
   server:
-    image: yapper-server:0.1.0-dev
+    logging: *local-logging
+    image: ${YAPPER_SERVER_IMAGE:-yapper-server:0.1.0-dev}
     build: { context: ., target: server }
     restart: unless-stopped
     environment: *server-environment
@@ -80,6 +87,7 @@ services:
       auth: { condition: service_healthy }
       livekit: { condition: service_started }
   livekit:
+    logging: *local-logging
     image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
     restart: unless-stopped
     environment:
@@ -102,7 +110,8 @@ services:
       - "7881:7881/tcp"
       - "7882:7882/udp"
   ingress:
-    image: yapper-ingress:0.1.0-dev
+    logging: *local-logging
+    image: ${YAPPER_INGRESS_IMAGE:-yapper-ingress:0.1.0-dev}
     build: { context: ., target: ingress }
     restart: unless-stopped
     environment:

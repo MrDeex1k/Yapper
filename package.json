@@ -14,6 +14,7 @@
     "format:check": "bun fmt --flavor oxfmt --check . && prettier --plugin=prettier-plugin-astro --check \"apps/landing/**/*.astro\"",
     "check": "pnpm format:check && pnpm lint && pnpm check:api && pnpm typecheck && pnpm test && pnpm build",
     "test:integration": "bun --env-file=.env apps/auth/test/integration.ts && pnpm test:server",
+    "ops": "node scripts/operations.ts",
     "setup:dev": "node scripts/setup-dev.ts",
     "migrate:auth": "bun --env-file=.env apps/auth/src/migrate.ts",
     "test:server": "node --env-file=.env scripts/test-server.ts",

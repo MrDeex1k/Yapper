@@ -1,0 +1,37 @@
+# Disposable local capacity run. Apply after compose.yaml and compose.smoke.yaml.
+name: yapper-stage3-capacity
+services:
+  auth-migrate:
+    environment:
+      AUTH_BASE_URL: http://127.0.0.1:18090
+      AUTH_ISSUER: http://127.0.0.1:18090
+  auth:
+    environment:
+      AUTH_BASE_URL: http://127.0.0.1:18090
+      AUTH_ISSUER: http://127.0.0.1:18090
+  server-migrate:
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:18090
+  server:
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:18090
+  livekit:
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses: [0.0.0.0]
+        rtc:
+          tcp_port: 17881
+          udp_port: 17882
+          use_external_ip: false
+          node_ip: ${STAGE3_MEDIA_IP:?Set the local test host media IP}
+        keys:
+          ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+        logging:
+          level: warn
+          json: true
+    ports: !override
+      - "${STAGE3_MEDIA_IP:?Set the local test host media IP}:17881:17881/tcp"
+      - "${STAGE3_MEDIA_IP:?Set the local test host media IP}:17882:17882/udp"
+  ingress:
+    ports: !override ["127.0.0.1:18090:8090"]

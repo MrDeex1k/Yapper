@@ -27,11 +27,13 @@ import (
 )
 
 type CommunityConfig struct {
-	Media        *media.Service
-	Origin       string
-	SetupToken   string
-	SetupExpires time.Time
-	TrustIngress bool
+	Media               *media.Service
+	Origin              string
+	SetupToken          string
+	SetupExpires        time.Time
+	TrustIngress        bool
+	GuestJoinsPerMinute int
+	MessagesPerMinute   int
 }
 type principal struct {
 	participant community.Participant
@@ -47,14 +49,16 @@ type stream struct {
 	queue      chan []byte
 }
 type CommunityAPI struct {
-	store    *community.Store
-	verifier *identity.Verifier
-	auth     *identity.AuthClient
-	config   CommunityConfig
-	mux      *http.ServeMux
-	mu       sync.Mutex
-	tickets  map[string]ticket
-	streams  map[*stream]struct{}
+	store        *community.Store
+	verifier     *identity.Verifier
+	auth         *identity.AuthClient
+	config       CommunityConfig
+	mux          *http.ServeMux
+	mu           sync.Mutex
+	tickets      map[string]ticket
+	streams      map[*stream]struct{}
+	guestLimit   requestLimit
+	messageLimit requestLimit
 }
 
 func NewCommunity(store *community.Store, verifier *identity.Verifier, auth *identity.AuthClient, config CommunityConfig) (*CommunityAPI, error) {
@@ -73,6 +77,7 @@ func NewCommunity(store *community.Store, verifier *identity.Verifier, auth *ide
 	}
 	a.catalogRoutes()
 	a.mux.HandleFunc("GET /api/v1/state", a.state)
+	a.mux.HandleFunc("GET /internal/diagnostics", a.diagnostics)
 	a.mux.HandleFunc("POST /api/v1/setup", a.setup)
 	a.mux.HandleFunc("POST /api/v1/guests", a.join)
 	a.mux.HandleFunc("GET /api/v1/me", a.me)
@@ -95,11 +100,11 @@ func (a *CommunityAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	address := a.clientAddress(r)
-	if a.config.TrustIngress && !address.IsValid() {
+	if a.config.TrustIngress && !address.IsValid() && r.URL.Path != "/internal/diagnostics" {
 		fail(w, 403, "access_denied")
 		return
 	}
-	a.mux.ServeHTTP(w, r.WithContext(identity.WithClientAddress(r.Context(), address)))
+	a.serveRequest(w, r.WithContext(identity.WithClientAddress(r.Context(), address)))
 }
 
 func (a *CommunityAPI) clientAddress(r *http.Request) netip.Addr {
@@ -246,6 +251,9 @@ func (a *CommunityAPI) setup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, map[string]bool{"configured": true})
 }
 func (a *CommunityAPI) join(w http.ResponseWriter, r *http.Request) {
+	if !allowRequest(w, &a.guestLimit, identity.ClientAddress(r.Context()).String(), a.config.GuestJoinsPerMinute) {
+		return
+	}
 	var body struct {
 		Nickname   string `json:"nickname"`
 		Invitation string `json:"invitation"`
@@ -309,6 +317,9 @@ func (a *CommunityAPI) history(w http.ResponseWriter, r *http.Request) {
 func (a *CommunityAPI) send(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.require(w, r)
 	if !ok {
+		return
+	}
+	if !allowRequest(w, &a.messageLimit, p.participant.ID, a.config.MessagesPerMinute) {
 		return
 	}
 	id := r.PathValue("id")
