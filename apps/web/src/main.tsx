@@ -275,13 +275,18 @@ function Entry({
   return (
     <section className="entry-content">
       {state.configured && (
-        <aside className="entry-server" aria-label={t.currentServer}>
-          <span className="entry-server-icon">
-            <Server size={18} aria-hidden="true" />
+        <aside className="entry-server" aria-labelledby="entry-server-label">
+          <span className="entry-server-label" id="entry-server-label">
+            {t.currentServer}
           </span>
-          <div className="entry-server-details">
-            <strong>{state.name}</strong>
-            {!window.yapperDesktop && <span>{location.origin}</span>}
+          <div className="entry-server-identity">
+            <span className="entry-server-icon">
+              <Server size={18} aria-hidden="true" />
+            </span>
+            <div className="entry-server-details">
+              <strong>{state.name}</strong>
+              {!window.yapperDesktop && <span>{location.origin}</span>}
+            </div>
           </div>
         </aside>
       )}

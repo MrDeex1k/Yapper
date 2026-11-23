@@ -135,8 +135,18 @@ impl Yapper {
                         .p(px(12.))
                         .rounded(px(8.))
                         .border_1()
-                        .border_color(rgb(LINE))
+                        .border_color(rgb(CONTROL_LINE))
                         .bg(rgb(PANEL))
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .text_color(rgb(ACCENT))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(copy.current_server),
+                        )
                         .child(server_identity(&installation.name, &server.origin())),
                 )
                 .child(entry_title(
@@ -242,9 +252,20 @@ impl Yapper {
                         .on_click(cx.listener(|app, _, window, cx| app.change_server(window, cx))),
                 );
         } else {
-            content = content
-                .child(entry_title(copy.server, width))
-                .child(entry_description(copy.server_hint));
+            content = content.child(entry_title(copy.server, width));
+            if self.preferences.servers.is_empty() {
+                content = content.child(entry_description(copy.server_hint));
+            } else {
+                content = content.child(self.saved_server_list(width, cx));
+                form = form.border_t_1().border_color(rgb(LINE)).pt(px(16.)).child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.))
+                        .child(entry_section_title(copy.other_server))
+                        .child(entry_description(copy.server_hint)),
+                );
+            }
             form = form
                 .child(field(copy.address, &self.address, self.pending, window, cx))
                 .children(self.render_error())
@@ -252,58 +273,69 @@ impl Yapper {
                     primary_entry("connect", copy.connect, self.pending)
                         .on_click(cx.listener(|app, _, window, cx| app.connect(window, cx))),
                 );
-            if !self.preferences.servers.is_empty() {
-                let row_width = (width - 2. * ENTRY_HORIZONTAL_PADDING).clamp(0., ENTRY_MAX_WIDTH);
-                let row_content_width = (row_width - 2. * SAVED_SERVER_PADDING - 2.).max(0.);
-                let rows = self.preferences.servers.iter().map(|server| {
-                    let address = server.address.clone();
-                    Button::new(gpui::SharedString::from(format!("saved-{address}")))
-                        .custom(
-                            ButtonCustomVariant::new(cx)
-                                .border(rgb(LINE).into())
-                                .color(rgb(PANEL).into())
-                                .hover(rgb(HOVER).into())
-                                .active(rgb(SELECTED).into()),
-                        )
-                        .rounded(px(8.))
-                        .w_full()
-                        .h(px(60.))
-                        .px(px(SAVED_SERVER_PADDING))
-                        .tooltip(address.clone())
-                        .child(
-                            div()
-                                .w(px(row_content_width))
-                                .min_w(px(0.))
-                                .flex()
-                                .items_center()
-                                .gap(px(12.))
-                                .child(server_identity(&server.name, &address))
-                                .child(icon("icons/arrow-right.svg", 16., MUTED))
-                                .into_any_element(),
-                        )
-                        .disabled(self.pending)
-                        .on_click(cx.listener(move |app, _, window, cx| {
-                            app.connect_address(address.clone(), window, cx)
-                        }))
-                });
-                form = form.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .child(
-                            div()
-                                .text_size(px(13.))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(rgb(MUTED))
-                                .child(copy.saved_servers),
-                        )
-                        .children(rows),
-                );
-            }
         }
 
         content.child(form)
+    }
+
+    fn saved_server_list(&self, width: f32, cx: &mut Context<Self>) -> Div {
+        let copy = self.language.copy();
+        let row_width = (width - 2. * ENTRY_HORIZONTAL_PADDING).clamp(0., ENTRY_MAX_WIDTH);
+        let row_content_width = (row_width - 2. * SAVED_SERVER_PADDING - 2.).max(0.);
+        let rows = self.preferences.servers.iter().map(|server| {
+            let address = server.address.clone();
+            Button::new(gpui::SharedString::from(format!("saved-{address}")))
+                .custom(
+                    ButtonCustomVariant::new(cx)
+                        .border(rgb(CONTROL_LINE).into())
+                        .color(rgb(PANEL).into())
+                        .hover(rgb(SELECTED).into())
+                        .active(rgb(HOVER).into()),
+                )
+                .rounded(px(8.))
+                .w_full()
+                .h(px(72.))
+                .px(px(SAVED_SERVER_PADDING))
+                .tooltip(address.clone())
+                .child(
+                    div()
+                        .w(px(row_content_width))
+                        .min_w(px(0.))
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .child(server_identity(&server.name, &address).flex_1())
+                        .child(
+                            div()
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.))
+                                .px(px(9.))
+                                .py(px(6.))
+                                .rounded(px(6.))
+                                .bg(gpui::rgba((ACCENT << 8) | 0x24))
+                                .text_color(rgb(ACCENT))
+                                .text_size(px(13.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(copy.connect_saved_server)
+                                .child(icon("icons/arrow-right.svg", 14., ACCENT)),
+                        )
+                        .into_any_element(),
+                )
+                .disabled(self.pending)
+                .on_click(cx.listener(move |app, _, window, cx| {
+                    app.connect_address(address.clone(), window, cx)
+                }))
+        });
+
+        div()
+            .mt(px(12.))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(entry_section_title(copy.saved_servers))
+            .children(rows)
     }
 
     fn workspace(
@@ -1103,22 +1135,28 @@ fn channel_group(title: &'static str, rows: impl IntoIterator<Item = Div>) -> Di
         .child(div().flex().flex_col().gap(px(3.)).children(rows))
 }
 
+fn entry_section_title(title: &'static str) -> Div {
+    div()
+        .text_size(px(14.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(title)
+}
+
 fn server_identity(name: &str, address: &str) -> Div {
     div()
-        .flex_1()
         .min_w(px(0.))
         .flex()
         .items_center()
         .gap(px(12.))
         .child(
             div()
-                .size(px(36.))
+                .size(px(40.))
                 .flex_none()
                 .flex()
                 .items_center()
                 .justify_center()
                 .rounded(px(6.))
-                .bg(gpui::rgba((ACCENT << 8) | 0x20))
+                .bg(gpui::rgba((ACCENT << 8) | 0x32))
                 .child(icon("icons/server.svg", 18., ACCENT)),
         )
         .child(
@@ -1132,8 +1170,8 @@ fn server_identity(name: &str, address: &str) -> Div {
                     div()
                         .truncate()
                         .text_color(rgb(TEXT))
-                        .text_size(px(14.))
-                        .line_height(px(18.))
+                        .text_size(px(16.))
+                        .line_height(px(20.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(name.to_owned()),
                 )

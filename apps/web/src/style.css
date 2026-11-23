@@ -180,24 +180,33 @@ h1 {
   width: min(100%, 408px);
 }
 .entry-server {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--control-line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.entry-server-label {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.entry-server-identity {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
 }
 .entry-server-icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   flex: none;
   border-radius: 6px;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .entry-server-details {
   display: grid;
@@ -206,8 +215,8 @@ h1 {
   overflow-wrap: anywhere;
 }
 .entry-server-details strong {
-  font-size: 14px;
-  line-height: 18px;
+  font-size: 16px;
+  line-height: 20px;
   font-weight: 600;
 }
 .entry-server-details span {
