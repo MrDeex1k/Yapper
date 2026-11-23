@@ -3,6 +3,9 @@ import { jwt, username } from "better-auth/plugins";
 import type { Pool } from "pg";
 import type { AuthConfig } from "./config";
 
+export const signingKeyLifetimeSeconds = 30 * 24 * 60 * 60;
+const signingKeyGraceSeconds = 10 * 60;
+
 export function createAuth(config: AuthConfig, database: Pool) {
   return betterAuth({
     database,
@@ -25,7 +28,11 @@ export function createAuth(config: AuthConfig, database: Pool) {
           expirationTime: "5m",
           definePayload: ({ session }) => ({ sid: session.id }),
         },
-        jwks: { keyPairConfig: { alg: "EdDSA", crv: "Ed25519" } },
+        jwks: {
+          keyPairConfig: { alg: "EdDSA", crv: "Ed25519" },
+          rotationInterval: signingKeyLifetimeSeconds,
+          gracePeriod: signingKeyGraceSeconds,
+        },
       }),
     ],
   });

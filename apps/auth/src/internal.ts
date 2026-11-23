@@ -7,6 +7,12 @@ export async function migrateInternal(database: Pool) {
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
     subject text NOT NULL REFERENCES "user"(id)
   )`);
+  await database.query(`CREATE TABLE IF NOT EXISTS yapper_operator_audit (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    occurred_at timestamptz NOT NULL DEFAULT now(),
+    action text NOT NULL,
+    revoked_sessions integer NOT NULL
+  )`);
 }
 
 export function internalHandler(
