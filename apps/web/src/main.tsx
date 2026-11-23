@@ -16,7 +16,16 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, Hash, LogOut, Send, Settings, Volume2 } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  Hash,
+  LogOut,
+  Send,
+  Server,
+  Settings,
+  Volume2,
+} from "lucide-react";
 import { Button, Input } from "@yapper/ui";
 import { messages, type Locale } from "@yapper/i18n";
 import type { CommunityState, CurrentUser } from "@yapper/api";
@@ -265,7 +274,17 @@ function Entry({
   }
   return (
     <section className="entry-content">
-      {state.configured && <p className="eyebrow">{state.name}</p>}
+      {state.configured && (
+        <aside className="entry-server" aria-label={t.currentServer}>
+          <span className="entry-server-icon">
+            <Server size={18} aria-hidden="true" />
+          </span>
+          <div className="entry-server-details">
+            <strong>{state.name}</strong>
+            {!window.yapperDesktop && <span>{location.origin}</span>}
+          </div>
+        </aside>
+      )}
       <h1>{labels[0]}</h1>
       <p className="description">{labels[1]}</p>
       <form onSubmit={(event) => void submit(event)} className="entry-form">

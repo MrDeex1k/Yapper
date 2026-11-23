@@ -17,3 +17,9 @@ On Ubuntu ARM64, the locked format check, Clippy with warnings denied, all three
 On PC-Jakub, the updated Windows x64 release built from snapshot `be1650d12d25c57c56907e7028cf78af486cb08e8f9d9a7097b53a616c3854c5`, restored its guest session, and displayed the history in `#general`. The visible message belonged to another participant. Visual acceptance of the buttons and panels on a message owned by the local guest is pending.
 
 The next polish pass added violet edit and red delete hover states and grouped the outlined Cancel and Save buttons below the edit field. A semibold heading identifies the editor. Formatting, Clippy, all three ordinary tests, and the offline release build passed on Ubuntu ARM64. Windows x64 built from snapshot `eaa75d98861d9d0d6c45dcddecbca29aed8df4efdd3ec42973b492571ce115bd`. On PC-Jakub, both hover states and the Polish editor were verified on the test guest's own message in `#stage4-second`. The editor was left open with the original message text.
+
+## Server selection
+
+GPUI shows saved servers as full-width buttons with a server icon, name, address, and connection arrow. Long names and addresses are clipped to the row, and the full address is available on hover. Both clients highlight the current installation on the join and staff sign-in screens. Web shows the address of the installation serving the page.
+
+`pnpm check` passed, and React Doctor reported no findings. A loopback Chromium fixture verified the Web server name and origin on join and sign-in at 1120 and 320 CSS pixels, including Polish and English labels. On Ubuntu ARM64, GPUI formatting, Clippy, three ordinary tests, and the locked release build passed. Under X11, two saved servers rendered with matching row widths, a long address stayed within its row, and the row changed color on hover. This visual check used a temporary profile. Windows visual verification remains pending for this change.

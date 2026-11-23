@@ -2,8 +2,8 @@ use super::{
     Call, CallState, Yapper,
     appearance::{
         ACCENT, BACKGROUND, COMPACT_WIDTH, CONTROL_LINE, DANGER, DANGER_SURFACE, HOVER, LINE,
-        MUTED, NAVIGATION, SELECTED, SIDEBAR_WIDTH, TEXT, brand, icon, outline_button, status_dot,
-        voice_button,
+        MUTED, NAVIGATION, PANEL, SELECTED, SIDEBAR_WIDTH, TEXT, brand, icon, outline_button,
+        status_dot, voice_button,
     },
 };
 use crate::{
@@ -24,6 +24,9 @@ use gpui_component::{
 // These dimensions match the entry header and footer at the Web desktop breakpoint.
 const ENTRY_HEADER_HEIGHT: f32 = 71.;
 const ENTRY_FOOTER_HEIGHT: f32 = 50.;
+const ENTRY_HORIZONTAL_PADDING: f32 = 24.;
+const ENTRY_MAX_WIDTH: f32 = 408.;
+const SAVED_SERVER_PADDING: f32 = 12.;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WorkspaceLayout {
@@ -90,7 +93,7 @@ impl Yapper {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .px(px(24.))
+                            .px(px(ENTRY_HORIZONTAL_PADDING))
                             .pt(px(36.))
                             .pb(px(48.))
                             .child(self.entry_form(width, window, cx)),
@@ -120,19 +123,21 @@ impl Yapper {
         let mut form = div().flex().flex_col().mt(px(14.)).gap(px(18.)).w_full();
         let mut content = div()
             .w_full()
-            .max_w(px(408.))
+            .max_w(px(ENTRY_MAX_WIDTH))
             .flex()
             .flex_col()
             .gap(px(10.));
 
-        if let Some((_, installation)) = &self.installation {
+        if let Some((server, installation)) = &self.installation {
             content = content
                 .child(
                     div()
-                        .text_size(px(13.))
-                        .text_color(rgb(MUTED))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(installation.name.clone()),
+                        .p(px(12.))
+                        .rounded(px(8.))
+                        .border_1()
+                        .border_color(rgb(LINE))
+                        .bg(rgb(PANEL))
+                        .child(server_identity(&installation.name, &server.origin())),
                 )
                 .child(entry_title(
                     if self.signing_in {
@@ -248,26 +253,53 @@ impl Yapper {
                         .on_click(cx.listener(|app, _, window, cx| app.connect(window, cx))),
                 );
             if !self.preferences.servers.is_empty() {
-                form = form.child(
-                    div()
-                        .text_size(px(13.))
-                        .text_color(rgb(MUTED))
-                        .child(copy.saved_servers),
-                );
-                form = form.children(self.preferences.servers.iter().map(|server| {
+                let row_width = (width - 2. * ENTRY_HORIZONTAL_PADDING).clamp(0., ENTRY_MAX_WIDTH);
+                let row_content_width = (row_width - 2. * SAVED_SERVER_PADDING - 2.).max(0.);
+                let rows = self.preferences.servers.iter().map(|server| {
                     let address = server.address.clone();
                     Button::new(gpui::SharedString::from(format!("saved-{address}")))
-                        .ghost()
-                        .justify_start()
-                        .label(gpui::SharedString::from(format!(
-                            "{} · {}",
-                            server.name, address
-                        )))
+                        .custom(
+                            ButtonCustomVariant::new(cx)
+                                .border(rgb(LINE).into())
+                                .color(rgb(PANEL).into())
+                                .hover(rgb(HOVER).into())
+                                .active(rgb(SELECTED).into()),
+                        )
+                        .rounded(px(8.))
+                        .w_full()
+                        .h(px(60.))
+                        .px(px(SAVED_SERVER_PADDING))
+                        .tooltip(address.clone())
+                        .child(
+                            div()
+                                .w(px(row_content_width))
+                                .min_w(px(0.))
+                                .flex()
+                                .items_center()
+                                .gap(px(12.))
+                                .child(server_identity(&server.name, &address))
+                                .child(icon("icons/arrow-right.svg", 16., MUTED))
+                                .into_any_element(),
+                        )
                         .disabled(self.pending)
                         .on_click(cx.listener(move |app, _, window, cx| {
                             app.connect_address(address.clone(), window, cx)
                         }))
-                }));
+                });
+                form = form.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(13.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(rgb(MUTED))
+                                .child(copy.saved_servers),
+                        )
+                        .children(rows),
+                );
             }
         }
 
@@ -1069,6 +1101,51 @@ fn channel_group(title: &'static str, rows: impl IntoIterator<Item = Div>) -> Di
                 .child(title),
         )
         .child(div().flex().flex_col().gap(px(3.)).children(rows))
+}
+
+fn server_identity(name: &str, address: &str) -> Div {
+    div()
+        .flex_1()
+        .min_w(px(0.))
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .child(
+            div()
+                .size(px(36.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(6.))
+                .bg(gpui::rgba((ACCENT << 8) | 0x20))
+                .child(icon("icons/server.svg", 18., ACCENT)),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .truncate()
+                        .text_color(rgb(TEXT))
+                        .text_size(px(14.))
+                        .line_height(px(18.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(name.to_owned()),
+                )
+                .child(
+                    div()
+                        .truncate()
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .text_color(rgb(MUTED))
+                        .child(address.to_owned()),
+                ),
+        )
 }
 
 fn entry_title(title: &'static str, width: f32) -> Div {

@@ -1,4 +1,5 @@
 export const en = {
+  currentServer: "Current server",
   serverAddress: "Server address",
   chooseServer: "Where are your people?",
   connectServer: "Connect to server",
@@ -213,6 +214,7 @@ export const en = {
 } as const;
 export type Locale = "en" | "pl";
 export const pl: Record<keyof typeof en, string> = {
+  currentServer: "Bieżący serwer",
   serverAddress: "Adres serwera",
   chooseServer: "Gdzie są Twoi znajomi?",
   connectServer: "Połącz z serwerem",
