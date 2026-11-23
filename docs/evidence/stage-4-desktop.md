@@ -27,3 +27,9 @@ GPUI shows saved servers as full-width buttons with a server icon, name, address
 Saved servers now appear above the manual address form. Each row has a labeled Connect action and a stronger outline. The current server card uses the same larger name and clearer contrast in GPUI and Web. The updated GPUI release rendered two saved entries at 1200 × 800 and 640 × 600 under X11 on Ubuntu ARM64. The longer address stayed within its row. Cargo formatting, Clippy, all three ordinary tests, and the release build passed. The Web Chromium check passed again at 1120 and 320 CSS pixels, along with `pnpm check` and React Doctor.
 
 On PC-Jakub, the Windows x64 release built from `54efa53` and displayed both saved entries with the labeled action in an isolated Polish profile. The next revision removed the manual form heading and its introductory hint from GPUI while keeping the labeled address field, the connection action, and error feedback.
+
+## CodeRabbit regression checks
+
+The chooser now stays open when saved-session restoration fails. On Ubuntu ARM64 under X11, a loopback fixture returned HTTP 503 to the first membership request. Selecting the same server again restored the existing participant with its original Secret Service credential. The fixture received no new guest admission request.
+
+The chat regression tests verify that an edit can fail and succeed between attempts to send a new message without changing its request ID. They also exercise original draft restoration after an edit and preserve typing during a normal send. The voice tests cover queued deafen, per-peer mute, audio device selection, and cancellation during connection waits. Formatting, Clippy, eight ordinary tests, and the locked debug and release builds passed on Ubuntu ARM64. Physical audio and the server-backed signaling smoke are outside these automated checks.

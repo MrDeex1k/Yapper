@@ -213,10 +213,11 @@ impl Yapper {
             .px(px(14.))
             .py(px(8.))
             .child(
-                div()
-                    .flex_1()
-                    .min_w(px(0.))
-                    .child(Input::new(&self.message_input).appearance(false)),
+                div().flex_1().min_w(px(0.)).child(
+                    Input::new(&self.message_input)
+                        .appearance(false)
+                        .disabled(editing && chat.sending),
+                ),
             );
         let area = div()
             .flex()

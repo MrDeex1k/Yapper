@@ -132,6 +132,11 @@ enum CallState {
 
 impl Yapper {
     fn new(window: &mut Window, cx: &mut Context<Self>, runtime: Handle) -> Self {
+        let preferences = Preferences::load();
+        let language = match preferences.language.as_deref() {
+            Some("pl") => Language::Polish,
+            _ => Language::English,
+        };
         let address = cx.new(|cx| InputState::new(window, cx).placeholder("voice.example.com"));
         let nickname = cx.new(|cx| InputState::new(window, cx));
         let invitation = cx.new(|cx| InputState::new(window, cx).masked(true));
@@ -143,9 +148,8 @@ impl Yapper {
             }
         })
         .detach();
-        let message_input = cx.new(|cx| {
-            InputState::new(window, cx).placeholder(Language::English.copy().message_placeholder)
-        });
+        let message_input = cx
+            .new(|cx| InputState::new(window, cx).placeholder(language.copy().message_placeholder));
         cx.subscribe_in(
             &message_input,
             window,
@@ -163,11 +167,6 @@ impl Yapper {
             }
         })
         .detach();
-        let preferences = Preferences::load();
-        let language = match preferences.language.as_deref() {
-            Some("pl") => Language::Polish,
-            _ => Language::English,
-        };
         Self {
             runtime,
             language,
@@ -213,7 +212,8 @@ impl Yapper {
         self.error = None;
         let result = self.runtime.spawn(async move {
             let (server, installation) = Server::connect(&address).await?;
-            let admission = server.restore().await;
+            // Fresh admission can replace a saved credential. Keep the chooser open on restore errors.
+            let admission = server.restore().await?;
             Ok::<_, Failure>((server, installation, admission))
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -225,10 +225,7 @@ impl Yapper {
                         app.preferences
                             .remember(server.origin(), installation.name.clone());
                         app.installation = Some((server, installation));
-                        match admission {
-                            Ok(admission) => app.guest = admission,
-                            Err(error) => app.error = Some(error),
-                        }
+                        app.guest = admission;
                         app.open_default_text(cx);
                         app.refresh_catalog(cx);
                         app.watch_events(window, cx);
