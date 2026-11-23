@@ -8,7 +8,6 @@ pub enum Language {
 
 pub struct Copy {
     pub server: &'static str,
-    pub server_hint: &'static str,
     pub address: &'static str,
     pub connect: &'static str,
     pub retry_membership: &'static str,
@@ -50,7 +49,6 @@ pub struct Copy {
     pub language: &'static str,
     pub saved_servers: &'static str,
     pub connect_saved_server: &'static str,
-    pub other_server: &'static str,
     pub current_server: &'static str,
     pub username: &'static str,
     pub password: &'static str,
@@ -83,7 +81,6 @@ pub struct Copy {
 
 const EN: Copy = Copy {
     server: "Where are your people?",
-    server_hint: "Enter a trusted HTTPS domain or IP address.",
     address: "Server address",
     connect: "Connect to server",
     retry_membership: "Retry opening the workspace",
@@ -125,7 +122,6 @@ const EN: Copy = Copy {
     language: "Language",
     saved_servers: "Saved servers",
     connect_saved_server: "Connect",
-    other_server: "Another server",
     current_server: "Current server",
     username: "Username",
     password: "Password",
@@ -158,7 +154,6 @@ const EN: Copy = Copy {
 
 const PL: Copy = Copy {
     server: "Gdzie są Twoi znajomi?",
-    server_hint: "Wpisz domenę lub adres IP z zaufanym HTTPS.",
     address: "Adres serwera",
     connect: "Połącz z serwerem",
     retry_membership: "Otwórz ponownie przestrzeń",
@@ -200,7 +195,6 @@ const PL: Copy = Copy {
     language: "Język",
     saved_servers: "Zapisane serwery",
     connect_saved_server: "Połącz",
-    other_server: "Inny serwer",
     current_server: "Bieżący serwer",
     username: "Nazwa użytkownika",
     password: "Hasło",

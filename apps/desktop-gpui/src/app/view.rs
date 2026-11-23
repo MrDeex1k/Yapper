@@ -253,18 +253,9 @@ impl Yapper {
                 );
         } else {
             content = content.child(entry_title(copy.server, width));
-            if self.preferences.servers.is_empty() {
-                content = content.child(entry_description(copy.server_hint));
-            } else {
+            if !self.preferences.servers.is_empty() {
                 content = content.child(self.saved_server_list(width, cx));
-                form = form.border_t_1().border_color(rgb(LINE)).pt(px(16.)).child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(4.))
-                        .child(entry_section_title(copy.other_server))
-                        .child(entry_description(copy.server_hint)),
-                );
+                form = form.border_t_1().border_color(rgb(LINE)).pt(px(16.));
             }
             form = form
                 .child(field(copy.address, &self.address, self.pending, window, cx))
