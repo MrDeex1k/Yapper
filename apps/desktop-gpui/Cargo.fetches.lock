@@ -1,0 +1,39 @@
+# Written by `blaze lock --fetches`: what build scripts download, each by its sha256. A build
+# hands each to its script through the crate's own variable, with no network.
+version = 1
+
+[[fetch]]
+package = "webrtc-sys"
+version = "0.3.55"
+locked = "d849555a78b6cd7035ae7adb78fa2e427796cd4d84161cb1240a7d1f1ffc2f2c"
+target = "aarch64-unknown-linux-gnu"
+features = []
+var = "LK_CUSTOM_WEBRTC"
+url = "https://github.com/livekit/rust-sdks/releases/download/webrtc-a545de4/webrtc-linux-arm64-release.zip"
+sha256 = "e87dff71422c5cb1470f6cf00ecc4ad6964e746c5039831b7206b946b5d13c5f"
+size = 172252473
+names = "linux-arm64-release"
+
+[[fetch]]
+package = "webrtc-sys"
+version = "0.3.55"
+locked = "d849555a78b6cd7035ae7adb78fa2e427796cd4d84161cb1240a7d1f1ffc2f2c"
+target = "x86_64-pc-windows-msvc"
+features = []
+var = "LK_CUSTOM_WEBRTC"
+url = "https://github.com/livekit/rust-sdks/releases/download/webrtc-a545de4/webrtc-win-x64-release.zip"
+sha256 = "862403fcb248c7d8803487e4c22b8821c6130e89100cb9c69be95ef45ff46146"
+size = 114348165
+names = "win-x64-release"
+
+[[fetch]]
+package = "webrtc-sys"
+version = "0.3.55"
+locked = "d849555a78b6cd7035ae7adb78fa2e427796cd4d84161cb1240a7d1f1ffc2f2c"
+target = "x86_64-unknown-linux-gnu"
+features = []
+var = "LK_CUSTOM_WEBRTC"
+url = "https://github.com/livekit/rust-sdks/releases/download/webrtc-a545de4/webrtc-linux-x64-release.zip"
+sha256 = "2ece73b9a72a2cacd73d0c62ac3a414e202f37885c3c8f49dddb43c1443ac0bd"
+size = 156115675
+names = "linux-x64-release"
