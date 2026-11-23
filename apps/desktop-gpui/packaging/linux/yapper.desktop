@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Yapper
+Comment=Private voice and text chat
+Comment[pl]=Prywatne rozmowy głosowe i tekstowe
+Exec=yapper
+Terminal=false
+Categories=Network;InstantMessaging;

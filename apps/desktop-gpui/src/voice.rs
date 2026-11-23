@@ -1,39 +1,174 @@
 use crate::server::{Failure, Session};
 use livekit::{options::TrackPublishOptions, prelude::*};
-use std::time::Duration;
+use std::{collections::HashSet, ops::ControlFlow, time::Duration};
 use tokio::sync::{mpsc, mpsc::error::TryRecvError, watch};
 
 pub enum Command {
     Leave,
+    RefreshDevices,
+    Microphone(RecordingDeviceId),
+    Output(PlayoutDeviceId),
+    Deafen(bool),
+    MutePeer(String, bool),
+}
+
+pub struct Peer {
+    pub identity: String,
+    pub name: String,
+    pub speaking: bool,
+    pub local: bool,
 }
 
 pub enum Event {
-    Connected {
-        can_publish: bool,
-        peers: Vec<String>,
-    },
-    Peers(Vec<String>),
+    Connected { can_publish: bool, peers: Vec<Peer> },
+    Peers(Vec<Peer>),
+    Devices(Vec<RecordingDeviceInfo>, Vec<PlayoutDeviceInfo>),
+    CanPublish(bool),
     Microphone(bool),
     Reconnecting,
     Ended(Option<Failure>),
     Failed(Failure),
 }
 
+#[derive(Default)]
+struct Playback {
+    deafened: bool,
+    muted_peers: HashSet<String>,
+}
+
+impl Playback {
+    fn mute_peer(&mut self, identity: String, mute: bool) {
+        if mute {
+            self.muted_peers.insert(identity);
+        } else {
+            self.muted_peers.remove(&identity);
+        }
+    }
+
+    fn muted(&self, identity: &ParticipantIdentity) -> bool {
+        self.deafened || self.muted_peers.contains(&identity.to_string())
+    }
+
+    fn apply(&self, room: &Room) {
+        for peer in room.remote_participants().values() {
+            let muted = self.muted(&peer.identity());
+            for publication in peer.track_publications().values() {
+                if let Some(RemoteTrack::Audio(track)) = publication.track() {
+                    if muted {
+                        track.disable();
+                    } else {
+                        track.enable();
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct VoiceCommands {
+    receiver: mpsc::UnboundedReceiver<Command>,
+    playback: Playback,
+    recording_device: Option<RecordingDeviceId>,
+    playout_device: Option<PlayoutDeviceId>,
+}
+
+impl VoiceCommands {
+    fn new(receiver: mpsc::UnboundedReceiver<Command>) -> Self {
+        Self {
+            receiver,
+            playback: Playback::default(),
+            recording_device: None,
+            playout_device: None,
+        }
+    }
+
+    fn remember(&mut self, command: Option<Command>) -> ControlFlow<()> {
+        match command {
+            None | Some(Command::Leave) => return ControlFlow::Break(()),
+            // Each new connection publishes a fresh device list.
+            Some(Command::RefreshDevices) => {}
+            Some(Command::Microphone(id)) => self.recording_device = Some(id),
+            Some(Command::Output(id)) => self.playout_device = Some(id),
+            Some(Command::Deafen(value)) => self.playback.deafened = value,
+            Some(Command::MutePeer(id, muted)) => self.playback.mute_peer(id, muted),
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn drain(&mut self) -> ControlFlow<()> {
+        loop {
+            match self.receiver.try_recv() {
+                Ok(command) => self.remember(Some(command))?,
+                Err(TryRecvError::Empty) => return ControlFlow::Continue(()),
+                Err(TryRecvError::Disconnected) => return ControlFlow::Break(()),
+            }
+        }
+    }
+
+    async fn wait_for<T>(&mut self, completion: impl Future<Output = T>) -> ControlFlow<(), T> {
+        let mut completion = std::pin::pin!(completion);
+        loop {
+            tokio::select! {
+                biased;
+                // Keep the original timer or SDK connection future when a control arrives.
+                result = &mut completion => return ControlFlow::Continue(result),
+                command = self.receiver.recv() => self.remember(command)?,
+            }
+        }
+    }
+
+    fn select_recording_device(
+        &mut self,
+        id: RecordingDeviceId,
+        audio: &PlatformAudio,
+        events: &mpsc::UnboundedSender<Event>,
+    ) {
+        if audio.switch_recording_device(&id).is_ok() {
+            self.recording_device = Some(id);
+        } else {
+            let _ = events.send(Event::Failed(Failure::Microphone));
+        }
+    }
+
+    fn select_playout_device(
+        &mut self,
+        id: PlayoutDeviceId,
+        audio: &PlatformAudio,
+        events: &mpsc::UnboundedSender<Event>,
+    ) {
+        if audio.switch_playout_device(&id).is_ok() {
+            self.playout_device = Some(id);
+        } else {
+            let _ = events.send(Event::Failed(Failure::Voice));
+        }
+    }
+
+    fn apply_devices(&mut self, audio: &PlatformAudio, events: &mpsc::UnboundedSender<Event>) {
+        if let Some(id) = self.recording_device.take() {
+            self.select_recording_device(id, audio, events);
+        }
+        if let Some(id) = self.playout_device.take() {
+            self.select_playout_device(id, audio, events);
+        }
+    }
+}
+
 pub async fn run(
     session: Session,
     channel: String,
-    mut commands: mpsc::Receiver<Command>,
-    desired_microphone: watch::Receiver<bool>,
+    commands: mpsc::UnboundedReceiver<Command>,
+    mut desired_microphone: watch::Receiver<bool>,
     events: mpsc::UnboundedSender<Event>,
 ) {
-    if leave_requested(&mut commands) {
+    let mut controls = VoiceCommands::new(commands);
+    if controls.drain().is_break() {
         let _ = events.send(Event::Ended(None));
         return;
     }
     let grant = session.grant(&channel).await;
     // Keep the grant request alive so a leave can revoke the identity it creates.
-    let leaving = leave_requested(&mut commands);
-    let grant = match grant {
+    let leaving = controls.drain().is_break();
+    let mut grant = match grant {
         Ok(grant) => grant,
         Err(error) => {
             let _ = events.send(Event::Ended((!leaving).then_some(error)));
@@ -42,18 +177,50 @@ pub async fn run(
     };
     let result = if leaving {
         Ok(())
-    } else if session.validate_grant(&grant, &channel).is_ok() {
-        Box::pin(call(
-            &grant.url,
-            &grant.token,
-            grant.can_publish,
-            commands,
-            desired_microphone,
-            &events,
-        ))
-        .await
     } else {
-        Err(Failure::Data)
+        let mut retries = 0;
+        loop {
+            if session.validate_grant(&grant, &channel).is_err() {
+                break Err(Failure::Data);
+            }
+            let result = Box::pin(call(
+                &grant.url,
+                &grant.token,
+                grant.can_publish,
+                &mut controls,
+                &mut desired_microphone,
+                &events,
+            ))
+            .await;
+            if !matches!(result, Err(Failure::Voice)) || retries >= 2 {
+                break result;
+            }
+            if controls.drain().is_break() {
+                break Ok(());
+            }
+            retries += 1;
+            let _ = events.send(Event::Reconnecting);
+            if controls
+                .wait_for(tokio::time::sleep(Duration::from_secs(1)))
+                .await
+                .is_break()
+                || controls.drain().is_break()
+            {
+                break Ok(());
+            }
+
+            // A successful resume can issue a replacement identity. Learn it before leaving.
+            let resumed = session.resume_voice(&channel, &grant.identity).await;
+            let leaving = controls.drain().is_break();
+            match resumed {
+                Ok(next) => grant = next,
+                Err(_) if leaving => break Ok(()),
+                Err(error) => break Err(error),
+            }
+            if leaving {
+                break Ok(());
+            }
+        }
     };
     let mut leave = session.leave(&grant.identity).await;
     if matches!(leave, Err(Failure::Network)) {
@@ -62,38 +229,41 @@ pub async fn run(
     let _ = events.send(Event::Ended(result.and(leave).err()));
 }
 
-fn leave_requested(commands: &mut mpsc::Receiver<Command>) -> bool {
-    !matches!(commands.try_recv(), Err(TryRecvError::Empty))
-}
-
 async fn call(
     url: &str,
     token: &str,
-    can_publish: bool,
-    mut commands: mpsc::Receiver<Command>,
-    mut desired_microphone: watch::Receiver<bool>,
+    mut can_publish: bool,
+    controls: &mut VoiceCommands,
+    desired_microphone: &mut watch::Receiver<bool>,
     events: &mpsc::UnboundedSender<Event>,
 ) -> Result<(), Failure> {
-    if leave_requested(&mut commands) {
+    if controls.drain().is_break() {
         return Ok(());
     }
     let audio = PlatformAudio::new().map_err(|_| Failure::Voice)?;
-    let (room, mut room_events) = tokio::select! {
-        biased;
-        // Dropping the SDK connect future runs its cancellation cleanup.
-        // The caller still revokes the exact server grant.
-        _ = commands.recv() => return Ok(()),
-        joined = tokio::time::timeout(
+    // Dropping the SDK connect future on leave runs its cancellation cleanup.
+    let joined = controls
+        .wait_for(tokio::time::timeout(
             Duration::from_secs(20),
             Room::connect(url, token, RoomOptions::default()),
-        ) => joined.map_err(|_| Failure::Voice)?.map_err(|_| Failure::Voice)?,
+        ))
+        .await;
+    let ControlFlow::Continue(joined) = joined else {
+        return Ok(());
     };
-    if leave_requested(&mut commands) {
+    let (room, mut room_events) = joined
+        .map_err(|_| Failure::Voice)?
+        .map_err(|_| Failure::Voice)?;
+    if controls.drain().is_break() {
         return room.close().await.map_err(|_| Failure::Voice);
     }
     let mut microphone: Option<LocalAudioTrack> = None;
     let mut enabled = false;
     let mut connected = true;
+    desired_microphone.borrow_and_update();
+    controls.playback.apply(&room);
+    controls.apply_devices(&audio, events);
+    publish_devices(&audio, events);
     let _ = events.send(Event::Connected {
         can_publish,
         peers: peers(&room),
@@ -101,12 +271,38 @@ async fn call(
 
     let result = loop {
         tokio::select! {
-            _ = commands.recv() => break Ok(()),
+            command = controls.receiver.recv() => match command {
+                Some(Command::Leave) | None => break Ok(()),
+                Some(Command::RefreshDevices) => publish_devices(&audio, events),
+                Some(Command::Microphone(id)) => {
+                    controls.select_recording_device(id, &audio, events);
+                    publish_devices(&audio, events);
+                }
+                Some(Command::Output(id)) => {
+                    controls.select_playout_device(id, &audio, events);
+                    publish_devices(&audio, events);
+                }
+                Some(Command::Deafen(value)) => {
+                    controls.playback.deafened = value;
+                    if value {
+                        if let Some(track) = &microphone {
+                            track.mute();
+                        }
+                        enabled = false;
+                        let _ = events.send(Event::Microphone(false));
+                    }
+                    controls.playback.apply(&room);
+                }
+                Some(Command::MutePeer(id, mute)) => {
+                    controls.playback.mute_peer(id, mute);
+                    controls.playback.apply(&room);
+                }
+            },
             changed = desired_microphone.changed() => {
                 if changed.is_err() {
                     break Ok(());
                 }
-                let wanted = *desired_microphone.borrow_and_update() && connected && can_publish;
+                let wanted = *desired_microphone.borrow_and_update() && connected && can_publish && !controls.playback.deafened;
                 if wanted && microphone.is_none() {
                     let track = LocalAudioTrack::create_audio_track("microphone", audio.rtc_source());
                     // Publishing can outlast a space-bar press. Start muted and reread intent.
@@ -128,8 +324,25 @@ async fn call(
                 }
             },
             event = room_events.recv() => match event {
-                Some(RoomEvent::ParticipantConnected(_) | RoomEvent::ParticipantDisconnected(_)) => {
+                Some(RoomEvent::ParticipantConnected(_) | RoomEvent::ParticipantDisconnected(_) | RoomEvent::ActiveSpeakersChanged { .. }) => {
                     let _ = events.send(Event::Peers(peers(&room)));
+                }
+                Some(RoomEvent::TrackSubscribed { track: RemoteTrack::Audio(track), participant, .. }) => {
+                    if controls.playback.muted(&participant.identity()) {
+                        track.disable();
+                    }
+                }
+                Some(RoomEvent::ParticipantPermissionChanged { participant, permission })
+                    if participant.identity() == room.local_participant().identity() => {
+                    can_publish = permission.is_some_and(|permission| permission.can_publish);
+                    if !can_publish {
+                        if let Some(track) = &microphone {
+                            track.mute();
+                        }
+                        enabled = false;
+                        let _ = events.send(Event::Microphone(false));
+                    }
+                    let _ = events.send(Event::CanPublish(can_publish));
                 }
                 Some(RoomEvent::Reconnecting) => {
                     connected = false;
@@ -141,6 +354,7 @@ async fn call(
                 }
                 Some(RoomEvent::Reconnected) => {
                     connected = true;
+                    controls.playback.apply(&room);
                     let _ = events.send(Event::Connected { can_publish, peers: peers(&room) });
                 }
                 Some(RoomEvent::Disconnected { .. }) | None => break Err(Failure::Voice),
@@ -155,14 +369,28 @@ async fn call(
     result.and(closed)
 }
 
-fn peers(room: &Room) -> Vec<String> {
-    let mut names = vec![room.local_participant().name()];
-    names.extend(
-        room.remote_participants()
-            .values()
-            .map(RemoteParticipant::name),
-    );
-    names[1..].sort();
+fn publish_devices(audio: &PlatformAudio, events: &mpsc::UnboundedSender<Event>) {
+    let _ = events.send(Event::Devices(
+        audio.recording_devices().collect(),
+        audio.playout_devices().collect(),
+    ));
+}
+
+fn peers(room: &Room) -> Vec<Peer> {
+    let local = room.local_participant();
+    let mut names = vec![Peer {
+        identity: local.identity().to_string(),
+        name: local.name(),
+        speaking: local.is_speaking(),
+        local: true,
+    }];
+    names.extend(room.remote_participants().values().map(|peer| Peer {
+        identity: peer.identity().to_string(),
+        name: peer.name(),
+        speaking: peer.is_speaking(),
+        local: false,
+    }));
+    names[1..].sort_by(|left, right| left.name.cmp(&right.name));
     names
 }
 
@@ -170,6 +398,70 @@ fn peers(room: &Room) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::{server::Server, signaling};
+
+    #[tokio::test]
+    async fn reconnection_keeps_playback_and_device_commands_while_waiting() {
+        let (send, receive) = mpsc::unbounded_channel();
+        let mut controls = VoiceCommands::new(receive);
+        let (finish, completion) = tokio::sync::oneshot::channel();
+        let recording = RecordingDeviceId::from_index(1);
+        let playout = PlayoutDeviceId::from_index(2);
+        {
+            let mut waiting = std::pin::pin!(controls.wait_for(completion));
+            assert!(futures_util::poll!(&mut waiting).is_pending());
+            send.send(Command::RefreshDevices).unwrap();
+            send.send(Command::Deafen(true)).unwrap();
+            send.send(Command::MutePeer("peer".to_owned(), true))
+                .unwrap();
+            send.send(Command::Microphone(recording.clone())).unwrap();
+            send.send(Command::Output(playout.clone())).unwrap();
+            assert!(futures_util::poll!(&mut waiting).is_pending());
+            finish.send(()).unwrap();
+            assert_eq!(waiting.await, ControlFlow::Continue(Ok(())));
+        }
+        assert!(controls.playback.deafened);
+        assert!(controls.playback.muted_peers.contains("peer"));
+        assert_eq!(controls.recording_device, Some(recording));
+        assert_eq!(controls.playout_device, Some(playout));
+    }
+
+    #[test]
+    fn commands_queued_before_reconnection_apply_the_latest_mute_state() {
+        let (send, receive) = mpsc::unbounded_channel();
+        let mut controls = VoiceCommands::new(receive);
+        for command in [
+            Command::Deafen(true),
+            Command::MutePeer("unmuted-again".to_owned(), true),
+            Command::MutePeer("still-muted".to_owned(), true),
+            Command::Deafen(false),
+            Command::MutePeer("unmuted-again".to_owned(), false),
+        ] {
+            send.send(command).unwrap();
+        }
+        assert_eq!(controls.drain(), ControlFlow::Continue(()));
+        assert!(!controls.playback.deafened);
+        assert_eq!(
+            controls.playback.muted_peers,
+            HashSet::from(["still-muted".to_owned()])
+        );
+    }
+
+    #[tokio::test]
+    async fn leave_and_sender_drop_end_a_pending_connection() {
+        for leave in [true, false] {
+            let (send, receive) = mpsc::unbounded_channel();
+            let mut controls = VoiceCommands::new(receive);
+            let mut waiting = std::pin::pin!(controls.wait_for(std::future::pending::<()>()));
+            assert!(futures_util::poll!(&mut waiting).is_pending());
+            send.send(Command::RefreshDevices).unwrap();
+            if leave {
+                send.send(Command::Leave).unwrap();
+            } else {
+                drop(send);
+            }
+            assert_eq!(waiting.await, ControlFlow::Break(()));
+        }
+    }
 
     #[tokio::test]
     #[ignore = "requires an invitation to a disposable Stage 2 installation"]
@@ -231,7 +523,9 @@ mod tests {
                 .expect("release media admission");
             assert!(closed.is_ok(), "close the LiveKit connection");
             assert_eq!(
-                participants.first().map(String::as_str),
+                participants
+                    .first()
+                    .map(|participant| participant.name.as_str()),
                 Some(guest.membership.participant.nickname.as_str()),
                 "the voice roster starts with the local participant even when alone",
             );

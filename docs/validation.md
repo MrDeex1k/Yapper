@@ -67,6 +67,7 @@ Record global desktop push-to-talk and mobile background audio separately. Foreg
 
 ## Desktop acceptance
 
+- See the [Stage 4 desktop test record](evidence/stage-4-desktop.md) and the [Blaze evaluation](evidence/stage-4-blaze.md).
 - At Stage 2, record GPUI and Rust versions, OS and architecture, and Windows native session and origin handling. Verify a real two-way call through the Go signaling endpoint between Windows GPUI and macOS Web. Check the Linux layout and rendering under X11 using Xvfb. Linux physical-device and audio acceptance belongs to Stage 4.
 - At Stage 4, validate the installed GPUI packages on Windows and Linux against the same server contract as Web. Verify foreground push-to-talk, microphone permission denial and recovery, device selection where supported, direct media and TURN/TLS, reconnect, and moderation during a call.
 - Compare the same screens and states in GPUI and Web at matched viewport sizes and display scaling. Verify layout, typography, colors, icons, keyboard navigation, and responsive behavior as part of the Stage 4 desktop gate.

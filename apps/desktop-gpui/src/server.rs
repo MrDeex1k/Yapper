@@ -1,8 +1,11 @@
-use reqwest::header::{COOKIE, HeaderValue, ORIGIN, SET_COOKIE};
+use reqwest::header::{AUTHORIZATION, COOKIE, HeaderName, HeaderValue, ORIGIN, SET_COOKIE};
 use reqwest::{Client, Method, Response, StatusCode, Url, redirect::Policy};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
+mod account;
+pub(crate) mod events;
 
 const SERVICE: &str = "Yapper GPUI";
 const SECURE_COOKIE: &str = "__Host-yapper_guest";
@@ -31,34 +34,65 @@ pub struct Installation {
 
 #[derive(Deserialize, PartialEq, Eq)]
 pub struct Participant {
+    pub id: String,
     pub nickname: String,
+    pub role: String,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
 pub struct Membership {
     pub participant: Participant,
+    #[serde(default)]
+    pub categories: Vec<Category>,
     pub channels: Vec<Channel>,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
+pub struct Category {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct Channel {
     pub id: String,
     pub name: String,
     pub kind: String,
     #[serde(default)]
+    pub category_id: String,
+    #[serde(default)]
     pub archived: bool,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: String,
+    pub author_id: String,
+    pub sequence: i64,
+    pub revision: i64,
     pub nickname: String,
     pub body: String,
 }
 
 #[derive(Deserialize)]
-struct Timeline {
-    messages: Vec<Message>,
+pub struct Timeline {
+    pub messages: Vec<Message>,
+    pub before: i64,
+    pub revision: i64,
+}
+
+#[derive(Deserialize)]
+pub struct MessageChange {
+    pub id: String,
+    pub revision: i64,
+    pub message: Option<Message>,
+}
+
+#[derive(Deserialize)]
+struct MessageChanges {
+    changes: Vec<MessageChange>,
 }
 
 #[derive(Deserialize)]
@@ -81,6 +115,7 @@ pub struct Server {
 pub struct Session {
     server: Server,
     cookie: HeaderValue,
+    account: Option<Arc<account::AccountToken>>,
 }
 
 pub struct Admission {
@@ -125,6 +160,9 @@ impl Server {
     }
 
     pub async fn restore(&self) -> Result<Option<Admission>, Failure> {
+        if let Some(account) = self.restore_account().await? {
+            return Ok(Some(account));
+        }
         let origin = self.origin.origin().ascii_serialization();
         let credential = tokio::task::spawn_blocking(move || {
             keyring::Entry::new(SERVICE, &origin)?.get_password()
@@ -198,7 +236,12 @@ impl Server {
         Ok(Session {
             server: self.clone(),
             cookie,
+            account: None,
         })
+    }
+
+    pub fn origin(&self) -> String {
+        self.origin.origin().ascii_serialization()
     }
 
     async fn request<T: DeserializeOwned>(
@@ -222,13 +265,24 @@ impl Server {
         cookie: Option<&HeaderValue>,
         body: Option<Value>,
     ) -> Result<Response, Failure> {
+        self.send_with(method, path, cookie.map(|value| (COOKIE, value)), body)
+            .await
+    }
+
+    async fn send_with(
+        &self,
+        method: Method,
+        path: &str,
+        credential: Option<(HeaderName, &HeaderValue)>,
+        body: Option<Value>,
+    ) -> Result<Response, Failure> {
         let url = self.origin.join(path).map_err(|_| Failure::Data)?;
         let mut request = self
             .client
             .request(method, url)
             .header(ORIGIN, self.origin.origin().ascii_serialization());
-        if let Some(cookie) = cookie {
-            request = request.header(COOKIE, cookie);
+        if let Some((name, value)) = credential {
+            request = request.header(name, value);
         }
         if let Some(body) = body {
             request = request.json(&body);
@@ -248,24 +302,93 @@ impl Server {
 }
 
 impl Session {
-    pub async fn membership(&self) -> Result<Membership, Failure> {
+    async fn send(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<Response, Failure> {
+        if let Some(account) = &self.account {
+            let bearer = account.bearer(&self.server, &self.cookie).await?;
+            return self
+                .server
+                .send_with(method, path, Some((AUTHORIZATION, &bearer)), body)
+                .await;
+        }
         self.server
-            .request(Method::GET, "/api/v1/me", Some(&self.cookie), None)
+            .send(method, path, Some(&self.cookie), body)
             .await
     }
 
-    pub async fn timeline(&self, channel: &str) -> Result<Vec<Message>, Failure> {
+    async fn request<T: DeserializeOwned>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<T, Failure> {
+        self.send(method, path, body)
+            .await?
+            .json()
+            .await
+            .map_err(|_| Failure::Data)
+    }
+
+    pub async fn membership(&self) -> Result<Membership, Failure> {
+        self.request(Method::GET, "/api/v1/me", None).await
+    }
+
+    pub async fn timeline(&self, channel: &str, before: i64) -> Result<Timeline, Failure> {
         let id = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
-        let page: Timeline = self
-            .server
+        self.request(
+            Method::GET,
+            &format!("/api/v1/channels/{id}/timeline?before={before}"),
+            None,
+        )
+        .await
+    }
+
+    pub async fn changes(&self, channel: &str, after: i64) -> Result<Vec<MessageChange>, Failure> {
+        let id = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
+        let result: MessageChanges = self
             .request(
                 Method::GET,
-                &format!("/api/v1/channels/{id}/timeline"),
-                Some(&self.cookie),
+                &format!("/api/v1/channels/{id}/messages/changes?after={after}"),
                 None,
             )
             .await?;
-        Ok(page.messages)
+        Ok(result.changes)
+    }
+
+    pub async fn update_message(
+        &self,
+        channel: &str,
+        id: &str,
+        edit: Option<(&str, i64)>,
+    ) -> Result<(), Failure> {
+        let channel = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
+        let id = uuid::Uuid::parse_str(id).map_err(|_| Failure::Data)?;
+        let (action, body) = edit.map_or_else(
+            || ("delete", json!({})),
+            |(body, revision)| ("edit", json!({"body": body, "revision": revision})),
+        );
+        self.send(
+            Method::POST,
+            &format!("/api/v1/channels/{channel}/messages/{id}/{action}"),
+            Some(body),
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn moderate(&self, participant: &str, action: &str) -> Result<(), Failure> {
+        let id = uuid::Uuid::parse_str(participant).map_err(|_| Failure::Data)?;
+        self.send(
+            Method::POST,
+            &format!("/api/v1/participants/{id}/moderate"),
+            Some(json!({"action": action})),
+        )
+        .await?;
+        Ok(())
     }
 
     pub async fn send_message(
@@ -275,37 +398,39 @@ impl Session {
         request_id: uuid::Uuid,
     ) -> Result<(), Failure> {
         let id = uuid::Uuid::parse_str(channel).map_err(|_| Failure::Data)?;
-        self.server
-            .send(
-                Method::POST,
-                &format!("/api/v1/channels/{id}/messages"),
-                Some(&self.cookie),
-                Some(json!({ "body": body, "requestId": request_id.to_string() })),
-            )
-            .await?;
+        self.send(
+            Method::POST,
+            &format!("/api/v1/channels/{id}/messages"),
+            Some(json!({ "body": body, "requestId": request_id.to_string() })),
+        )
+        .await?;
         Ok(())
     }
 
     pub async fn grant(&self, channel_id: &str) -> Result<Grant, Failure> {
-        self.server
-            .request(
-                Method::POST,
-                "/api/v1/voice/grant",
-                Some(&self.cookie),
-                Some(json!({ "channelId": channel_id })),
-            )
-            .await
+        self.resume_voice(channel_id, "").await
+    }
+
+    pub async fn resume_voice(
+        &self,
+        channel_id: &str,
+        resume_identity: &str,
+    ) -> Result<Grant, Failure> {
+        self.request(
+            Method::POST,
+            "/api/v1/voice/grant",
+            Some(json!({ "channelId": channel_id, "resumeIdentity": resume_identity })),
+        )
+        .await
     }
 
     pub async fn leave(&self, identity: &str) -> Result<(), Failure> {
-        self.server
-            .send(
-                Method::POST,
-                "/api/v1/voice/leave",
-                Some(&self.cookie),
-                Some(json!({ "identity": identity })),
-            )
-            .await?;
+        self.send(
+            Method::POST,
+            "/api/v1/voice/leave",
+            Some(json!({ "identity": identity })),
+        )
+        .await?;
         Ok(())
     }
 

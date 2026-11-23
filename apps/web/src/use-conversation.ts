@@ -20,7 +20,7 @@ export function useConversation(
   useLayoutEffect(() => {
     activeChannel.current = channel;
   }, [channel]);
-  const [history, setHistory] = useState(emptyHistory);
+  const [history, setHistory] = useState<HistoryState | null>(null);
   const [status, setStatus] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<unknown>(null);
   const [timelineError, setTimelineError] = useState<unknown>(null);
@@ -29,7 +29,7 @@ export function useConversation(
   const [previousChannel, setPreviousChannel] = useState(channel);
   if (previousChannel !== channel) {
     setPreviousChannel(channel);
-    setHistory(emptyHistory);
+    setHistory(null);
     if (!paused) setStatus("connecting");
     setError(null);
     setTimelineError(null);
@@ -52,8 +52,11 @@ export function useConversation(
     };
   }, [channel, paused, refreshCommunity]);
 
+  const historyReady = history !== null || channel === "";
   return {
-    ...history,
+    ...(history ?? emptyHistory),
+    historyReady,
+    loadingHistory: !historyReady && error === null && timelineError === null && !paused,
     status,
     error: error ?? timelineError,
     memberRevision,

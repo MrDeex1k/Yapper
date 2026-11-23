@@ -2,13 +2,13 @@ use super::{
     Call, CallState, Yapper,
     appearance::{
         ACCENT, BACKGROUND, COMPACT_WIDTH, CONTROL_LINE, DANGER, DANGER_SURFACE, HOVER, LINE,
-        MUTED, NAVIGATION, SELECTED, SIDEBAR_WIDTH, TEXT, brand, icon, outline_button, status_dot,
-        voice_button,
+        MUTED, NAVIGATION, PANEL, SELECTED, SIDEBAR_WIDTH, TEXT, brand, icon, outline_button,
+        status_dot, voice_button,
     },
 };
 use crate::{
     copy::Language,
-    server::{Admission, Channel, Failure, Session},
+    server::{Admission, Channel, Session},
     voice::Command,
 };
 use gpui::prelude::*;
@@ -24,6 +24,9 @@ use gpui_component::{
 // These dimensions match the entry header and footer at the Web desktop breakpoint.
 const ENTRY_HEADER_HEIGHT: f32 = 71.;
 const ENTRY_FOOTER_HEIGHT: f32 = 50.;
+const ENTRY_HORIZONTAL_PADDING: f32 = 24.;
+const ENTRY_MAX_WIDTH: f32 = 408.;
+const SAVED_SERVER_PADDING: f32 = 12.;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WorkspaceLayout {
@@ -90,7 +93,7 @@ impl Yapper {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .px(px(24.))
+                            .px(px(ENTRY_HORIZONTAL_PADDING))
                             .pt(px(36.))
                             .pb(px(48.))
                             .child(self.entry_form(width, window, cx)),
@@ -120,55 +123,126 @@ impl Yapper {
         let mut form = div().flex().flex_col().mt(px(14.)).gap(px(18.)).w_full();
         let mut content = div()
             .w_full()
-            .max_w(px(408.))
+            .max_w(px(ENTRY_MAX_WIDTH))
             .flex()
             .flex_col()
             .gap(px(10.));
 
-        if let Some((_, installation)) = &self.installation {
+        if let Some((server, installation)) = &self.installation {
             content = content
                 .child(
                     div()
-                        .text_size(px(13.))
-                        .text_color(rgb(MUTED))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(installation.name.clone()),
+                        .p(px(12.))
+                        .rounded(px(8.))
+                        .border_1()
+                        .border_color(rgb(CONTROL_LINE))
+                        .bg(rgb(PANEL))
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .text_color(rgb(ACCENT))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(copy.current_server),
+                        )
+                        .child(server_identity(&installation.name, &server.origin())),
                 )
-                .child(entry_title(copy.join_heading, width))
-                .child(entry_description(copy.join_description));
+                .child(entry_title(
+                    if self.signing_in {
+                        copy.sign_in
+                    } else {
+                        copy.join_heading
+                    },
+                    width,
+                ))
+                .when(!self.signing_in, |content| {
+                    content.child(entry_description(copy.join_description))
+                });
             let admitted = self.pending_admission.is_some();
-            form = form
-                .when(!admitted, |form| {
-                    form.child(field(
-                        copy.nickname,
-                        &self.nickname,
+            if self.signing_in {
+                form = form
+                    .child(field(
+                        copy.username,
+                        &self.username,
                         self.pending,
                         window,
                         cx,
                     ))
-                    .when(!installation.open_admission, |form| {
+                    .child(field(
+                        copy.password,
+                        &self.password,
+                        self.pending,
+                        window,
+                        cx,
+                    ))
+                    .children(self.render_error())
+                    .child(
+                        primary_entry("sign-in", copy.sign_in, self.pending)
+                            .on_click(cx.listener(|app, _, window, cx| app.sign_in(window, cx))),
+                    );
+            } else {
+                form = form
+                    .when(!admitted, |form| {
                         form.child(field(
-                            copy.invitation,
-                            &self.invitation,
+                            copy.nickname,
+                            &self.nickname,
                             self.pending,
                             window,
                             cx,
                         ))
+                        .when(!installation.open_admission, |form| {
+                            form.child(field(
+                                copy.invitation,
+                                &self.invitation,
+                                self.pending,
+                                window,
+                                cx,
+                            ))
+                        })
                     })
-                })
-                .children(self.render_error())
-                .child(
-                    primary_entry(
-                        "admit",
-                        if admitted {
-                            copy.retry_membership
-                        } else {
-                            copy.join
-                        },
-                        self.pending,
+                    .children(self.render_error())
+                    .child(
+                        primary_entry(
+                            "admit",
+                            if admitted {
+                                copy.retry_membership
+                            } else {
+                                copy.join
+                            },
+                            self.pending,
+                        )
+                        .on_click(cx.listener(|app, _, window, cx| app.admit(window, cx))),
                     )
-                    .on_click(cx.listener(|app, _, window, cx| app.admit(window, cx))),
-                )
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .line_height(px(20.))
+                            .text_color(rgb(MUTED))
+                            .child(copy.identity_notice),
+                    );
+            }
+            form = form
+                .when(!admitted, |form| {
+                    form.child(
+                        Button::new("switch-entry-mode")
+                            .ghost()
+                            .label(if self.signing_in {
+                                copy.continue_as_guest
+                            } else {
+                                copy.sign_in
+                            })
+                            .disabled(self.pending)
+                            .on_click(cx.listener(|app, _, window, cx| {
+                                app.signing_in = !app.signing_in;
+                                app.password
+                                    .update(cx, |input, cx| input.set_value("", window, cx));
+                                app.error = None;
+                                cx.notify();
+                            })),
+                    )
+                })
                 .child(
                     Button::new("change-server")
                         .ghost()
@@ -176,29 +250,83 @@ impl Yapper {
                         .label(copy.change_server)
                         .disabled(self.pending)
                         .on_click(cx.listener(|app, _, window, cx| app.change_server(window, cx))),
-                )
-                .child(
-                    div()
-                        .mt(px(8.))
-                        .text_size(px(12.))
-                        .line_height(px(20.))
-                        .text_color(rgb(MUTED))
-                        .child(copy.identity_notice),
                 );
         } else {
-            content = content
-                .child(entry_title(copy.server, width))
-                .child(entry_description(copy.server_hint));
+            content = content.child(entry_title(copy.server, width));
+            if !self.preferences.servers.is_empty() {
+                content = content.child(self.saved_server_list(width, cx));
+                form = form.border_t_1().border_color(rgb(LINE)).pt(px(16.));
+            }
             form = form
                 .child(field(copy.address, &self.address, self.pending, window, cx))
                 .children(self.render_error())
                 .child(
                     primary_entry("connect", copy.connect, self.pending)
-                        .on_click(cx.listener(|app, _, _, cx| app.connect(cx))),
+                        .on_click(cx.listener(|app, _, window, cx| app.connect(window, cx))),
                 );
         }
 
         content.child(form)
+    }
+
+    fn saved_server_list(&self, width: f32, cx: &mut Context<Self>) -> Div {
+        let copy = self.language.copy();
+        let row_width = (width - 2. * ENTRY_HORIZONTAL_PADDING).clamp(0., ENTRY_MAX_WIDTH);
+        let row_content_width = (row_width - 2. * SAVED_SERVER_PADDING - 2.).max(0.);
+        let rows = self.preferences.servers.iter().map(|server| {
+            let address = server.address.clone();
+            Button::new(gpui::SharedString::from(format!("saved-{address}")))
+                .custom(
+                    ButtonCustomVariant::new(cx)
+                        .border(rgb(CONTROL_LINE).into())
+                        .color(rgb(PANEL).into())
+                        .hover(rgb(SELECTED).into())
+                        .active(rgb(HOVER).into()),
+                )
+                .rounded(px(8.))
+                .w_full()
+                .h(px(72.))
+                .px(px(SAVED_SERVER_PADDING))
+                .tooltip(address.clone())
+                .child(
+                    div()
+                        .w(px(row_content_width))
+                        .min_w(px(0.))
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .child(server_identity(&server.name, &address).flex_1())
+                        .child(
+                            div()
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.))
+                                .px(px(9.))
+                                .py(px(6.))
+                                .rounded(px(6.))
+                                .bg(gpui::rgba((ACCENT << 8) | 0x24))
+                                .text_color(rgb(ACCENT))
+                                .text_size(px(13.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(copy.connect_saved_server)
+                                .child(icon("icons/arrow-right.svg", 14., ACCENT)),
+                        )
+                        .into_any_element(),
+                )
+                .disabled(self.pending)
+                .on_click(cx.listener(move |app, _, window, cx| {
+                    app.connect_address(address.clone(), window, cx)
+                }))
+        });
+
+        div()
+            .mt(px(12.))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(entry_section_title(copy.saved_servers))
+            .children(rows)
     }
 
     fn workspace(
@@ -280,19 +408,47 @@ impl Yapper {
     ) -> impl IntoElement {
         let compact = layout == WorkspaceLayout::Compact;
         let copy = self.language.copy();
-        let text_channels: Vec<_> = guest
-            .membership
-            .channels
-            .iter()
-            .filter(|channel| channel.kind == "text")
-            .map(|channel| self.text_channel(channel, if compact { 40. } else { 36. }, cx))
-            .collect();
-        let voice_channels = guest
-            .membership
-            .channels
-            .iter()
-            .filter(|channel| channel.kind == "voice" && !channel.archived)
-            .map(|channel| self.voice_channel(channel, &guest.session, layout, cx));
+        let mut groups = Vec::new();
+        for (kind, heading) in [("text", copy.text_channels), ("voice", copy.voice_channels)] {
+            let mut rows = Vec::new();
+            let categories = std::iter::once(("", "")).chain(
+                guest
+                    .membership
+                    .categories
+                    .iter()
+                    .map(|category| (category.id.as_str(), category.name.as_str())),
+            );
+            for (id, title) in categories {
+                let channels = guest.membership.channels.iter().filter(|channel| {
+                    channel.kind == kind
+                        && channel.category_id == id
+                        && (kind == "text" || !channel.archived)
+                });
+                let entries = channels
+                    .map(|channel| {
+                        if kind == "text" {
+                            self.text_channel(channel, if compact { 40. } else { 36. }, cx)
+                        } else {
+                            self.voice_channel(channel, &guest.session, layout, cx)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                if !entries.is_empty() && !title.is_empty() {
+                    rows.push(
+                        div()
+                            .px(px(7.))
+                            .pt(px(7.))
+                            .text_size(px(11.))
+                            .text_color(rgb(MUTED))
+                            .child(title.to_owned()),
+                    );
+                }
+                rows.extend(entries);
+            }
+            if !rows.is_empty() {
+                groups.push(channel_group(heading, rows));
+            }
+        }
 
         div()
             .flex()
@@ -334,10 +490,7 @@ impl Yapper {
                     .px(px(11.))
                     .pt(px(5.))
                     .pb(px(12.))
-                    .when(!text_channels.is_empty(), |list| {
-                        list.child(channel_group(copy.text_channels, text_channels))
-                    })
-                    .child(channel_group(copy.voice_channels, voice_channels)),
+                    .children(groups),
             )
     }
 
@@ -380,15 +533,10 @@ impl Yapper {
                     )
                     .into_any_element(),
             )
-            .disabled(self.call.is_some() && !selected)
+            .disabled(self.switching_server)
             .on_click(cx.listener(move |app, _, window, cx| {
                 window.focus(&app.workspace_focus);
-                if app.call.is_some() {
-                    app.channels_open = false;
-                    cx.notify();
-                } else {
-                    app.join_voice(session.clone(), id.clone(), name.clone(), cx);
-                }
+                app.join_voice(session.clone(), id.clone(), name.clone(), window, cx);
             }));
         div()
             .flex()
@@ -414,6 +562,9 @@ impl Yapper {
                         .border_l_1()
                         .border_color(rgb(LINE))
                         .children(call.peers.iter().map(|peer| {
+                            let id = peer.identity.clone();
+                            let muted = call.muted_peers.contains(&id);
+                            let copy = self.language.copy();
                             div()
                                 .flex()
                                 .items_center()
@@ -421,8 +572,46 @@ impl Yapper {
                                 .py(px(5.))
                                 .text_size(px(12.))
                                 .text_color(rgb(MUTED))
-                                .child(status_dot(MUTED))
-                                .child(div().truncate().child(peer.clone()))
+                                .child(status_dot(if peer.speaking { ACCENT } else { MUTED }))
+                                .child(div().flex_1().truncate().child(peer.name.clone()))
+                                .when(!peer.local, |row| {
+                                    row.child(
+                                        Button::new(gpui::SharedString::from(format!("peer-{id}")))
+                                            .ghost()
+                                            .compact()
+                                            .disabled(call.state != CallState::Connected)
+                                            .h(px(24.))
+                                            .w(px(24.))
+                                            .tooltip(if muted {
+                                                copy.unmute_playback
+                                            } else {
+                                                copy.mute_playback
+                                            })
+                                            .child(
+                                                icon(
+                                                    "icons/volume-2.svg",
+                                                    12.,
+                                                    if muted { DANGER } else { MUTED },
+                                                )
+                                                .into_any_element(),
+                                            )
+                                            .on_click(cx.listener(move |app, _, _, cx| {
+                                                if let Some(call) = &mut app.call
+                                                    && call
+                                                        .commands
+                                                        .send(Command::MutePeer(id.clone(), !muted))
+                                                        .is_ok()
+                                                {
+                                                    if muted {
+                                                        call.muted_peers.remove(&id);
+                                                    } else {
+                                                        call.muted_peers.insert(id.clone());
+                                                    }
+                                                    cx.notify();
+                                                }
+                                            })),
+                                    )
+                                })
                         })),
                 )
             })
@@ -475,14 +664,24 @@ impl Yapper {
                             .font_weight(FontWeight::BOLD)
                             .child(nickname.clone()),
                     )
-                    .child(
-                        div()
-                            .text_size(px(11.))
-                            .text_color(rgb(MUTED))
-                            .child(self.language.copy().participant),
-                    ),
+                    .child(div().text_size(px(11.)).text_color(rgb(MUTED)).child(
+                        match guest.membership.participant.role.as_str() {
+                            "owner" => self.language.copy().owner,
+                            "moderator" => self.language.copy().moderator,
+                            _ => self.language.copy().participant,
+                        },
+                    )),
             )
             .when(compact, |profile| profile.child(self.language_menu(cx)))
+            .when(guest.session.is_account(), |profile| {
+                profile.child(
+                    Button::new("sign-out")
+                        .ghost()
+                        .label(self.language.copy().sign_out)
+                        .disabled(self.pending || self.call.is_some())
+                        .on_click(cx.listener(|app, _, window, cx| app.sign_out(window, cx))),
+                )
+            })
     }
 
     fn topbar(
@@ -558,14 +757,18 @@ impl Yapper {
                         .text_size(px(12.))
                         .text_color(rgb(MUTED))
                         .child(status_dot(MUTED))
-                        .child(copy.connected),
+                        .child(if self.events_connected {
+                            copy.connected
+                        } else {
+                            copy.reconnecting
+                        }),
                 )
             })
             .child(
                 Button::new("change-server")
                     .ghost()
                     .label(copy.change_server)
-                    .disabled(self.call.is_some())
+                    .disabled(self.pending || self.switching_server)
                     .on_click(cx.listener(|app, _, window, cx| app.change_server(window, cx))),
             )
             .when(!compact, |bar| bar.child(self.language_menu(cx)))
@@ -616,6 +819,7 @@ impl Yapper {
             CallState::Reconnecting => copy.reconnecting,
             CallState::Leaving => copy.disconnecting,
             CallState::Connected if !call.can_publish => copy.listening_only,
+            CallState::Connected if call.deafened => copy.deafen,
             CallState::Connected if call.microphone => copy.microphone_on_status,
             CallState::Connected => copy.microphone_muted_status,
         };
@@ -741,11 +945,40 @@ impl Yapper {
                     controls.child(
                         voice_button("mute", mic_icon, mic_label, mic_color, mic_style)
                             .size(px(size))
-                            .disabled(call.state != CallState::Connected)
+                            .disabled(call.state != CallState::Connected || call.deafened)
                             .on_click(cx.listener(|app, _, _, cx| app.toggle_microphone(cx))),
                     )
                 },
             )
+            .child(
+                voice_button(
+                    "deafen",
+                    "icons/headphones.svg",
+                    if call.deafened {
+                        copy.undeafen
+                    } else {
+                        copy.deafen
+                    },
+                    if call.deafened { DANGER } else { MUTED },
+                    ButtonCustomVariant::new(cx).hover(rgb(HOVER).into()),
+                )
+                .size(px(size))
+                .disabled(call.state != CallState::Connected)
+                .on_click(cx.listener(|app, _, _, cx| {
+                    if let Some(call) = &mut app.call {
+                        let next = !call.deafened;
+                        if call.commands.send(Command::Deafen(next)).is_ok() {
+                            call.deafened = next;
+                            if next {
+                                call.microphone_intent.send_replace(false);
+                                app.microphone_mode.release_key();
+                            }
+                            cx.notify();
+                        }
+                    }
+                })),
+            )
+            .child(self.audio_devices(call, size, cx))
             .child(
                 voice_button(
                     "leave",
@@ -758,17 +991,57 @@ impl Yapper {
                 .disabled(call.state == CallState::Leaving)
                 .on_click(cx.listener(|app, _, _, cx| {
                     if let Some(call) = &mut app.call {
-                        if call.commands.try_send(Command::Leave).is_ok() {
-                            call.state = CallState::Leaving;
-                            call.microphone_intent.send_replace(false);
-                            app.microphone_mode.release_key();
-                        } else {
-                            app.error = Some(Failure::Voice);
-                        }
+                        call.leave();
+                        app.microphone_mode.release_key();
                         cx.notify();
                     }
                 })),
             )
+    }
+
+    fn audio_devices(&self, call: &Call, size: f32, cx: &mut Context<Self>) -> impl IntoElement {
+        let copy = self.language.copy();
+        let microphones = call.microphones.clone();
+        let outputs = call.outputs.clone();
+        let commands = call.commands.clone();
+        voice_button(
+            "audio-devices",
+            "icons/sliders-horizontal.svg",
+            copy.audio_devices,
+            MUTED,
+            ButtonCustomVariant::new(cx).hover(rgb(HOVER).into()),
+        )
+        .size(px(size))
+        .disabled(call.state != CallState::Connected)
+        .dropdown_menu_with_anchor(Corner::BottomLeft, move |mut menu, _, _| {
+            let refresh = commands.clone();
+            menu = menu.item(
+                PopupMenuItem::new(copy.refresh_devices).on_click(move |_, _, _| {
+                    let _ = refresh.send(Command::RefreshDevices);
+                }),
+            );
+            for device in &microphones {
+                let sender = commands.clone();
+                let id = device.id.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(format!("{} · {}", copy.microphone_devices, device.name))
+                        .on_click(move |_, _, _| {
+                            let _ = sender.send(Command::Microphone(id.clone()));
+                        }),
+                );
+            }
+            for device in &outputs {
+                let sender = commands.clone();
+                let id = device.id.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(format!("{} · {}", copy.output_devices, device.name))
+                        .on_click(move |_, _, _| {
+                            let _ = sender.send(Command::Output(id.clone()));
+                        }),
+                );
+            }
+            menu
+        })
     }
 
     fn language_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -797,6 +1070,9 @@ impl Yapper {
                                 .on_click(move |_, window, cx| {
                                     let _ = app.update(cx, |app, cx| {
                                         app.language = language;
+                                        app.preferences.language =
+                                            Some(language.code().to_ascii_lowercase());
+                                        app.preferences.save();
                                         app.message_input.update(cx, |input, cx| {
                                             input.set_placeholder(
                                                 language.copy().message_placeholder,
@@ -848,6 +1124,57 @@ fn channel_group(title: &'static str, rows: impl IntoIterator<Item = Div>) -> Di
                 .child(title),
         )
         .child(div().flex().flex_col().gap(px(3.)).children(rows))
+}
+
+fn entry_section_title(title: &'static str) -> Div {
+    div()
+        .text_size(px(14.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(title)
+}
+
+fn server_identity(name: &str, address: &str) -> Div {
+    div()
+        .min_w(px(0.))
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .child(
+            div()
+                .size(px(40.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(6.))
+                .bg(gpui::rgba((ACCENT << 8) | 0x32))
+                .child(icon("icons/server.svg", 18., ACCENT)),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .truncate()
+                        .text_color(rgb(TEXT))
+                        .text_size(px(16.))
+                        .line_height(px(20.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(name.to_owned()),
+                )
+                .child(
+                    div()
+                        .truncate()
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .text_color(rgb(MUTED))
+                        .child(address.to_owned()),
+                ),
+        )
 }
 
 fn entry_title(title: &'static str, width: f32) -> Div {

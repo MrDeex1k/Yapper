@@ -1,0 +1,35 @@
+# Stage 4 desktop test record
+
+## LAN conversation on 2026-11-23
+
+The maintainer joined Lounge using Web on macOS and the installed GPUI 0.1.0 Windows x64 release on PC-Jakub. Both clients used the local Stage 4 server on branch `feat/stage-4-desktop-release`, based on `466c2f1` with unpublished Stage 4 changes. The maintainer confirmed that voice communication worked and reported that the GPUI behavior and appearance were acceptable in this session.
+
+The maintainer observed a brief empty-history message when switching Web text channels. The regression check defers history responses and verifies that a populated channel shows its messages without a false empty state, and that the empty state appears once a genuinely empty response arrives. `pnpm check` passed, including all 19 Web tests. The rebuilt Web bundle was served on the LAN endpoint and matched the local build's SHA-256.
+
+This session covers LAN voice and a GPUI walkthrough. The remaining device, TURN/TLS, and package lifecycle checks are listed in [Desktop acceptance](../validation.md#desktop-acceptance).
+
+## GPUI message actions
+
+Edit and delete now appear next to the author. The editor opens in the message row and retains the existing per-channel draft handling. Delete uses an inline confirmation. Both panels use the Web accent colors. GPUI already distinguishes a pending history request from an empty timeline.
+
+On Ubuntu ARM64, the locked format check, Clippy with warnings denied, all three ordinary tests, and the offline release build passed. The release process started under Xvfb.
+
+On PC-Jakub, the updated Windows x64 release built from snapshot `be1650d12d25c57c56907e7028cf78af486cb08e8f9d9a7097b53a616c3854c5`, restored its guest session, and displayed the history in `#general`. The visible message belonged to another participant. Visual acceptance of the buttons and panels on a message owned by the local guest is pending.
+
+The next polish pass added violet edit and red delete hover states and grouped the outlined Cancel and Save buttons below the edit field. A semibold heading identifies the editor. Formatting, Clippy, all three ordinary tests, and the offline release build passed on Ubuntu ARM64. Windows x64 built from snapshot `eaa75d98861d9d0d6c45dcddecbca29aed8df4efdd3ec42973b492571ce115bd`. On PC-Jakub, both hover states and the Polish editor were verified on the test guest's own message in `#stage4-second`. The editor was left open with the original message text.
+
+## Server selection
+
+GPUI shows saved servers as full-width buttons with a server icon, name, address, and connection arrow. Long names and addresses are clipped to the row, and the full address is available on hover. Both clients highlight the current installation on the join and staff sign-in screens. Web shows the address of the installation serving the page.
+
+`pnpm check` passed, and React Doctor reported no findings. A loopback Chromium fixture verified the Web server name and origin on join and sign-in at 1120 and 320 CSS pixels, including Polish and English labels. On Ubuntu ARM64, GPUI formatting, Clippy, three ordinary tests, and the locked release build passed. Under X11, two saved servers rendered with matching row widths, a long address stayed within its row, and the row changed color on hover. This visual check used a temporary profile. Windows visual verification remains pending for this change.
+
+Saved servers now appear above the manual address form. Each row has a labeled Connect action and a stronger outline. The current server card uses the same larger name and clearer contrast in GPUI and Web. The updated GPUI release rendered two saved entries at 1200 × 800 and 640 × 600 under X11 on Ubuntu ARM64. The longer address stayed within its row. Cargo formatting, Clippy, all three ordinary tests, and the release build passed. The Web Chromium check passed again at 1120 and 320 CSS pixels, along with `pnpm check` and React Doctor.
+
+On PC-Jakub, the Windows x64 release built from `54efa53` and displayed both saved entries with the labeled action in an isolated Polish profile. The next revision removed the manual form heading and its introductory hint from GPUI while keeping the labeled address field, the connection action, and error feedback.
+
+## CodeRabbit regression checks
+
+The chooser now stays open when saved-session restoration fails. On Ubuntu ARM64 under X11, a loopback fixture returned HTTP 503 to the first membership request. Selecting the same server again restored the existing participant with its original Secret Service credential. The fixture received no new guest admission request.
+
+The chat regression tests verify that an edit can fail and succeed between attempts to send a new message without changing its request ID. They also exercise original draft restoration after an edit and preserve typing during a normal send. The voice tests cover queued deafen, per-peer mute, audio device selection, and cancellation during connection waits. Formatting, Clippy, eight ordinary tests, and the locked debug and release builds passed on Ubuntu ARM64. Physical audio and the server-backed signaling smoke are outside these automated checks.

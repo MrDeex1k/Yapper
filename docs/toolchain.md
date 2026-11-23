@@ -25,6 +25,8 @@ Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly in
 
 The Stage 2 prototype pins Rust 1.100.0 and GPUI 0.2.2 with a committed Cargo lockfile. Run its [Cargo checks](../apps/desktop-gpui/README.md) independently of the pnpm workspace.
 
+Stage 4 uses Blaze to lock the native WebRTC archives for Linux and Windows. The [SDK preparation workflow](../apps/desktop-gpui/README.md#prepare-the-pinned-webrtc-sdk) verifies and caches those archives for Cargo. The [Blaze evaluation](evidence/stage-4-blaze.md) records compiler compatibility.
+
 At the Stage 2 prototype, pin the Rust toolchain and GPUI dependency, commit the application's Cargo lockfile, and record the Windows and Linux build prerequisites. Cargo owns Rust dependencies and compilation. Choose any Turbo integration after verifying task discovery, cache invalidation, and artifact restoration on the target platforms. Include the Rust toolchain and target in the cache identity. Select Windows and Linux packaging commands during Stage 4.
 
 Pin pnpm, Node, Bun, Go, and build-tool versions independently. Use `pnpm-workspace.yaml` with `apps/*`, `packages/*`, and `server` when using its wrapper described below. Use `workspace:*` for local JS/TS dependencies. Commit one pnpm lockfile; retain language-native manifests such as `go.mod`/`go.sum`. Do not run `bun install` or generate a second JS lockfile. Disable Bun runtime auto-install so missing dependencies fail instead of bypassing pnpm's resolved graph. Reproducible local verification installs through `pnpm install --frozen-lockfile`.
