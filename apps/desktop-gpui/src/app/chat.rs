@@ -1,6 +1,7 @@
 use super::Yapper;
 use crate::server::{Failure, Message, MessageChange, Timeline};
 use gpui::{Context, ScrollHandle, Window, px};
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
@@ -140,6 +141,26 @@ impl Chat {
         messages.sort_unstable_by_key(|message| message.sequence);
         read_more
     }
+}
+
+fn record_chat_action_result(
+    active_chat: Option<&mut Chat>,
+    inactive_chats: &mut HashMap<String, Chat>,
+    channel_id: &str,
+    generation: Uuid,
+    result: Result<(), Failure>,
+) -> bool {
+    if let Some(chat) = active_chat.filter(|chat| chat.generation == generation) {
+        chat.send_error = result.err();
+        return true;
+    }
+    if let Some(chat) = inactive_chats
+        .get_mut(channel_id)
+        .filter(|chat| chat.generation == generation)
+    {
+        chat.send_error = result.err();
+    }
+    false
 }
 
 fn upsert(messages: &mut Vec<Message>, next: Message) {
@@ -371,16 +392,18 @@ impl Yapper {
         request: JoinHandle<Result<(), Failure>>,
         cx: &mut Context<Self>,
     ) {
+        let channel_id = chat.channel_id.clone();
         let generation = chat.generation;
         cx.spawn(async move |this, cx| {
             let result = request.await.unwrap_or(Err(Failure::Network));
             let _ = this.update(cx, |app, cx| {
-                if let Some(chat) = app
-                    .chat
-                    .as_mut()
-                    .filter(|chat| chat.generation == generation)
-                {
-                    chat.send_error = result.err();
+                if record_chat_action_result(
+                    app.chat.as_mut(),
+                    &mut app.inactive_chats,
+                    &channel_id,
+                    generation,
+                    result,
+                ) {
                     app.chat_refresh.notify_one();
                     cx.notify();
                 }
@@ -555,5 +578,34 @@ mod tests {
             Submission::Send(request_id) if request_id != original_request_id
         ));
         assert_eq!(chat.finish_submission(Ok(()), true), Some(String::new()));
+    }
+
+    #[test]
+    fn chat_action_error_stays_with_its_original_channel() {
+        let original = Chat::new("general".to_owned());
+        let generation = original.generation;
+        let mut inactive_chats = HashMap::from([(original.channel_id.clone(), original)]);
+        let mut active_chat = Chat::new("other".to_owned());
+
+        assert!(!record_chat_action_result(
+            Some(&mut active_chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Err(Failure::Denied),
+        ));
+        assert_eq!(active_chat.send_error, None);
+        let restored_chat = inactive_chats.remove("general").expect("cached chat");
+        assert_eq!(restored_chat.send_error, Some(Failure::Denied));
+
+        let mut replacement = Chat::new("general".to_owned());
+        assert!(!record_chat_action_result(
+            Some(&mut replacement),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Err(Failure::Denied),
+        ));
+        assert_eq!(replacement.send_error, None);
     }
 }
