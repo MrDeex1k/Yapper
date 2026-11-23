@@ -152,15 +152,15 @@ export const api = {
   moveChannel: (id: string, direction: -1 | 1) =>
     request(`/api/v1/channels/${id}/move`, { direction }),
   archiveChannel: (id: string) => request(`/api/v1/channels/${id}/archive`, {}),
-  timeline: (channel: string, before: number, signal: AbortSignal) =>
+  timeline: (channelId: string, beforeSequence: number, signal: AbortSignal) =>
     request<HistoryPage>(
-      `/api/v1/channels/${channel}/timeline?before=${before}`,
+      `/api/v1/channels/${channelId}/timeline?before=${beforeSequence}`,
       undefined,
       signal,
     ),
-  messageChanges: (channel: string, after: number, signal: AbortSignal) =>
+  messageChanges: (channelId: string, afterRevision: number, signal: AbortSignal) =>
     request<MessageChanges>(
-      `/api/v1/channels/${channel}/messages/changes?after=${after}`,
+      `/api/v1/channels/${channelId}/messages/changes?after=${afterRevision}`,
       undefined,
       signal,
     ),

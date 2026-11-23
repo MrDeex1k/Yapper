@@ -70,9 +70,9 @@ impl Yapper {
         })
     }
 
-    pub(super) fn selected_text<'a>(&self, guest: &'a Admission) -> Option<&'a Channel> {
+    pub(super) fn selected_text<'a>(&self, admission: &'a Admission) -> Option<&'a Channel> {
         let chat = self.chat.as_ref()?;
-        guest
+        admission
             .membership
             .channels
             .iter()
@@ -81,7 +81,7 @@ impl Yapper {
 
     pub(super) fn chat_view(
         &self,
-        guest: &Admission,
+        admission: &Admission,
         chat: &Chat,
         channel: &Channel,
         gutter: f32,
@@ -154,7 +154,14 @@ impl Yapper {
                                 )
                             })
                             .children(messages.iter().map(|message| {
-                                self.message_row(message, guest, chat, channel.archived, window, cx)
+                                self.message_row(
+                                    message,
+                                    admission,
+                                    chat,
+                                    channel.archived,
+                                    window,
+                                    cx,
+                                )
                             }))
                     })
                     .when(chat.messages.is_none() && chat.error.is_none(), |history| {
@@ -174,7 +181,9 @@ impl Yapper {
                             .map(|err| status(self.language.failure(err)).text_color(rgb(DANGER))),
                     )
                     .children(self.render_error())
-                    .when(!guest.saved, |area| area.child(status(copy.unsaved)))
+                    .when(!admission.credential_saved, |area| {
+                        area.child(status(copy.unsaved))
+                    })
                     .when(channel.archived, |area| {
                         area.child(status(copy.archived_chat))
                     })
@@ -266,15 +275,15 @@ impl Yapper {
     fn message_row(
         &self,
         message: &Message,
-        guest: &Admission,
+        admission: &Admission,
         chat: &Chat,
         archived: bool,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Div {
-        let own = guest.membership.participant.id == message.author_id;
+        let own = admission.membership.participant.id == message.author_id;
         let staff = matches!(
-            guest.membership.participant.role.as_str(),
+            admission.membership.participant.role.as_str(),
             "owner" | "moderator"
         );
         let copy = self.language.copy();
@@ -432,15 +441,15 @@ fn confirm_item(
     label: &'static str,
     copy: &'static crate::copy::Copy,
     app: gpui::WeakEntity<Yapper>,
-    target: String,
-    moderation: &'static str,
+    participant_id: String,
+    action: &'static str,
 ) -> PopupMenuItem {
     PopupMenuItem::new(label).on_click(move |_, window, cx| {
-        let target = target.clone();
+        let participant_id = participant_id.clone();
         let app = app.clone();
         window.open_dialog(cx, move |dialog, _, _| {
             let app = app.clone();
-            let target = target.clone();
+            let participant_id = participant_id.clone();
             dialog
                 .title(label)
                 .confirm()
@@ -451,7 +460,7 @@ fn confirm_item(
                 )
                 .on_ok(move |_, _, cx| {
                     let _ = app.update(cx, |app, cx| {
-                        app.message_action(target.clone(), Some(moderation), cx)
+                        app.moderate_participant(participant_id.clone(), action, cx)
                     });
                     true
                 })

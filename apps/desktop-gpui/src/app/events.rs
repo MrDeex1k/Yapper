@@ -5,7 +5,11 @@ use tokio::sync::mpsc;
 
 impl Yapper {
     pub(super) fn watch_events(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(session) = self.guest.as_ref().map(|guest| guest.session.clone()) else {
+        let Some(session) = self
+            .admission
+            .as_ref()
+            .map(|admission| admission.session.clone())
+        else {
             return;
         };
         let (send, mut receive) = mpsc::unbounded_channel();

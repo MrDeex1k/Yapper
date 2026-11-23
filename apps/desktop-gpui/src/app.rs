@@ -87,7 +87,7 @@ struct Yapper {
     message_input: Entity<InputState>,
     workspace_focus: FocusHandle,
     installation: Option<(Server, Installation)>,
-    guest: Option<Admission>,
+    admission: Option<Admission>,
     pending_admission: Option<PendingAdmission>,
     catalog_task: Option<Task<()>>,
     catalog_refresh: Arc<Notify>,
@@ -100,10 +100,10 @@ struct Yapper {
     chat_refresh: Arc<Notify>,
     microphone_mode: MicrophoneMode,
     channels_open: bool,
-    signing_in: bool,
+    show_sign_in_form: bool,
     switching_server: bool,
     switching_channel: Option<(Session, String, String)>,
-    pending: bool,
+    session_request_pending: bool,
     error: Option<Failure>,
 }
 
@@ -119,7 +119,7 @@ struct Call {
     muted_peers: HashSet<String>,
     state: CallState,
     can_publish: bool,
-    microphone: bool,
+    microphone_active: bool,
 }
 
 #[derive(PartialEq, Eq)]
@@ -179,7 +179,7 @@ impl Yapper {
             message_input,
             workspace_focus: cx.focus_handle(),
             installation: None,
-            guest: None,
+            admission: None,
             pending_admission: None,
             catalog_task: None,
             catalog_refresh: Arc::new(Notify::new()),
@@ -192,10 +192,10 @@ impl Yapper {
             chat_refresh: Arc::new(Notify::new()),
             microphone_mode: MicrophoneMode::Manual,
             channels_open: false,
-            signing_in: false,
+            show_sign_in_form: false,
             switching_server: false,
             switching_channel: None,
-            pending: false,
+            session_request_pending: false,
             error: None,
         }
     }
@@ -205,10 +205,10 @@ impl Yapper {
     }
 
     fn connect_address(&mut self, address: String, window: &mut Window, cx: &mut Context<Self>) {
-        if self.pending {
+        if self.session_request_pending {
             return;
         }
-        self.pending = true;
+        self.session_request_pending = true;
         self.error = None;
         let result = self.runtime.spawn(async move {
             let (server, installation) = Server::connect(&address).await?;
@@ -219,13 +219,13 @@ impl Yapper {
         cx.spawn_in(window, async move |this, cx| {
             let result = result.await.unwrap_or(Err(Failure::Network));
             let _ = this.update_in(cx, |app, window, cx| {
-                app.pending = false;
+                app.session_request_pending = false;
                 match result {
                     Ok((server, installation, admission)) => {
                         app.preferences
                             .remember(server.origin(), installation.name.clone());
                         app.installation = Some((server, installation));
-                        app.guest = admission;
+                        app.admission = admission;
                         app.open_default_text(cx);
                         app.refresh_catalog(cx);
                         app.watch_events(window, cx);
@@ -240,7 +240,7 @@ impl Yapper {
     }
 
     fn sign_in(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.pending || !self.signing_in {
+        if self.session_request_pending || !self.show_sign_in_form {
             return;
         }
         let Some((server, _)) = &self.installation else {
@@ -251,7 +251,7 @@ impl Yapper {
         let password = self.password.read(cx).value().to_string();
         self.password
             .update(cx, |input, cx| input.set_value("", window, cx));
-        self.pending = true;
+        self.session_request_pending = true;
         self.error = None;
         let result = self
             .runtime
@@ -259,10 +259,10 @@ impl Yapper {
         cx.spawn_in(window, async move |this, cx| {
             let result = result.await.unwrap_or(Err(Failure::Network));
             let _ = this.update_in(cx, |app, window, cx| {
-                app.pending = false;
+                app.session_request_pending = false;
                 match result {
-                    Ok(guest) => {
-                        app.guest = Some(guest);
+                    Ok(admission) => {
+                        app.admission = Some(admission);
                         app.open_default_text(cx);
                         app.refresh_catalog(cx);
                         app.watch_events(window, cx);
@@ -277,18 +277,22 @@ impl Yapper {
     }
 
     fn sign_out(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.pending || self.call.is_some() {
+        if self.session_request_pending || self.call.is_some() {
             return;
         }
-        let Some(session) = self.guest.as_ref().map(|guest| guest.session.clone()) else {
+        let Some(session) = self
+            .admission
+            .as_ref()
+            .map(|admission| admission.session.clone())
+        else {
             return;
         };
-        self.pending = true;
+        self.session_request_pending = true;
         let result = self.runtime.spawn(async move { session.sign_out().await });
         cx.spawn_in(window, async move |this, cx| {
             let result = result.await.unwrap_or(Err(Failure::Network));
             let _ = this.update_in(cx, |app, window, cx| {
-                app.pending = false;
+                app.session_request_pending = false;
                 match result {
                     Ok(()) => app.clear_session(window, cx),
                     Err(error) => app.error = Some(error),
@@ -308,7 +312,7 @@ impl Yapper {
         let nickname = self.nickname.read(cx).value().trim().to_owned();
         let invitation = self.invitation.read(cx).value().trim().to_owned();
         let pending = self.pending_admission.clone();
-        self.pending = true;
+        self.session_request_pending = true;
         self.error = None;
         let result = self.runtime.spawn(async move {
             let pending = match pending {
@@ -321,15 +325,15 @@ impl Yapper {
         cx.spawn_in(window, async move |this, cx| {
             let result = result.await.unwrap_or(Err(Failure::Network));
             let _ = this.update_in(cx, |app, window, cx| {
-                app.pending = false;
+                app.session_request_pending = false;
                 match result {
                     Ok((pending, admission)) => {
                         app.invitation
                             .update(cx, |input, cx| input.set_value("", window, cx));
                         match admission {
-                            Ok(guest) => {
+                            Ok(admission) => {
                                 app.pending_admission = None;
-                                app.guest = Some(guest);
+                                app.admission = Some(admission);
                                 app.open_default_text(cx);
                                 app.refresh_catalog(cx);
                                 app.watch_events(window, cx);
@@ -383,7 +387,7 @@ impl Yapper {
             muted_peers: HashSet::new(),
             state: CallState::Joining,
             can_publish: false,
-            microphone: false,
+            microphone_active: false,
         });
         self.runtime
             .spawn(voice::run(session, id, receive, desired_microphone, send));
@@ -451,15 +455,15 @@ impl Yapper {
                     self.microphone_mode.release_key();
                 }
             }
-            Event::Microphone(active) => {
-                call.microphone = active;
+            Event::MicrophoneActiveChanged(active) => {
+                call.microphone_active = active;
                 self.error = None;
             }
             Event::Reconnecting => {
                 if call.state != CallState::Leaving {
                     call.state = CallState::Reconnecting;
                 }
-                call.microphone = false;
+                call.microphone_active = false;
                 call.microphone_intent.send_replace(false);
                 self.microphone_mode.release_key();
             }
@@ -493,7 +497,7 @@ impl Yapper {
     }
 
     fn clear_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.guest = None;
+        self.admission = None;
         self.pending_admission = None;
         self.catalog_task = None;
         self.event_task = None;
@@ -506,7 +510,7 @@ impl Yapper {
         self.message_input
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.channels_open = false;
-        self.signing_in = false;
+        self.show_sign_in_form = false;
         self.error = None;
         cx.notify();
     }

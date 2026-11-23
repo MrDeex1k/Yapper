@@ -93,7 +93,7 @@ impl Server {
         let session = self.account_session(&secret)?;
         let membership = session.membership().await?;
         let origin = self.origin();
-        let saved = matches!(
+        let credential_saved = matches!(
             tokio::task::spawn_blocking(move || {
                 keyring::Entry::new(SERVICE, &origin)?.set_password(&secret)
             })
@@ -103,7 +103,7 @@ impl Server {
         Ok(Admission {
             session,
             membership,
-            saved,
+            credential_saved,
         })
     }
 
@@ -121,7 +121,7 @@ impl Server {
         };
         let pending = PendingAdmission {
             session: self.account_session(&secret)?,
-            saved: true,
+            credential_saved: true,
         };
         match pending.finish().await {
             Ok(account) => Ok(Some(account)),

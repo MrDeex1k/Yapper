@@ -81,8 +81,8 @@ func (s *Service) Grant(ctx context.Context, actor community.Participant, channe
 	}
 	return Grant{URL: strings.Replace(s.origin, "http", "ws", 1) + "/livekit", Token: token, Identity: m.Identity, ChannelID: m.ChannelID, CanPublish: !m.MicMuted}, nil
 }
-func (s *Service) Revoke(ctx context.Context, id string) error {
-	m, err := s.store.RevokeVoice(ctx, id)
+func (s *Service) Revoke(ctx context.Context, participantID string) error {
+	m, err := s.store.RevokeVoice(ctx, participantID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (s *Service) current(ctx context.Context, mediaIdentity string) (community.
 		return m, err
 	}
 	if m.AuthSessionID != "" {
-		err = s.auth.Active(ctx, identity.Account{RegisteredClaims: jwt.RegisteredClaims{Subject: m.AuthSubject}, SessionID: m.AuthSessionID})
+		err = s.auth.CheckSessionActive(ctx, identity.Account{RegisteredClaims: jwt.RegisteredClaims{Subject: m.AuthSubject}, SessionID: m.AuthSessionID})
 	}
 	return m, err
 }
@@ -275,8 +275,8 @@ func (s *Service) Close() {
 	}
 }
 
-func (s *Service) Leave(ctx context.Context, id, mediaIdentity string) error {
-	m, err := s.store.RevokeOwnedVoice(ctx, id, mediaIdentity)
+func (s *Service) Leave(ctx context.Context, participantID, mediaIdentity string) error {
+	m, err := s.store.RevokeOwnedVoice(ctx, participantID, mediaIdentity)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}

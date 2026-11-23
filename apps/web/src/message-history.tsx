@@ -134,7 +134,7 @@ function MessageRow({
   const form = useRef<HTMLFormElement>(null);
   const previousTrigger = useRef<HTMLElement | null>(null);
   const actionKind = action?.kind;
-  const newRevision = action?.kind === "edit" && action.revision !== message.revision;
+  const isEditStale = action?.kind === "edit" && action.revision !== message.revision;
   useEffect(() => {
     if (actionKind) form.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
   }, [actionKind]);
@@ -151,7 +151,7 @@ function MessageRow({
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!action || busy || locked) return;
-    if (action.kind === "edit" && (archived || !validEdit(action.body) || newRevision)) return;
+    if (action.kind === "edit" && (archived || !validEdit(action.body) || isEditStale)) return;
     setBusy(true);
     setError(null);
     try {
@@ -233,7 +233,7 @@ function MessageRow({
             locked={locked}
             archived={archived}
             error={error}
-            newerBody={newRevision ? message.body : null}
+            newerBody={isEditStale ? message.body : null}
             onUseLatest={() => {
               setError(null);
               setAction((current) =>

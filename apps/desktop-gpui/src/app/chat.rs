@@ -2,6 +2,7 @@ use super::Yapper;
 use crate::server::{Failure, Message, MessageChange, Timeline};
 use gpui::{Context, ScrollHandle, Window, px};
 use std::time::Duration;
+use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(2);
@@ -157,16 +158,16 @@ impl Yapper {
             return;
         }
         if let Some(id) = self
-            .guest
+            .admission
             .as_ref()
-            .and_then(|guest| {
-                guest
+            .and_then(|admission| {
+                admission
                     .membership
                     .channels
                     .iter()
                     .find(|channel| channel.kind == "text" && !channel.archived)
                     .or_else(|| {
-                        guest
+                        admission
                             .membership
                             .channels
                             .iter()
@@ -200,8 +201,10 @@ impl Yapper {
     }
 
     fn open_text(&mut self, id: String, cx: &mut Context<Self>) {
-        let Some(guest) = &self.guest else { return };
-        let session = guest.session.clone();
+        let Some(admission) = &self.admission else {
+            return;
+        };
+        let session = admission.session.clone();
         let chat = self
             .inactive_chats
             .remove(&id)
@@ -326,34 +329,49 @@ impl Yapper {
         }
     }
 
-    pub(super) fn confirm_message_delete(&mut self, id: &str, cx: &mut Context<Self>) {
+    pub(super) fn confirm_message_delete(&mut self, message_id: &str, cx: &mut Context<Self>) {
         let Some(chat) = &mut self.chat else { return };
-        if chat.delete_confirmation.as_deref() == Some(id) {
+        if chat.delete_confirmation.as_deref() == Some(message_id) {
             chat.delete_confirmation = None;
-            self.message_action(id.to_owned(), None, cx);
+            self.delete_message(message_id.to_owned(), cx);
             cx.notify();
         }
     }
 
-    pub(super) fn message_action(
-        &mut self,
-        id: String,
-        moderation: Option<&'static str>,
-        cx: &mut Context<Self>,
-    ) {
-        let (Some(chat), Some(guest)) = (&self.chat, &self.guest) else {
+    fn delete_message(&self, message_id: String, cx: &mut Context<Self>) {
+        let (Some(chat), Some(admission)) = (&self.chat, &self.admission) else {
             return;
         };
-        let session = guest.session.clone();
-        let channel = chat.channel_id.clone();
+        let session = admission.session.clone();
+        let channel_id = chat.channel_id.clone();
+        let request = self
+            .runtime
+            .spawn(async move { session.delete_message(&channel_id, &message_id).await });
+        Self::track_chat_action(chat, request, cx);
+    }
+
+    pub(super) fn moderate_participant(
+        &self,
+        participant_id: String,
+        action: &'static str,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(chat), Some(admission)) = (&self.chat, &self.admission) else {
+            return;
+        };
+        let session = admission.session.clone();
+        let request = self
+            .runtime
+            .spawn(async move { session.moderate_participant(&participant_id, action).await });
+        Self::track_chat_action(chat, request, cx);
+    }
+
+    fn track_chat_action(
+        chat: &Chat,
+        request: JoinHandle<Result<(), Failure>>,
+        cx: &mut Context<Self>,
+    ) {
         let generation = chat.generation;
-        let request = self.runtime.spawn(async move {
-            if let Some(action) = moderation {
-                session.moderate(&id, action).await
-            } else {
-                session.update_message(&channel, &id, None).await
-            }
-        });
         cx.spawn(async move |this, cx| {
             let result = request.await.unwrap_or(Err(Failure::Network));
             let _ = this.update(cx, |app, cx| {
@@ -372,8 +390,10 @@ impl Yapper {
     }
 
     pub(super) fn refresh_catalog(&mut self, cx: &mut Context<Self>) {
-        let Some(guest) = &self.guest else { return };
-        let session = guest.session.clone();
+        let Some(admission) = &self.admission else {
+            return;
+        };
+        let session = admission.session.clone();
         let runtime = self.runtime.clone();
         let refresh = self.catalog_refresh.clone();
         self.catalog_task = Some(cx.spawn(async move |this, cx| {
@@ -392,10 +412,10 @@ impl Yapper {
                 };
                 if this
                     .update(cx, |app, cx| {
-                        if let Some(guest) = &mut app.guest
-                            && guest.membership != membership
+                        if let Some(admission) = &mut app.admission
+                            && admission.membership != membership
                         {
-                            guest.membership = membership;
+                            admission.membership = membership;
                             app.open_default_text(cx);
                             cx.notify();
                         }
@@ -409,10 +429,10 @@ impl Yapper {
     }
 
     pub(super) fn send_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (Some(chat), Some(guest)) = (&mut self.chat, &self.guest) else {
+        let (Some(chat), Some(admission)) = (&mut self.chat, &self.admission) else {
             return;
         };
-        let writable = guest
+        let writable = admission
             .membership
             .channels
             .iter()
@@ -423,7 +443,7 @@ impl Yapper {
             return;
         }
         let submission = chat.begin_submission(&body);
-        let session = guest.session.clone();
+        let session = admission.session.clone();
         let channel = chat.channel_id.clone();
         let generation = chat.generation;
         let origin = channel.clone();
@@ -438,7 +458,7 @@ impl Yapper {
                     revision,
                 } => {
                     session
-                        .update_message(&channel, &message_id, Some((&body, revision)))
+                        .edit_message(&channel, &message_id, &body, revision)
                         .await
                 }
             }

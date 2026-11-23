@@ -11,7 +11,7 @@ export const en = {
   joinAction: "Join server",
   identityNotice:
     "Your identity stays on this device. Clearing site data creates a new identity; a nickname cannot restore it.",
-  adminLogin: "Staff sign in",
+  staffSignIn: "Staff sign in",
   username: "Username",
   password: "Password",
   signIn: "Sign in",
@@ -226,7 +226,7 @@ export const pl: Record<keyof typeof en, string> = {
   joinAction: "Dołącz do serwera",
   identityNotice:
     "Twoja tożsamość zostaje na tym urządzeniu. Usunięcie danych strony tworzy nową tożsamość — nick nie pozwala jej odzyskać.",
-  adminLogin: "Logowanie obsługi serwera",
+  staffSignIn: "Logowanie obsługi serwera",
   username: "Nazwa użytkownika",
   password: "Hasło",
   signIn: "Zaloguj się",

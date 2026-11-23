@@ -96,7 +96,7 @@ func run() error {
 	defer stop()
 	var workers sync.WaitGroup
 	workers.Go(func() { mediaService.Reconcile(ctx) })
-	workers.Go(func() { api.RetainMessages(ctx) })
+	workers.Go(func() { api.RunMessageRetention(ctx) })
 	defer func() { stop(); workers.Wait() }()
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()

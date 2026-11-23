@@ -54,7 +54,7 @@ func (c *AuthClient) post(ctx context.Context, path string, body, result any) er
 	}
 	return json.Unmarshal(data, result)
 }
-func (c *AuthClient) Active(ctx context.Context, account Account) error {
+func (c *AuthClient) CheckSessionActive(ctx context.Context, account Account) error {
 	if account.SessionID == "" {
 		return ErrUnauthorized
 	}
@@ -70,7 +70,7 @@ func (c *AuthClient) Active(ctx context.Context, account Account) error {
 	}
 	return nil
 }
-func (c *AuthClient) Provision(ctx context.Context, username, password string) (string, error) {
+func (c *AuthClient) BootstrapOwner(ctx context.Context, username, password string) (string, error) {
 	return c.provision(ctx, "/internal/bootstrap", username, password)
 }
 
