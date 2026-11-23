@@ -17,7 +17,7 @@ Identifiers follow each language's conventions, such as TypeScript `channelId`, 
 
 ## Separate behavior fix
 
-A failed GPUI delete or moderation request used to lose its error when the user switched away from the originating channel. Both actions now record their result in the active or cached chat that started the request. The regression test simulates a failed response after the user switches channels. It verifies that the original chat keeps the error, the visible channel remains unaffected, and a result for a superseded chat generation is discarded.
+A failed GPUI delete or moderation request used to lose its error when the user switched away from the originating channel or a later action succeeded. Each channel now keeps its latest delete or moderation error separate from send and edit errors. The user can dismiss it from the chat footer. Regression tests cover a failure followed by success in both active and cached channels, an independent message submission, and a response for a superseded chat generation.
 
 ## Verification
 
@@ -25,3 +25,4 @@ A failed GPUI delete or moderation request used to lose its error when the user 
 - Go passed `go vet ./...`, `go test -race ./...`, and `pnpm test:integration` with disposable PostgreSQL and LiveKit instances. The integration suite exercised AUTH session validation, logout, and media revocation.
 - The Compose smoke suite (`scripts/test-containers.ts`) passed with the rebuilt Go server in a disposable loopback project. It covered owner bootstrap and sign-in, guest admission, chat edit and deletion, moderation, and rejection of revoked account sessions.
 - GPUI passed `cargo fmt --check`, locked offline Clippy with warnings denied, four ordinary unit tests, and the locked offline release build on Ubuntu ARM64. The separate live GPUI signaling test remained ignored. This follow-up did not rerun the Windows UI or physical microphone checks.
+- The chat action review follow-up passed `pnpm check`, `cargo fmt --check`, locked offline Clippy with warnings denied, 10 GPUI unit tests, and the locked offline GPUI release build on Ubuntu 26.04 ARM64. The live signaling test remained ignored. The new footer was not verified interactively on Windows.

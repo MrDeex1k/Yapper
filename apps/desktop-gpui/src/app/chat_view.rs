@@ -180,6 +180,29 @@ impl Yapper {
                         chat.error
                             .map(|err| status(self.language.failure(err)).text_color(rgb(DANGER))),
                     )
+                    .when_some(chat.action_error, |area, error| {
+                        let generation = chat.generation;
+                        area.child(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .items_center()
+                                .gap(px(8.))
+                                .child(status(self.language.failure(error)).text_color(rgb(DANGER)))
+                                .child(
+                                    outline_button("dismiss-chat-action-error", cx)
+                                        .label(copy.dismiss_chat_action_error)
+                                        .on_click(cx.listener(move |app, _, _, cx| {
+                                            if let Some(chat) = &mut app.chat
+                                                && chat.generation == generation
+                                            {
+                                                chat.action_error = None;
+                                                cx.notify();
+                                            }
+                                        })),
+                                ),
+                        )
+                    })
                     .children(self.render_error())
                     .when(!admission.credential_saved, |area| {
                         area.child(status(copy.unsaved))

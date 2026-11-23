@@ -16,6 +16,7 @@ pub(super) struct Chat {
     pub(super) messages: Option<Vec<Message>>,
     pub(super) error: Option<Failure>,
     pub(super) send_error: Option<Failure>,
+    pub(super) action_error: Option<Failure>,
     pub(super) sending: bool,
     pub(super) scroll: ScrollHandle,
     pub(super) before: i64,
@@ -51,6 +52,7 @@ impl Chat {
             messages: None,
             error: None,
             send_error: None,
+            action_error: None,
             sending: false,
             scroll: ScrollHandle::new(),
             before: 0,
@@ -151,14 +153,17 @@ fn record_chat_action_result(
     result: Result<(), Failure>,
 ) -> bool {
     if let Some(chat) = active_chat.filter(|chat| chat.generation == generation) {
-        chat.send_error = result.err();
+        if let Err(error) = result {
+            chat.action_error = Some(error);
+        }
         return true;
     }
-    if let Some(chat) = inactive_chats
-        .get_mut(channel_id)
-        .filter(|chat| chat.generation == generation)
+    if let Err(error) = result
+        && let Some(chat) = inactive_chats
+            .get_mut(channel_id)
+            .filter(|chat| chat.generation == generation)
     {
-        chat.send_error = result.err();
+        chat.action_error = Some(error);
     }
     false
 }
@@ -594,9 +599,16 @@ mod tests {
             generation,
             Err(Failure::Denied),
         ));
-        assert_eq!(active_chat.send_error, None);
+        assert!(!record_chat_action_result(
+            Some(&mut active_chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Ok(()),
+        ));
+        assert_eq!(active_chat.action_error, None);
         let restored_chat = inactive_chats.remove("general").expect("cached chat");
-        assert_eq!(restored_chat.send_error, Some(Failure::Denied));
+        assert_eq!(restored_chat.action_error, Some(Failure::Denied));
 
         let mut replacement = Chat::new("general".to_owned());
         assert!(!record_chat_action_result(
@@ -606,6 +618,38 @@ mod tests {
             generation,
             Err(Failure::Denied),
         ));
-        assert_eq!(replacement.send_error, None);
+        assert_eq!(replacement.action_error, None);
+    }
+
+    #[test]
+    fn active_chat_keeps_action_error_after_success_and_message_submission() {
+        let mut chat = Chat::new("general".to_owned());
+        let generation = chat.generation;
+        let mut inactive_chats = HashMap::new();
+
+        assert!(record_chat_action_result(
+            Some(&mut chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Err(Failure::Denied),
+        ));
+        assert!(record_chat_action_result(
+            Some(&mut chat),
+            &mut inactive_chats,
+            "general",
+            generation,
+            Ok(()),
+        ));
+        assert_eq!(chat.action_error, Some(Failure::Denied));
+        assert_eq!(chat.send_error, None);
+
+        let _ = chat.begin_submission("new message");
+        assert_eq!(chat.finish_submission(Err(Failure::Network), true), None);
+        assert_eq!(chat.send_error, Some(Failure::Network));
+        let _ = chat.begin_submission("new message");
+        assert_eq!(chat.finish_submission(Ok(()), true), Some(String::new()));
+        assert_eq!(chat.send_error, None);
+        assert_eq!(chat.action_error, Some(Failure::Denied));
     }
 }
