@@ -156,12 +156,13 @@ async fn call(
 }
 
 fn peers(room: &Room) -> Vec<String> {
-    let mut names: Vec<_> = room
-        .remote_participants()
-        .values()
-        .map(RemoteParticipant::name)
-        .collect();
-    names.sort();
+    let mut names = vec![room.local_participant().name()];
+    names.extend(
+        room.remote_participants()
+            .values()
+            .map(RemoteParticipant::name),
+    );
+    names[1..].sort();
     names
 }
 
@@ -221,6 +222,7 @@ mod tests {
         )
         .await;
         if let Ok(Ok((room, _events))) = connected {
+            let participants = peers(&room);
             let closed = room.close().await;
             guest
                 .session
@@ -228,6 +230,11 @@ mod tests {
                 .await
                 .expect("release media admission");
             assert!(closed.is_ok(), "close the LiveKit connection");
+            assert_eq!(
+                participants.first().map(String::as_str),
+                Some(guest.membership.participant.nickname.as_str()),
+                "the voice roster starts with the local participant even when alone",
+            );
         } else {
             let _ = guest.session.leave(&grant.identity).await;
             panic!("LiveKit connection through the Go signaling gate failed");
