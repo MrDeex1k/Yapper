@@ -1,8 +1,10 @@
 import SwiftUI
+#if os(iOS)
 import YapperShared
+#endif
 
 struct StaffSettings: View {
-    @EnvironmentObject var model: MobileModel
+    @EnvironmentObject var model: CommunityModel
     @Environment(\.dismiss) private var dismiss
     @State private var section: String?
     @State private var cursor = ""
@@ -28,7 +30,7 @@ struct StaffSettings: View {
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
             }.background(appBackground)
                 .navigationTitle(t(section ?? "preferences"))
-                .navigationBarTitleDisplayMode(.inline)
+                .inlineAppleTitle()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button(t("dismiss")) { dismiss() } } }
         }
         .sheet(isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
@@ -53,7 +55,7 @@ struct StaffSettings: View {
                         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .background(appBackground)
-                    .navigationTitle(pending.label).navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle(pending.label).inlineAppleTitle()
                     .toolbar { ToolbarItem(placement: .cancellationAction) {
                         Button(t("cancel")) { self.pending = nil }.disabled(model.state.busy)
                     } }
@@ -63,13 +65,21 @@ struct StaffSettings: View {
             }
         }
         .alert(t("invitationCode"), isPresented: Binding(get: { invitation != nil }, set: { if !$0 { invitation = nil } })) {
-            Button(t("copy")) { UIPasteboard.general.string = invitation; invitation = nil }
+            Button(t("copy")) { if let invitation {
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(invitation, forType: .string)
+                    #else
+                    UIPasteboard.general.string = invitation
+                    #endif
+                }
+                invitation = nil }
             Button(t("dismiss"), role: .cancel) { invitation = nil }
         } message: { Text(invitation ?? "") }
     }
 
     private var sections: some View {
-        let names = StaffKt.staffSections(role: model.state.membership?.participant.role ?? "")
+        let names = staffSectionsForRole(model.state.membership?.participant.role ?? "")
         return ForEach(names, id: \.self) { name in
             let title = t(name)
             Button {

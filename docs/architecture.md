@@ -42,7 +42,7 @@ Stage 2 validates Windows and Linux GPUI integration with a prototype. Stage 4 p
 
 ## Native mobile direction
 
-[Stage 6](stage-6-mobile-plan.md) uses Kotlin Multiplatform for shared HTTP, event handling, and community state. The Android interface uses Kotlin and Jetpack Compose. The iOS and iPadOS interface uses Swift and SwiftUI. Both use the same versioned server contract as Web and desktop. Platform code owns secure storage, the LiveKit SDK, microphone permission, audio routing, and background call lifecycle. Go remains authoritative for admission and permissions. Reuse of the shared module in macOS is a Stage 7 decision.
+[Stage 6](stage-6-mobile-plan.md) uses Kotlin Multiplatform for shared HTTP, event handling, and community state. The Android interface uses Kotlin and Jetpack Compose. The iOS and iPadOS interface uses Swift and SwiftUI. Both use the same versioned server contract as Web and desktop. Platform code owns secure storage, the LiveKit SDK, microphone permission, audio routing, and background call lifecycle. Go remains authoritative for admission and permissions. The macOS target implements the same protocol in Swift. Foundation handles HTTP and event sockets, Keychain stores credentials by origin, and the LiveKit Swift SDK handles media. Apple clients share SwiftUI components and the Swift room adapter. Only the mobile Apple target links the Kotlin framework.
 
 ## Identity and authorization
 

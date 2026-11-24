@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import YapperShared
+#endif
 
 private struct SymbolButton: View {
     let symbol: String
@@ -11,25 +13,31 @@ private struct SymbolButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 17, weight: .medium))
+                #if os(macOS)
+                .frame(width: 28, height: 28)
+                #else
                 .frame(width: 44, height: 44)
+                #endif
                 .contentShape(Rectangle())
         }
         .foregroundStyle(color.opacity(enabled ? 1 : 0.4))
         .buttonStyle(.plain)
         .disabled(!enabled)
         .accessibilityLabel(title)
+        .help(title)
     }
 }
 
+#if os(iOS)
 struct Workspace: View {
-    @EnvironmentObject var model: MobileModel
+    @EnvironmentObject var model: CommunityModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var drawer = false
     @State private var staffPanel = false
     @State private var audioPanel = false
     @FocusState private var composerFocused: Bool
 
-    private var state: MobileState { model.state }
+    private var state: CommunityState { model.state }
     private func t(_ key: String) -> String { model.text(key) }
 
     var body: some View {
@@ -205,8 +213,10 @@ struct Workspace: View {
     }
 }
 
-private struct Chat: View {
-    @EnvironmentObject var model: MobileModel
+#endif
+
+struct Chat: View {
+    @EnvironmentObject var model: CommunityModel
     @State private var draft = ""
     @State private var editing: Message?
     @State private var confirming: Message?
@@ -215,7 +225,7 @@ private struct Chat: View {
     @State private var editBody = ""
     var composerFocused: FocusState<Bool>.Binding
 
-    private var state: MobileState { model.state }
+    private var state: CommunityState { model.state }
     private var actionsAllowed: Bool { !state.busy && state.connectionProblem == nil }
     private func t(_ key: String) -> String { model.text(key) }
 
@@ -234,7 +244,7 @@ private struct Chat: View {
                         .font(.caption.weight(.semibold)).frame(minHeight: 44)
                 }.padding(.horizontal, 14)
             }
-            if PendingSendsKt.messageLength(body: draft) > 2000 {
+            if chatMessageLength(draft) > 2000 {
                 Text(t("invalid_message")).font(.caption).foregroundStyle(danger)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14)
             }
@@ -245,16 +255,17 @@ private struct Chat: View {
                 HStack(spacing: 4) {
                     TextField(t("messagePlaceholder"), text: $draft,
                               prompt: Text(t("messagePlaceholder")).foregroundStyle(muted), axis: .vertical)
+                        #if os(macOS)
+                        .textFieldStyle(.plain)
+                        .onSubmit(sendDraft)
+                        #endif
                         .lineLimit(1...4).padding(10).frame(minHeight: 44)
                         .focused(composerFocused)
                         .background(panel, in: .rect(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(composerFocused.wrappedValue ? accent : controlLine))
                         .disabled(state.connectionProblem != nil)
                     SymbolButton(symbol: "arrow.right", title: t("send"), color: accent,
-                                 enabled: PendingSendsKt.validMessage(body: draft) && actionsAllowed) {
-                        let sent = draft
-                        model.client.send(body: sent) { success in if success.boolValue && draft == sent { draft = "" } }
-                    }
+                                 enabled: validChatMessage(draft) && actionsAllowed, action: sendDraft)
                 }.padding(.horizontal, 10).padding(.vertical, 8)
             }
         }
@@ -269,20 +280,20 @@ private struct Chat: View {
                         .padding(8).scrollContentBackground(.hidden)
                         .background(panel, in: .rect(cornerRadius: 9))
                         .overlay(RoundedRectangle(cornerRadius: 9).stroke(controlLine))
-                    if PendingSendsKt.messageLength(body: editBody) > 2000 {
+                    if chatMessageLength(editBody) > 2000 {
                         Text(t("invalid_message")).foregroundStyle(danger)
                     } else if let error = state.error {
                         Text(t(error)).foregroundStyle(danger)
                     }
-                    Primary(title: t("save"), enabled: actionsAllowed && PendingSendsKt.validMessage(body: editBody)) {
+                    Primary(title: t("save"), enabled: actionsAllowed && validChatMessage(editBody)) {
                         guard let editing else { return }
                         model.client.edit(message: editing, body: editBody) { saved in
-                            if saved.boolValue { self.editing = nil }
+                            if appleBool(saved) { self.editing = nil }
                         }
                     }
                     Spacer()
                 }.padding(16).background(appBackground)
-                    .navigationTitle(t("editMessage")).navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle(t("editMessage")).inlineAppleTitle()
                     .toolbar { ToolbarItem(placement: .cancellationAction) {
                         Button(t("cancel")) { editing = nil }
                     } }
@@ -295,6 +306,12 @@ private struct Chat: View {
                 .disabled(!actionsAllowed)
             Button(t("cancel"), role: .cancel) {}
         } message: { _ in Text(t("confirmMessageDelete")) }
+    }
+
+    private func sendDraft() {
+        guard actionsAllowed, validChatMessage(draft) else { return }
+        let sent = draft
+        model.client.send(body: sent) { success in if appleBool(success) && draft == sent { draft = "" } }
     }
 
     private var empty: some View {

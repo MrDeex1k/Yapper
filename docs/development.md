@@ -9,7 +9,9 @@ Current monorepo layout; exact packages are listed by pnpm:
 ```text
 apps/web/          React application and administration UI
 apps/desktop/      Stage 1 Electron development shell and historical smoke tooling
-apps/desktop-gpui/ Rust/GPUI prototype for Windows and Linux
+apps/desktop-gpui/ Rust/GPUI desktop app for Windows and Linux
+apps/macos/        Native Swift and SwiftUI macOS client
+apps/mobile/       Android and iOS clients, shared Kotlin module and Apple Xcode project
 apps/auth/         Bun, Elysia 2 RC, Better Auth
 apps/landing/      Astro project website
 packages/ui/      Shared design-system components

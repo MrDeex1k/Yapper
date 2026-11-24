@@ -1,6 +1,6 @@
 # Implementation plan
 
-**Stages 0–4 are closed. Stage 5 is deferred. Stage 6 mobile client implementation is active.** The maintainer closed Stage 4 on 2026-11-24 and moved native mobile and macOS ahead of stabilization. See [Validation](validation.md) for release evidence and outstanding platform checks.
+**Stages 0–4 are closed. Stage 5 is deferred. Stage 6 mobile validation and Stage 7 native macOS work are active.** The maintainer closed Stage 4 on 2026-11-24 and moved native mobile and macOS ahead of stabilization. See [Validation](validation.md) for release evidence and outstanding platform checks.
 
 Stages use completion gates rather than dates. Stage 6 can proceed while Stage 5 is deferred. Retain stage numbers so existing records remain traceable.
 
@@ -123,7 +123,7 @@ Start with guest admission and a two-way audio proof on real phones, then delive
 
 ## Stage 7 — Native macOS client
 
-**Status: queued after the initial mobile work.** Develop the dedicated Swift/SwiftUI macOS application using the established protocol and product behavior. At stage entry, decide supported macOS versions, the Web-to-native transition, and which Apple-side mobile code can be reused.
+**Status: implementation in progress.** The first target is macOS 26 or later on Apple Silicon. The desktop application uses SwiftUI, Foundation networking, Keychain and the LiveKit Swift SDK. Mobile keeps its Kotlin Multiplatform client. The Mac target shares Swift presentation and audio code with iOS. See the [Mac build and Web transition](../apps/macos/README.md) and [verification record](evidence/stage-7-macos.md).
 
 **Completion gate:** verify core scenarios, media behavior, package installation, and the documented transition from Web.
 

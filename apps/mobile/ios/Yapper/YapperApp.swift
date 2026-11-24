@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import YapperShared
+#endif
 
 let appBackground = Color(red: 27/255, green: 27/255, blue: 30/255)
 let navigation = Color(red: 17/255, green: 17/255, blue: 19/255)
@@ -12,9 +14,10 @@ let muted = Color(red: 166/255, green: 166/255, blue: 174/255)
 let accent = Color(red: 172/255, green: 137/255, blue: 252/255)
 let danger = Color(red: 1, green: 180/255, blue: 185/255)
 
+#if os(iOS)
 @main
 struct YapperApp: App {
-    @StateObject private var model = MobileModel()
+    @StateObject private var model = CommunityModel()
 
     var body: some Scene {
         WindowGroup {
@@ -32,11 +35,19 @@ struct YapperApp: App {
     }
 }
 
+#endif
+
+#if os(iOS)
+typealias EntryKeyboard = UIKeyboardType
+#else
+enum EntryKeyboard { case `default`, URL, numberPad }
+#endif
+
 struct Field: View {
     let label: String
     @Binding var value: String
     var protected = false
-    var keyboard: UIKeyboardType = .default
+    var keyboard: EntryKeyboard = .default
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -44,9 +55,18 @@ struct Field: View {
             Text(label).font(.subheadline).foregroundStyle(muted)
             Group {
                 if protected { SecureField(label, text: $value).textContentType(.password) }
-                else { TextField(label, text: $value).keyboardType(keyboard) }
+                else {
+                    TextField(label, text: $value)
+                        #if os(iOS)
+                        .keyboardType(keyboard)
+                        #endif
+                }
             }
+            #if os(iOS)
             .textInputAutocapitalization(.never)
+            #else
+            .textFieldStyle(.plain)
+            #endif
             .autocorrectionDisabled()
             .focused($focused)
             .padding(.horizontal, 12)
@@ -75,7 +95,7 @@ struct Primary: View {
 }
 
 struct LanguageButton: View {
-    @EnvironmentObject var model: MobileModel
+    @EnvironmentObject var model: CommunityModel
     var body: some View {
         Button(action: model.changeLanguage) {
             Text(model.language.uppercased()).font(.subheadline.weight(.medium))
@@ -87,7 +107,7 @@ struct LanguageButton: View {
 }
 
 struct Entry: View {
-    @EnvironmentObject var model: MobileModel
+    @EnvironmentObject var model: CommunityModel
     @State private var address = ""
     @State private var nickname = ""
     @State private var invitation = ""
@@ -95,7 +115,7 @@ struct Entry: View {
     @State private var password = ""
     @State private var staff = false
 
-    private var state: MobileState { model.state }
+    private var state: CommunityState { model.state }
     private func t(_ key: String) -> String { model.text(key) }
 
     var body: some View {
@@ -181,5 +201,15 @@ struct Entry: View {
         }
         .padding(12).background(panel, in: .rect(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(divider))
+    }
+}
+
+extension View {
+    @ViewBuilder func inlineAppleTitle() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
     }
 }
