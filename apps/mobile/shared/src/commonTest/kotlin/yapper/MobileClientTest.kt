@@ -162,9 +162,122 @@ class MobileClientTest {
         }
     }
 
+    @Test
+    fun failedRemoteSignOutCannotRestoreStaffCredentials() = runTest {
+        for (failure in listOf(ServerError("expired", 401), IllegalStateException("Timed out"))) {
+            val store = MemoryStore().apply { saveSecret("staff:$ORIGIN", "staff-session") }
+            val backend = Fixture()
+            val release = CompletableDeferred<Unit>()
+            var attempted = false
+            backend.intercept = { path ->
+                when (path) {
+                    "/api/auth/token" -> Reply("""{"token":"account-token"}""")
+                    "/api/auth/sign-out" -> {
+                        attempted = true
+                        release.await()
+                        throw failure
+                    }
+                    else -> null
+                }
+            }
+            val client = MobileClient(store, false, backend, StandardTestDispatcher(testScheduler))
+            try {
+                client.connect(ORIGIN)
+                runCurrent()
+                assertEquals("chat", client.state.screen)
+                client.signOut()
+                runCurrent()
+                assertTrue(attempted)
+                assertNull(store.readSecret("staff:$ORIGIN"))
+                assertEquals("join", client.state.screen)
+                release.complete(Unit)
+                runCurrent()
+                assertEquals("remote_sign_out_unconfirmed", client.state.error)
+                client.connect(ORIGIN)
+                runCurrent()
+                assertEquals("join", client.state.screen)
+            } finally { client.dispose() }
+        }
+    }
+
+    @Test
+    fun postArchiveRefreshFollowsInflightMembershipRead() = runTest {
+        val backend = Fixture()
+        val release = CompletableDeferred<Unit>()
+        var reads = 0
+        var archived = false
+        backend.intercept = { path ->
+            when (path) {
+                "/api/v1/me" -> {
+                    val channelState = MEMBERSHIP.replace("\"kind\":\"text\"", "\"kind\":\"text\",\"archived\":$archived")
+                    if (++reads == 2) release.await()
+                    Reply(channelState)
+                }
+                "/api/v1/channels/general/archive" -> { archived = true; Reply("{}") }
+                else -> null
+            }
+        }
+        val client = MobileClient(guest(), false, backend, StandardTestDispatcher(testScheduler))
+        try {
+            client.connect(ORIGIN)
+            runCurrent()
+            client.applyStaff(StaffOption("Archive", "archiveChannel", "general"), emptyList()) {}
+            runCurrent()
+            assertTrue(archived)
+            assertEquals(2, reads)
+            release.complete(Unit)
+            runCurrent()
+            assertEquals(3, reads)
+            assertEquals(true, client.state.channel?.archived)
+        } finally { client.dispose() }
+    }
+
+    @Test
+    fun admissionPageReadsCurrentServerSetting() = runTest {
+        val backend = Fixture()
+        val client = MobileClient(guest(), false, backend, StandardTestDispatcher(testScheduler))
+        try {
+            client.connect(ORIGIN)
+            runCurrent()
+            backend.intercept = { path -> when (path) {
+                "/api/v1/state" -> Reply("""{"name":"Yapper","configured":true,"openAdmission":false}""")
+                else -> null
+            } }
+            var page: StaffPage? = null
+            client.staffPage("admissionSettings", "", "en") { page = it }
+            runCurrent()
+            assertEquals(false, client.state.installation?.openAdmission)
+            assertEquals("open", page?.items?.first()?.actions?.first()?.key)
+        } finally { client.dispose() }
+    }
+
+    @Test
+    fun bannedGuestCanReceiveAnIpBlockOnce() = runTest {
+        val backend = Fixture()
+        val client = MobileClient(guest(), false, backend, StandardTestDispatcher(testScheduler))
+        try {
+            client.connect(ORIGIN)
+            runCurrent()
+            for (blocked in listOf(false, true)) {
+                backend.intercept = { path ->
+                    if (path == "/api/v1/participants") Reply(
+                        """{"members":[{"id":"other","role":"participant","banned":true,"canBlockIp":true,"ipBlocked":$blocked}]}"""
+                    ) else null
+                }
+                var page: StaffPage? = null
+                client.staffPage("participants", "", "en") { page = it }
+                runCurrent()
+                val keys = requireNotNull(page).items.single().actions.map { it.key }
+                assertTrue("mod:unban" in keys)
+                assertEquals(!blocked, "mod:banIp" in keys)
+            }
+        } finally { client.dispose() }
+    }
+
     private fun guest() = MemoryStore().apply { saveSecret("guest:$ORIGIN", "guest-session") }
 
     private class Fixture : MobileTransport {
+        var intercept: suspend (String) -> Reply? = { null }
         var tickets = 0
         var invitations = 0
         var deltas = 0
@@ -185,7 +298,7 @@ class MobileClientTest {
             cookie: String?,
             bearer: String?,
             methodOverride: HttpMethod?,
-        ): Reply = when {
+        ): Reply = intercept(path) ?: when {
             path == "/api/v1/state" -> Reply("""{"name":"Yapper","configured":true,"openAdmission":true}""")
             path == "/api/v1/me" -> {
                 if (failRefresh) error("Membership fetch failed")

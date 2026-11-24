@@ -42,6 +42,7 @@ class MobileClient internal constructor(
     private class Session(val origin: String, val staff: Boolean, secret: String) {
         val cookie = "${cookieName(origin, staff)}=$secret"
         val tokenLock = Mutex()
+        val membershipLock = Mutex()
         var accountToken: Pair<String, TimeMark>? = null
     }
 
@@ -244,10 +245,13 @@ class MobileClient internal constructor(
 
     private suspend fun syncMember() {
         val authenticated = session ?: return
-        val next = wire.decodeFromString<Membership>(request("/api/v1/me", authenticated = authenticated))
-        if (session !== authenticated) return
-        val channel = next.channels.find { it.id == state.channel?.id }
-        set(state.copy(membership = next, channel = channel ?: state.channel))
+        authenticated.membershipLock.withLock {
+            if (session !== authenticated) return
+            val next = wire.decodeFromString<Membership>(request("/api/v1/me", authenticated = authenticated))
+            if (session !== authenticated) return
+            val channel = next.channels.find { it.id == state.channel?.id }
+            set(state.copy(membership = next, channel = channel ?: state.channel))
+        }
     }
 
     fun select(channel: Channel) {
@@ -327,7 +331,8 @@ class MobileClient internal constructor(
         syncChat()
     }
 
-    internal fun staffRequest(path: String, payload: String?, method: String, completion: (String?, String?) -> Unit) = action {
+    internal fun staffRequest(path: String, payload: String?, method: String,
+                              refreshAdmission: Boolean = false, completion: (String?, String?) -> Unit) = action {
         val role = state.membership?.participant?.role
         if (state.connectionProblem != null || role != "owner" && role != "moderator") {
             completion(null, "access_denied")
@@ -335,7 +340,12 @@ class MobileClient internal constructor(
         }
         require(path.startsWith("/api/v1/") && "://" !in path && ".." !in path)
         val reply = try {
-            request(path, payload?.let(wire::parseToJsonElement), HttpMethod.parse(method))
+            val body = request(path, payload?.let(wire::parseToJsonElement), HttpMethod.parse(method))
+            if (refreshAdmission) {
+                val installation = wire.decodeFromString<Installation>(transport.request(state.origin, "/api/v1/state").body)
+                set(state.copy(installation = installation))
+            }
+            body
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -440,16 +450,19 @@ class MobileClient internal constructor(
     }
 
     fun signOut() = action {
-        pendingGrant?.let { revokeVoice(it) }
-        if (session?.staff == true) {
-            request("/api/auth/sign-out", buildJsonObject {})
-            store.removeSecret("staff:${state.origin}")
-        } else {
-            store.removeSecret("guest:${state.origin}")
-        }
+        val authenticated = session ?: return@action
+        cancelVoice()
+        store.removeSecret("${if (authenticated.staff) "staff" else "guest"}:${authenticated.origin}")
         resetSession()
-        set(MobileState(origin = state.origin, installation = state.installation,
-            savedServers = state.savedServers, busy = true))
+        if (authenticated.staff) {
+            try {
+                request("/api/auth/sign-out", buildJsonObject {}, authenticated = authenticated)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                set(state.copy(error = "remote_sign_out_unconfirmed"))
+            }
+        }
     }
 
     private fun resetSession() {
