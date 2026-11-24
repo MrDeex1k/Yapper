@@ -5,7 +5,7 @@
 | Component              | Responsibility                                                                 | Implementation                                      |
 | ---------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
 | Web client             | Community UI, voice controls, moderation, administration                       | React, TypeScript, Tailwind, shadcn/ui with Base UI |
-| Windows/Linux desktop  | Community UI, saved servers, voice controls, and platform integration          | Rust and GPUI (planned)                             |
+| Windows/Linux desktop  | Community UI, saved servers, voice controls, and platform integration          | Rust and GPUI                                       |
 | Landing                | Public project information and downloads in EN/PL                              | Astro                                               |
 | Application server     | Guests, membership, permissions, channels, messages, presence, voice admission | Go                                                  |
 | Authentication service | Owner/moderator credentials and sessions, JWT signing and JWKS                 | Bun, TypeScript, Elysia 2 RC, Better Auth           |
@@ -15,7 +15,7 @@
 
 All runtime services for one community belong to one Docker Compose project. The landing is deployed independently. Start with one host and one application-server instance. Multi-host clustering, Kubernetes, and federation are deferred.
 
-Build-time tooling is separate from this runtime topology. pnpm owns JS/TS dependencies, Turborepo schedules repository tasks, Vite builds the React client, and Bun executes AUTH. Cargo will own the desktop build and Rust dependencies. See the [approved toolchain](toolchain.md) for tool ownership and integration.
+Build-time tooling is separate from this runtime topology. pnpm owns JS/TS dependencies, Turborepo schedules repository tasks, Vite builds the React client, and Bun executes AUTH. Cargo owns the GPUI desktop build and Rust dependencies. See the [approved toolchain](toolchain.md) for tool ownership and integration.
 
 ```mermaid
 flowchart LR
@@ -38,7 +38,11 @@ The diagram shows the architecture for the first private release. HTTP ingress a
 
 Rust and [GPUI](https://gpui.rs/) target Windows and Linux. GPUI renders the desktop interface. Native Rust code handles HTTP, WebSocket, session storage, and media integration. Web and all desktop clients share the versioned server contract and product behavior, including EN/PL copy. Go remains authoritative for application permissions and LiveKit continues to carry voice.
 
-Stage 2 validates Windows and Linux GPUI integration with a prototype. Stage 4 packages the native client for those platforms. macOS uses Web for the first private release and gains a dedicated Swift client in Stage 8. The Stage 1 Electron shell is a frozen development reference. See the [implementation plan](implementation-plan.md#stage-4--desktop-and-first-private-release).
+Stage 2 validates Windows and Linux GPUI integration with a prototype. Stage 4 packages the native client for those platforms. macOS uses Web for the first private release and gains a dedicated Swift client in [Stage 7](implementation-plan.md#stage-7--native-macos-client). The Stage 1 Electron shell is a frozen development reference. See the [Stage 4 release plan](implementation-plan.md#stage-4--desktop-and-first-private-release).
+
+## Native mobile direction
+
+[Stage 6](stage-6-mobile-plan.md) uses Kotlin Multiplatform for shared HTTP, event handling, and community state. The Android interface uses Kotlin and Jetpack Compose. The iOS and iPadOS interface uses Swift and SwiftUI. Both use the same versioned server contract as Web and desktop. Platform code owns secure storage, the LiveKit SDK, microphone permission, audio routing, and background call lifecycle. Go remains authoritative for admission and permissions. Reuse of the shared module in macOS is a Stage 7 decision.
 
 ## Identity and authorization
 
@@ -81,9 +85,7 @@ Go stores the latest verified guest address for optional IP blocking. The ingres
 
 Chat history is stored in PostgreSQL and transported by the application protocol, not treated as durable LiveKit room data. Audio is not recorded. The Web client serializes active room replacement, and every leave identifies its own grant. A network recovery request can replace its previous grant only while it is still current and unrevoked. PostgreSQL tracks pending LiveKit removals so a replacement grant does not start voice alongside a stale session.
 
-Evaluate the LiveKit Rust SDK for the GPUI client. Verify that native signaling works through the public Go endpoint and that the client handles microphone permissions, audio input/output, direct media, TURN/TLS fallback, reconnect, and revocation. Choose and pin the media dependencies after the prototype validates the integration.
-
-Evaluate the LiveKit Rust SDK for the GPUI client. Verify that native signaling works through the public Go endpoint and that the client handles microphone permissions, audio input/output, direct media, TURN/TLS fallback, reconnect, and revocation. Choose and pin the media dependencies after the prototype validates the integration.
+GPUI uses the LiveKit Rust SDK with signaling through Go. The [desktop verification record](evidence/stage-4-desktop.md) records verified behavior and remaining platform checks. The [mobile plan](stage-6-mobile-plan.md) verifies the same signaling contract against the Android and Swift SDKs.
 
 ## Compatibility investigations
 

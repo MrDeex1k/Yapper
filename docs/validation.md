@@ -1,6 +1,6 @@
 # Validation and release evidence
 
-Stages 0 through 3 have passed their scoped acceptance gates. The first private release covers GPUI on Windows and Linux, and Web on the supported browsers. See the [Stage 0 evidence](evidence/stage-0.md), the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21), and the [Stage 2 acceptance record](evidence/stage-2-acceptance.md).
+Stages 0 through 3 have passed their scoped acceptance gates. The maintainer closed Stage 4 on 2026-11-24. The first-release client targets are GPUI on Windows and Linux and Web on supported browsers. The [desktop verification record](evidence/stage-4-desktop.md) and checklist below distinguish recorded results from outstanding release checks. See the [Stage 0 evidence](evidence/stage-0.md), the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21), and the [Stage 2 acceptance record](evidence/stage-2-acceptance.md).
 
 The [Stage 3 verification record](evidence/stage-3-automated.md#stage-3-implementation-verification) documents the local operational drills and capacity measurements. The maintainer confirmed the Windows GPUI and macOS Web [conversation during load](evidence/stage-3-automated.md#physical-acceptance-under-load).
 
@@ -82,3 +82,7 @@ Record global desktop push-to-talk and mobile background audio separately. Foreg
 - [ ] EN and PL are complete for the application and landing.
 - [ ] Known limits, signing status, supported versions, and performance environment are published with the private release.
 - [ ] No claim of E2EE, guaranteed anonymous-ban enforcement, unlimited scalability, or guaranteed mobile background voice is made.
+
+## Native mobile acceptance
+
+Stage 6 phone and tablet client implementation is active. The [mobile acceptance matrix](stage-6-mobile-plan.md#acceptance) defines Android and iOS checks against the existing server. The [mobile verification record](evidence/stage-6-mobile.md) tracks emulator and simulator results separately from real-device audio, background behavior and signing checks.

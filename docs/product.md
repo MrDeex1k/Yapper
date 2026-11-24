@@ -70,7 +70,7 @@ The initial supported products are:
 
 The first private release supports macOS through Web. Record supported OS/browser versions, CPU architectures, and Linux distributions or desktop sessions in the first-release platform matrix after validation.
 
-After stabilization, the roadmap is native Swift clients for iOS/iPadOS and Kotlin/Jetpack Compose clients for Android phones/tablets, then a Rust/Ratatui terminal client, then a dedicated Swift macOS client. The terminal client's precise voice and accessibility capabilities are scoped when that stage starts.
+The next priority is native mobile. Android phones and tablets use Kotlin and Jetpack Compose for the interface. iPhone and iPad use Swift and SwiftUI. Both share client logic through Kotlin Multiplatform. A dedicated Swift/SwiftUI macOS client follows, then a Rust/Ratatui terminal client. Stabilization is deferred. See the [mobile plan](stage-6-mobile-plan.md) for the first mobile milestone and acceptance criteria.
 
 ## Privacy and distribution
 
