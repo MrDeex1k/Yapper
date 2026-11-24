@@ -135,8 +135,29 @@ func (s *Service) current(ctx context.Context, mediaIdentity string) (community.
 	}
 	return m, err
 }
+
+// Native SDKs send their media grant as a bearer credential. Browser signaling
+// carries the grant in the URL and must still present the exact application origin.
+func signalingGrant(r *http.Request, origin string) (token string, bearer bool) {
+	origins := r.Header.Values("Origin")
+	if len(origins) > 1 || len(origins) == 1 && origins[0] != origin {
+		return "", false
+	}
+	query := r.URL.Query()["access_token"]
+	headers := r.Header.Values("Authorization")
+	if len(headers) == 1 && len(query) == 0 {
+		if value, ok := strings.CutPrefix(headers[0], "Bearer "); ok && !strings.ContainsAny(value, " ,\t") {
+			return value, true
+		}
+	}
+	if len(headers) == 0 && len(origins) == 1 && len(query) == 1 {
+		return query[0], false
+	}
+	return "", false
+}
+
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet || r.Header.Get("Origin") != s.origin {
+	if r.Method != http.MethodGet {
 		http.Error(w, "access denied", 403)
 		return
 	}
@@ -147,7 +168,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	raw := r.URL.Query().Get("access_token")
+	raw, bearer := signalingGrant(r, s.origin)
 	if len(raw) == 0 || len(raw) > 8192 {
 		http.Error(w, "access denied", 403)
 		return
@@ -176,6 +197,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.Out.URL.RawPath = ""
 			p.Out.Header.Del("Cookie")
 			p.Out.Header.Del("Authorization")
+			if bearer {
+				p.Out.Header.Set("Authorization", "Bearer "+raw)
+			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) { http.Error(w, "media unavailable", 502) },
 		ModifyResponse: func(response *http.Response) error {
