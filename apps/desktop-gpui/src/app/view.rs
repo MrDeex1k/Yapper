@@ -14,11 +14,10 @@ use crate::{
 use gpui::prelude::*;
 use gpui::{Context, Corner, Div, Entity, Focusable, FontWeight, Window, div, px, rgb};
 use gpui_component::{
-    Disableable, Sizable,
+    Disableable,
     button::{Button, ButtonCustomVariant, ButtonVariants},
     input::{Input, InputState},
     menu::{DropdownMenu, PopupMenuItem},
-    switch::Switch,
 };
 
 // These dimensions match the entry header and footer at the Web desktop breakpoint.
@@ -863,72 +862,20 @@ impl Yapper {
                     ),
             );
         let actions = self.voice_controls(call, if compact { 38. } else { 32. }, cx);
-        let mode = call.can_publish.then(|| self.voice_mode(call, cx));
 
-        let dock = div()
+        div()
             .flex_none()
             .w_full()
             .flex()
-            .gap(px(6.))
+            .items_center()
+            .gap(px(if compact { 12. } else { 4. }))
             .px(px(12.))
             .py(px(9.))
             .bg(rgb(NAVIGATION))
             .border_t_1()
-            .border_color(rgb(LINE));
-        if compact {
-            dock.items_center()
-                .gap(px(12.))
-                .child(summary)
-                .children(mode)
-                .child(actions)
-        } else {
-            dock.flex_col()
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(4.))
-                        .child(summary)
-                        .child(actions),
-                )
-                .children(mode)
-        }
-    }
-
-    fn voice_mode(&self, call: &Call, cx: &mut Context<Self>) -> Div {
-        let copy = self.language.copy();
-        let push_to_talk = self.microphone_mode.is_push_to_talk();
-        div()
-            .flex()
-            .flex_none()
-            .min_h(px(26.))
-            .items_center()
-            .justify_between()
-            .gap(px(8.))
-            .child(
-                Switch::new("push-to-talk")
-                    .small()
-                    .label(copy.push_to_talk)
-                    .checked(push_to_talk)
-                    .disabled(call.state != CallState::Connected)
-                    .tooltip(copy.push_to_talk_hint)
-                    .on_click(
-                        cx.listener(|app, _, window, cx| app.toggle_push_to_talk(window, cx)),
-                    ),
-            )
-            .when(push_to_talk, |mode| {
-                mode.child(
-                    div()
-                        .px(px(6.))
-                        .py(px(2.))
-                        .rounded(px(4.))
-                        .border_1()
-                        .border_color(rgb(CONTROL_LINE))
-                        .text_size(px(10.))
-                        .text_color(rgb(MUTED))
-                        .child(copy.push_to_talk_key),
-                )
-            })
+            .border_color(rgb(LINE))
+            .child(summary)
+            .child(actions)
     }
 
     fn voice_controls(&self, call: &Call, size: f32, cx: &mut Context<Self>) -> Div {
@@ -1018,19 +965,35 @@ impl Yapper {
 
     fn audio_devices(&self, call: &Call, size: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let copy = self.language.copy();
+        let app = cx.entity().downgrade();
+        let can_publish = call.can_publish;
+        let push_to_talk = self.microphone_mode.is_push_to_talk();
         let microphones = call.microphones.clone();
         let outputs = call.outputs.clone();
         let commands = call.commands.clone();
         voice_button(
             "audio-devices",
             "icons/sliders-horizontal.svg",
-            copy.audio_devices,
+            copy.audio_settings,
             MUTED,
             ButtonCustomVariant::new(cx).hover(rgb(HOVER).into()),
         )
         .size(px(size))
         .disabled(call.state != CallState::Connected)
         .dropdown_menu_with_anchor(Corner::BottomLeft, move |mut menu, _, _| {
+            if can_publish {
+                let app = app.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(format!(
+                        "{} ({})",
+                        copy.push_to_talk, copy.push_to_talk_key
+                    ))
+                    .checked(push_to_talk)
+                    .on_click(move |_, window, cx| {
+                        let _ = app.update(cx, |app, cx| app.toggle_push_to_talk(window, cx));
+                    }),
+                );
+            }
             let refresh = commands.clone();
             menu = menu.item(
                 PopupMenuItem::new(copy.refresh_devices).on_click(move |_, _, _| {

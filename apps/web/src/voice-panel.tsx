@@ -270,26 +270,26 @@ function VoiceSettings({ voice, locale }: { voice: Voice; locale: Locale }) {
   const t = messages[locale];
   return (
     <>
-      {voice.canUsePushToTalk && (
-        <label className="voice-push-mode">
-          <input
-            type="checkbox"
-            checked={voice.pushToTalk}
-            onChange={(e) => voice.setPushToTalk(e.target.checked)}
-          />
-          <span>
-            {t.pushToTalk}
-            <small>{t.pushToTalkHint}</small>
-          </span>
-        </label>
-      )}
       <details
         className="voice-device-settings"
         onToggle={(event) => {
           if (event.currentTarget.open) void voice.refreshDevices();
         }}
       >
-        <summary>{t.audioDevices}</summary>
+        <summary>{t.audioSettings}</summary>
+        {voice.canUsePushToTalk && (
+          <label className="voice-push-mode">
+            <input
+              type="checkbox"
+              checked={voice.pushToTalk}
+              onChange={(e) => voice.setPushToTalk(e.target.checked)}
+            />
+            <span>
+              {t.pushToTalk}
+              <small>{t.pushToTalkHint}</small>
+            </span>
+          </label>
+        )}
         <DeviceSelect kind="audioinput" value={voice.input} voice={voice} locale={locale} />
         {voice.supportsOutput ? (
           <>
