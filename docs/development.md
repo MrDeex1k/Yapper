@@ -90,6 +90,32 @@ Build container images and validate Compose configuration. For desktop packaging
 
 For each PR, state the resulting behavior, relevant tests and evidence, migration impact, and any remaining platform limits. A skipped or unavailable check is reported as unverified.
 
+## Go and Rust verification tools
+
+Run `./scripts/check-go-analysis.sh` from the repository root with the pinned Go toolchain. It runs Staticcheck and a focused set of go-critic checks for defects such as ignored cleanup, duplicate expressions and incorrect arguments. The linters use versioned `go run` invocations so their dependency graph stays separate from the server's. The HTTP and media packages check for leftover goroutines after their test suites. Run `cd server && go test -race ./...` to exercise those checks.
+
+Install the Rust analysis tools with Rustup and the repository's stable compiler:
+
+```sh
+rustup toolchain install 1.100.0 --profile minimal
+rustup toolchain install nightly-2026-11-23 --profile minimal --component miri,rust-src
+cargo +1.100.0 install --locked cargo-geiger@0.14.0 cargo-mutants@27.1.0
+cargo +1.100.0 install --locked kani-verifier@0.68.0
+cargo +1.100.0 kani setup
+```
+
+Kani's prebuilt setup covers macOS on Apple Silicon and Intel, and x86-64 Linux. Run it from a supported host. Windows developers can use an x86-64 Linux environment with the repository checked out there. The commands below use a POSIX shell.
+
+| Command                                                   | Scope                                                                                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `./scripts/check-rust.sh geiger`                          | Inventory unsafe constructs in the production voice policy.                                                                                                                           |
+| `./scripts/check-rust.sh geiger x86_64-unknown-linux-gnu` | Inventory the GPUI crate and its target's dependencies from a matching build environment. The [GPUI setup](../apps/desktop-gpui/README.md) applies. Treat the report as review input. |
+| `./scripts/check-rust.sh miri`                            | Interpret the policy's unit test with a pinned nightly and check the exercised paths for undefined behavior.                                                                          |
+| `./scripts/check-rust.sh mutants`                         | Check whether the policy test catches changes to production code. Reports are under `.tmp/voice-policy/mutants.out/`.                                                                 |
+| `./scripts/check-rust.sh kani`                            | Check all 16 combinations of intent, connection, publication permission, and deafen state against the policy's truth table.                                                           |
+
+The policy checks run without LiveKit, a display server, or audio devices. For a GPUI audit on Windows, use `x86_64-pc-windows-msvc` with the native prerequisites. Geiger uses a separate Cargo build directory under `.tmp/geiger/` because its scan cleans cached build outputs. See the [Stage 7.5 verification record](evidence/stage-7-5-verification.md) for results and coverage limits.
+
 ## Stage 1 Electron smoke test
 
 To reproduce the Stage 1 Electron development checks, run `pnpm build`, install the pinned Electron runtime, then run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.ts`.

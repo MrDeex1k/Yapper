@@ -10,7 +10,9 @@ require (
 	github.com/livekit/protocol v1.54.1
 	github.com/livekit/server-sdk-go/v2 v2.20.0
 	github.com/pion/turn/v5 v5.1.3
+	github.com/pion/webrtc/v4 v4.2.27
 	github.com/twitchtv/twirp v8.1.3+incompatible
+	go.uber.org/goleak v1.3.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -69,7 +71,6 @@ require (
 	github.com/pion/srtp/v3 v3.1.3 // indirect
 	github.com/pion/stun/v4 v4.0.1 // indirect
 	github.com/pion/transport/v5 v5.1.5 // indirect
-	github.com/pion/webrtc/v4 v4.2.27 // indirect
 	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.74.0 // indirect

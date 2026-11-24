@@ -8540,7 +8540,12 @@ dependencies = [
  "tokio-tungstenite",
  "url",
  "uuid",
+ "yapper-voice-policy",
 ]
+
+[[package]]
+name = "yapper-voice-policy"
+version = "0.1.0"
 
 [[package]]
 name = "yazi"

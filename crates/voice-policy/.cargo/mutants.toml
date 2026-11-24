@@ -1,0 +1,2 @@
+# The Kani harness checks production code and is not itself a mutation target.
+exclude_re = ["verification::"]
