@@ -1,0 +1,65 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 77;
+ objects = {
+  A00000000000000000000001 = {
+   isa = PBXProject;
+   attributes = { LastSwiftUpdateCheck = 2720; LastUpgradeCheck = 2720; };
+   buildConfigurationList = A0000000000000000000000B;
+   compatibilityVersion = "Xcode 16.0";
+   developmentRegion = en;
+   hasScannedForEncodings = 0;
+   knownRegions = (en, pl, Base);
+   mainGroup = A00000000000000000000003;
+   packageReferences = (A0000000000000000000000F);
+   preferredProjectObjectVersion = 77;
+   productRefGroup = A00000000000000000000004;
+   projectDirPath = "";
+   projectRoot = "";
+   targets = (A00000000000000000000002);
+  };
+  A00000000000000000000002 = {
+   isa = PBXNativeTarget;
+   buildConfigurationList = A0000000000000000000000C;
+   buildPhases = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009, A0000000000000000000000A);
+   buildRules = ();
+   dependencies = ();
+   fileSystemSynchronizedGroups = (A00000000000000000000005);
+   name = Yapper;
+   packageProductDependencies = (A00000000000000000000010);
+   productName = Yapper;
+   productReference = A00000000000000000000006;
+   productType = "com.apple.product-type.application";
+  };
+  A00000000000000000000003 = { isa = PBXGroup; children = (A00000000000000000000005, A00000000000000000000014, A00000000000000000000004); sourceTree = "<group>"; };
+  A00000000000000000000004 = { isa = PBXGroup; children = (A00000000000000000000006); name = Products; sourceTree = "<group>"; };
+  A00000000000000000000005 = { isa = PBXFileSystemSynchronizedRootGroup; path = Yapper; sourceTree = "<group>"; };
+  A00000000000000000000006 = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Yapper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+  A00000000000000000000007 = {
+   isa = PBXShellScriptBuildPhase;
+   alwaysOutOfDate = 1;
+   buildActionMask = 2147483647;
+   files = ();
+   name = "Build shared Kotlin framework";
+   runOnlyForDeploymentPostprocessing = 0;
+   shellPath = /bin/sh;
+   shellScript = "set -e\ncd \"$SRCROOT/..\"\ncase \"$PLATFORM_NAME\" in iphonesimulator) target=IosSimulatorArm64 ;; iphoneos) target=IosArm64 ;; *) exit 1 ;; esac\nif [ -z \"$JAVA_HOME\" ]; then JAVA_HOME=$(/usr/libexec/java_home -v 17+); export JAVA_HOME; fi\n./gradlew \":shared:link${CONFIGURATION}Framework${target}\"\n";
+  };
+  A00000000000000000000008 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  A00000000000000000000009 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000011); runOnlyForDeploymentPostprocessing = 0; };
+  A0000000000000000000000A = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  A0000000000000000000000B = { isa = XCConfigurationList; buildConfigurations = (A0000000000000000000000D, A0000000000000000000000E); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  A0000000000000000000000C = { isa = XCConfigurationList; buildConfigurations = (A00000000000000000000012, A00000000000000000000013); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  A0000000000000000000000D = { isa = XCBuildConfiguration; buildSettings = { SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+  A0000000000000000000000E = { isa = XCBuildConfiguration; buildSettings = {}; name = Release; };
+  A0000000000000000000000F = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/livekit/client-sdk-swift.git"; requirement = { kind = exactVersion; version = 2.20.0; }; };
+  A00000000000000000000010 = { isa = XCSwiftPackageProductDependency; package = A0000000000000000000000F; productName = LiveKit; };
+  A00000000000000000000011 = { isa = PBXBuildFile; productRef = A00000000000000000000010; };
+  A00000000000000000000012 = { isa = XCBuildConfiguration; baseConfigurationReference = A00000000000000000000014; buildSettings = { KMP_VARIANT = debug; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; }; name = Debug; };
+  A00000000000000000000013 = { isa = XCBuildConfiguration; baseConfigurationReference = A00000000000000000000014; buildSettings = { KMP_VARIANT = release; }; name = Release; };
+  A00000000000000000000014 = { isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Yapper.xcconfig; sourceTree = SOURCE_ROOT; };
+ };
+ rootObject = A00000000000000000000001;
+}

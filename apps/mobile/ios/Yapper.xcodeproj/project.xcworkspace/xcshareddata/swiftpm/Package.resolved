@@ -1,0 +1,33 @@
+{
+  "originHash" : "f23dc9251b30242b9d104cd8d1c7e5c16c31c611a03561a7fa74a136843469d9",
+  "pins" : [
+    {
+      "identity" : "client-sdk-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/livekit/client-sdk-swift.git",
+      "state" : {
+        "revision" : "d65a16d15a40b97007aed4fbf9f962ec806343ce",
+        "version" : "2.20.0"
+      }
+    },
+    {
+      "identity" : "livekit-ffi-xcframework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/livekit/livekit-ffi-xcframework.git",
+      "state" : {
+        "revision" : "e26f5ea129b7dd6f63e6887e845494a24cb1cd32",
+        "version" : "0.13.4"
+      }
+    },
+    {
+      "identity" : "webrtc-xcframework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/livekit/webrtc-xcframework.git",
+      "state" : {
+        "revision" : "b34647c69f8f048d5ed1df3ddcb478f346621653",
+        "version" : "150.7871.8"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Yapper uses your microphone when you unmute in a voice channel.";
+"NSLocalNetworkUsageDescription" = "Yapper can connect to a community server on your local network.";
