@@ -116,6 +116,39 @@ Kani's prebuilt setup covers macOS on Apple Silicon and Intel, and x86-64 Linux.
 
 The policy checks run without LiveKit, a display server, or audio devices. For a GPUI audit on Windows, use `x86_64-pc-windows-msvc` with the native prerequisites. Geiger uses a separate Cargo build directory under `.tmp/geiger/` because its scan cleans cached build outputs. See the [Stage 7.5 verification record](evidence/stage-7-5-verification.md) for results and coverage limits.
 
+## Web end-to-end tests
+
+`pnpm test:e2e` uses [Flashwright](https://github.com/xcodebeast/flashwright) pinned through the `@playwright/test` npm alias. The `playwright` CLI name comes from the alias. Tests use separate browser contexts, wait for animated controls, and keep the usual assertion timeout for live events. The runner disables the background warm session.
+
+Run from a development checkout with a current disposable `.env`, or use `pnpm setup:dev` to generate one in a fresh checkout. The browser fixture uses its own Compose project, PostgreSQL volumes, and loopback ingress at port 18090. LiveKit uses loopback ports 7881 and 7882.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm setup:dev
+pnpm exec playwright install chromium firefox webkit
+export YAPPER_DOMAIN=localhost YAPPER_PUBLIC_IP=127.0.0.1
+export YAPPER_AUTH_IMAGE=yapper-browser-auth:local
+export YAPPER_SERVER_IMAGE=yapper-browser-server:local
+export YAPPER_INGRESS_IMAGE=yapper-browser-ingress:local
+docker compose -p yapper-browser-test -f compose.yaml -f test/e2e/compose.yaml up -d --build --wait
+pnpm test:e2e
+docker compose -p yapper-browser-test -f compose.yaml -f test/e2e/compose.yaml down --volumes
+```
+
+The suite initializes the disposable installation using its setup token. Use `pnpm test:e2e --project=chromium` to run only Chromium. The suite covers invitations, channel management and form recovery, live chat and reload, and a muted voice join. Real-device audio, mobile browsers, and the other clients have separate acceptance checks. Keep the original tools named in historical evidence.
+
+If the bundled Firefox on macOS 27 fails with `Could not find profile folder`, run its project on Linux. This is a [known issue with the bundled browser](https://github.com/microsoft/playwright/issues/42768).
+
+With OrbStack running the fixture, run the Firefox project from the matching Linux browser image:
+
+```sh
+docker --context orbstack run --rm --network host -v "$PWD:/workspace" -w /workspace \
+  mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f \
+  node --env-file=.env test/e2e/run.ts --project=firefox
+```
+
+The Firefox test profile enables loopback ICE and uses IP candidates because the local LiveKit fixture runs across a container network without multicast DNS.
+
 ## Stage 1 Electron smoke test
 
 To reproduce the Stage 1 Electron development checks, run `pnpm build`, install the pinned Electron runtime, then run `pnpm test:desktop` on a desktop host with OS credential storage available. Supply `DESKTOP_TEST_SERVER` (an already configured disposable server origin) and `DESKTOP_TEST_INVITATION` (a fresh single-use invitation) through the environment. A private ignored environment file can be loaded with `node --env-file=.tmp/desktop-test.env scripts/test-desktop.ts`.

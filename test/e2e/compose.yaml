@@ -1,0 +1,23 @@
+# Loopback fixture for Web E2E tests. Use only with the base Compose file.
+x-origin: &origin http://127.0.0.1:18090
+services:
+  auth-migrate:
+    environment:
+      AUTH_BASE_URL: *origin
+      AUTH_ISSUER: *origin
+  auth:
+    environment:
+      AUTH_BASE_URL: *origin
+      AUTH_ISSUER: *origin
+  server-migrate:
+    environment:
+      AUTH_ISSUER: *origin
+  server:
+    environment:
+      AUTH_ISSUER: *origin
+  ingress:
+    environment:
+      YAPPER_DOMAIN: :8090
+    ports: !override ["127.0.0.1:18090:8090"]
+  livekit:
+    ports: !override ["127.0.0.1:7881:7881/tcp", "127.0.0.1:7882:7882/udp"]

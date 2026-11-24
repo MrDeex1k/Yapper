@@ -17,3 +17,15 @@ This stage adds local verification commands to the Go server and the Rust deskto
 The Linux arm64 GPUI Geiger scan compiled the crate and printed a dependency inventory. It reported zero unsafe constructs in Yapper's scanned Rust source and unsafe constructs in third-party crates. The tool exited with status 1 because 303 build inputs were outside its scan, including data files, native headers, assets, and generated Rust. Treat the inventory as partial and retain the diagnostic exit status.
 
 The Rust proof covers the local decision to publish microphone audio. It does not verify the asynchronous room lifecycle, the audio hardware, SDK FFI, or server authorization. The race suite and leak tests cover the Go paths exercised during this run. Windows verification remains open.
+
+## Flashwright browser coverage
+
+The repository previously recorded Playwright smoke results without a versioned browser runner or suite. Flashwright `1.64.1-flashwright.12` now provides the browser test runner. The suite runs against real Go, AUTH, PostgreSQL and LiveKit behind the loopback Compose ingress.
+
+- Invitations cover the initial list, refresh, creation, revocation, and hiding the revoked code. Chromium also exercises the staff sign-in form. Each run reuses an authenticated owner session for setup and other browsers to stay within the fixture's sign-in rate limit.
+- Channel management covers validation without a write, focus restoration, keeping and discarding drafts, recovery from an injected HTTP 503, and real create, rename, category change, and archive operations.
+- Chat covers delivery between two distinct guest sessions, persistence on reload, and switching to Polish. Voice covers joining muted, switching push-to-talk on and off, and confirming leave through the API.
+
+All 12 tests passed on Linux arm64 with Chromium 156, Firefox 157, and WebKit 27.2. Eight tests passed natively on macOS arm64 with Chromium and WebKit. The bundled Firefox could not start a temporary profile on macOS 27, so its project ran in the matching Linux browser image. The Firefox test profile uses loopback ICE and IP candidates for the local LiveKit fixture. Physical audio and mobile-browser acceptance were outside this run.
+
+The frozen pnpm install, `pnpm check`, and `git diff --check` passed.

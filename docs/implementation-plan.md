@@ -131,7 +131,9 @@ Start with guest admission and a two-way audio proof on real phones, then delive
 
 Add local Go and Rust verification independently of the macOS and terminal clients. Use goleak in the server suites that exercise HTTP and media lifecycles, and run pinned Staticcheck and go-critic commands. Use cargo-geiger for unsafe-code inventory. Run Miri, cargo-mutants, and Kani on the Rust microphone publication rule shared with the GPUI call loop.
 
-**Completion gate:** run the Go race suite and analysis, exercise each Rust tool on the production policy crate, and record the scope and results in the [Stage 7.5 verification record](evidence/stage-7-5-verification.md).
+Turn the previously manual browser smoke scenarios into a repeatable [Flashwright suite](development.md#web-end-to-end-tests).
+
+**Completion gate:** run the Go race suite and analysis, exercise each Rust tool on the production policy crate, and verify the Web scenarios in Chromium, Firefox, and WebKit. Record scope and results in the [Stage 7.5 verification record](evidence/stage-7-5-verification.md).
 
 ## Stage 8 — Rust terminal client
 
