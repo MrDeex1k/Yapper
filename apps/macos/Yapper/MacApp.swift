@@ -4,6 +4,7 @@ import LiveKit
 @main
 struct MacApp: App {
     @StateObject private var model = CommunityModel()
+    @StateObject private var audioRoutes = DesktopAudioRoutes()
     var body: some Scene {
         Window("Yapper", id: "community") {
             Group {
@@ -11,6 +12,7 @@ struct MacApp: App {
                 else { Entry().frame(maxWidth: .infinity, maxHeight: .infinity).background(appBackground) }
             }
             .environmentObject(model)
+            .environmentObject(audioRoutes)
             .foregroundStyle(foreground)
             .preferredColorScheme(.dark)
             .tint(accent)
@@ -203,15 +205,46 @@ struct DesktopWorkspace: View {
     }
 }
 
+@MainActor
+private final class DesktopAudioRoutes: ObservableObject {
+    @Published private(set) var inputs: [AudioDevice] = []
+    @Published private(set) var outputs: [AudioDevice] = []
+    // nil follows the system route. LiveKit can report an empty active ID while audio is idle.
+    @Published private(set) var inputID: String?
+    @Published private(set) var outputID: String?
+
+    private var manager: AudioManager { AudioManager.shared }
+
+    func observeDevices() {
+        manager.onDeviceUpdate = { [weak self] _ in Task { @MainActor in self?.refresh() } }
+        refresh()
+    }
+
+    func selectInput(_ id: String?) {
+        let device = inputs.first { $0.deviceId == id } ?? manager.defaultInputDevice
+        inputID = device.isDefault ? nil : device.deviceId
+        manager.inputDevice = device
+    }
+
+    func selectOutput(_ id: String?) {
+        let device = outputs.first { $0.deviceId == id } ?? manager.defaultOutputDevice
+        outputID = device.isDefault ? nil : device.deviceId
+        manager.outputDevice = device
+    }
+
+    private func refresh() {
+        inputs = manager.inputDevices.filter { !$0.isDefault }
+        outputs = manager.outputDevices.filter { !$0.isDefault }
+        if let inputID, !inputs.contains(where: { $0.deviceId == inputID }) { selectInput(nil) }
+        if let outputID, !outputs.contains(where: { $0.deviceId == outputID }) { selectOutput(nil) }
+    }
+}
+
 private struct DesktopAudioSettings: View {
     @EnvironmentObject var model: CommunityModel
     @Environment(\.dismiss) private var dismiss
     @Binding var pushToTalk: Bool
-    @State private var inputs: [AudioDevice] = []
-    @State private var outputs: [AudioDevice] = []
-    @State private var input = ""
-    @State private var output = ""
-    private let manager = AudioManager.shared
+    @EnvironmentObject private var routes: DesktopAudioRoutes
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -223,14 +256,10 @@ private struct DesktopAudioSettings: View {
                 Text(model.text("holdSpace")).font(.caption).foregroundStyle(muted)
                 Divider()
             }
-            devicePicker("inputDevice", devices: inputs, selected: input, system: manager.defaultInputDevice) {
-                manager.inputDevice = $0
-                input = manager.inputDevice.deviceId
-            }
-            devicePicker("outputDevice", devices: outputs, selected: output, system: manager.defaultOutputDevice) {
-                manager.outputDevice = $0
-                output = manager.outputDevice.deviceId
-            }
+            devicePicker("inputDevice", devices: routes.inputs,
+                         selection: Binding(get: { routes.inputID }, set: routes.selectInput))
+            devicePicker("outputDevice", devices: routes.outputs,
+                         selection: Binding(get: { routes.outputID }, set: routes.selectOutput))
             Divider()
             ScrollView {
                 ForEach(model.state.voice?.peers.filter { !$0.local } ?? [], id: \.id) { peer in
@@ -240,31 +269,15 @@ private struct DesktopAudioSettings: View {
             }
             HStack { Spacer(); Button(model.text("dismiss")) { dismiss() }.keyboardShortcut(.cancelAction) }
         }.padding(20)
-            .onAppear {
-                refresh()
-                manager.onDeviceUpdate = { _ in Task { @MainActor in refresh() } }
-            }
-            .onDisappear { manager.onDeviceUpdate = nil }
+            .onAppear(perform: routes.observeDevices)
     }
 
-    private func devicePicker(_ title: String, devices: [AudioDevice], selected: String,
-                              system: AudioDevice, select: @escaping (AudioDevice) -> Void) -> some View {
-        let selection = Binding(get: { selected }, set: { id in
-            if id == system.deviceId { select(system) }
-            else if let device = devices.first(where: { $0.deviceId == id }) { select(device) }
-        })
-        return Picker(model.text(title), selection: selection) {
-            Text(model.text("systemDefault")).tag(system.deviceId)
-            ForEach(devices.filter { !$0.isDefault && $0.deviceId != system.deviceId }) { device in
-                Text(device.name).tag(device.deviceId)
+    private func devicePicker(_ title: String, devices: [AudioDevice], selection: Binding<String?>) -> some View {
+        Picker(model.text(title), selection: selection) {
+            Text(model.text("systemDefault")).tag(nil as String?)
+            ForEach(devices) { device in
+                Text(device.name).tag(Optional(device.deviceId))
             }
         }
-    }
-
-    private func refresh() {
-        inputs = manager.inputDevices
-        outputs = manager.outputDevices
-        input = manager.inputDevice.deviceId
-        output = manager.outputDevice.deviceId
     }
 }
