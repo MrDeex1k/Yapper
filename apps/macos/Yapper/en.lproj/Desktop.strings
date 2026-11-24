@@ -125,6 +125,7 @@
 "serverAddress" = "Server address";
 "serverAddressHint" = "Enter a trusted HTTPS domain or IP address.";
 "service_unavailable" = "The server is unavailable.";
+"remote_sign_out_unconfirmed" = "Signed out on this device. The server could not confirm sign-out.";
 "session_not_saved" = "The device could not save this session.";
 "setup_required" = "Finish configuring this server in Web.";
 "signIn" = "Sign in";

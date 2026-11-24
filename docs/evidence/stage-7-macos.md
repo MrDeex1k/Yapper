@@ -15,3 +15,7 @@ Tested on Apple Silicon with macOS 27.2.1 and Xcode 27.2. The deployment target 
 With the microphone muted, the macOS audio settings initially displayed the system default for both routes. Selecting the built-in microphone updated only the input field. Selecting the built-in speakers then updated the output field. Both device names remained visible after closing and reopening the sheet.
 
 The local archive is a development artifact. Clean-machine Gatekeeper installation, distribution signing and notarization, macOS 26 hardware, physical two-way sound, device switching during an active publication, foreground push-to-talk capture/release, VoiceOver and native staff acceptance remain open. See the [build and Web transition instructions](../../apps/macos/README.md).
+
+## Staff session and moderation regression checks
+
+The native arm64 macOS debug build passed after integrating the Stage 6 review fixes. A loopback HTTP fixture exercised the Swift client with two overlapping membership requests that returned in reverse order. The selected channel retained the newer archive flag. The same run verified that the staff panel reloaded the server's admission mode, offered IP blocking only for an eligible guest whose address was still unblocked, and cleared the local account credential and membership when remote sign-out returned HTTP 401.

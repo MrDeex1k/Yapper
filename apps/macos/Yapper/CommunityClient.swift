@@ -17,6 +17,7 @@ final class CommunityClient {
     private var eventLoop: Task<Void, Never>?
     private var socket: URLSessionWebSocketTask?
     private var history: Task<Void, Error>?
+    private var latestMembershipRead = UUID()
     private var historyID = UUID()
     private var before: Int64 = 0
     private var revision: Int64?
@@ -139,8 +140,10 @@ final class CommunityClient {
 
     func refreshMembership() async throws {
         guard let owner = session else { return }
+        let readID = UUID()
+        latestMembershipRead = readID
         let member = try await JSONDecoder().decode(Membership.self, from: request("/api/v1/me", using: owner))
-        if session?.id == owner.id { apply(member) }
+        if session?.id == owner.id && readID == latestMembershipRead { apply(member) }
     }
 
     private func startEvents(_ owner: Session) {
@@ -377,12 +380,15 @@ final class CommunityClient {
     func signOut() {
         action { [self] in
             guard let owner = session else { return }
-            if owner.staff { try await request("/api/auth/sign-out", body: [:]) }
             store.removeSecret(key: (owner.staff ? "staff:" : "guest:") + owner.origin)
             let installation = state.installation
             reset()
             state.origin = owner.origin
             state.installation = installation
+            if owner.staff {
+                do { try await request("/api/auth/sign-out", body: [:], using: owner) }
+                catch { state.error = "remote_sign_out_unconfirmed" }
+            }
         }
     }
 

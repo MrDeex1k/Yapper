@@ -62,7 +62,9 @@ extension CommunityClient {
                     struct Invite: Decodable { let id, createdAt: String; let revoked: Bool }
                     struct Catalog: Decodable { let invitations: [Invite] }
                     let data = try await request("/api/v1/invitations")
-                    let open = state.installation?.openAdmission == true
+                    let stateData = try await transport.exchange(state.origin, "/api/v1/state").0
+                    let open = try JSONDecoder().decode(Installation.self, from: stateData).openAdmission
+                    setAdmission(open)
                     items.append(StaffItem(title: t(open ? "openAdmission" : "invitationOnly"), detail: "", actions: [
                         option(open ? "closeAdmission" : "openAdmissionAction", open ? "close" : "open"),
                         option("inviteFriend", "invite", "", [StaffField(label: "invitationHours", value: "24", kind: "number"),
@@ -73,7 +75,7 @@ extension CommunityClient {
                         StaffItem(title: t("invitation"), detail: $0.createdAt, actions: $0.revoked ? [] : [option("revoke", "revokeInvite", $0.id)])
                     }
                 case "participants":
-                    struct Person: Decodable { let id, nickname, role: String; let banned, canBlockIp, micMuted, registered: Bool }
+                    struct Person: Decodable { let id, nickname, role: String; let banned, canBlockIp, ipBlocked, micMuted, registered: Bool }
                     struct Page: Decodable { let members: [Person]; let next: String? }
                     let data = try await request("/api/v1/participants" + (cursor.isEmpty ? "" : "?after=" + pathSegment(cursor)))
                     let page = try JSONDecoder().decode(Page.self, from: data)
@@ -84,7 +86,7 @@ extension CommunityClient {
                             actions = [option("kick", "mod:kick", person.id),
                                        option(person.banned ? "unban" : "ban", person.banned ? "mod:unban" : "mod:ban", person.id),
                                        option(person.micMuted ? "unmuteMember" : "muteMember", person.micMuted ? "mod:unmute" : "mod:mute", person.id)]
-                            if person.canBlockIp && !person.banned { actions.append(option("banIp", "mod:banIp", person.id)) }
+                            if person.canBlockIp && !person.ipBlocked { actions.append(option("banIp", "mod:banIp", person.id)) }
                             if owner && person.registered {
                                 actions.append(option(person.role == "moderator" ? "revokeModerator" : "grantModerator",
                                                       person.role == "moderator" ? "mod:revoke_moderator" : "mod:grant_moderator", person.id))

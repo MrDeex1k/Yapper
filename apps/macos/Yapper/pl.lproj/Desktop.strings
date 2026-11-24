@@ -125,6 +125,7 @@
 "serverAddress" = "Adres serwera";
 "serverAddressHint" = "Wpisz domenę lub adres IP z zaufanym HTTPS.";
 "service_unavailable" = "Serwer jest niedostępny.";
+"remote_sign_out_unconfirmed" = "Wylogowano na tym urządzeniu. Serwer nie potwierdził wylogowania.";
 "session_not_saved" = "Urządzenie nie mogło zapisać tej sesji.";
 "setup_required" = "Dokończ konfigurację serwera w aplikacji webowej.";
 "signIn" = "Zaloguj się";
