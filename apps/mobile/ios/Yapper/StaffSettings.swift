@@ -124,8 +124,9 @@ struct StaffSettings: View {
     }
 
     private func load(_ section: String) {
-        model.client.staffPage(section: section, cursor: cursor, locale: model.language) { incoming in
-            if self.section == section { page = incoming }
+        let requestedCursor = cursor
+        model.client.staffPage(section: section, cursor: requestedCursor, locale: model.language) { incoming in
+            if self.section == section && self.cursor == requestedCursor { page = incoming }
         }
     }
 

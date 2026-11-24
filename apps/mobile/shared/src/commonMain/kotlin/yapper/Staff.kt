@@ -66,7 +66,7 @@ fun MobileClient.staffPage(section: String, cursor: String, locale: String, comp
         "moderationLog" -> "/api/v1/moderation/audit"
         else -> return
     }
-    staffRequest(path, null, "GET") { raw, error ->
+    staffRequest(path, null, "GET", refreshAdmission = section == "admissionSettings") { raw, error ->
         if (raw == null) {
             completion(StaffPage(emptyList(), error))
             return@staffRequest
@@ -102,7 +102,7 @@ fun MobileClient.staffPage(section: String, cursor: String, locale: String, comp
                         add(StaffOption(t("kick"), "mod:kick", id))
                         add(StaffOption(t(if (row.flag("banned")) "unban" else "ban"),
                             if (row.flag("banned")) "mod:unban" else "mod:ban", id))
-                        if (row.flag("canBlockIp") && !row.flag("banned")) add(StaffOption(t("banIp"), "mod:banIp", id))
+                        if (row.flag("canBlockIp") && !row.flag("ipBlocked")) add(StaffOption(t("banIp"), "mod:banIp", id))
                         add(StaffOption(t(if (row.flag("micMuted")) "unmuteMember" else "muteMember"),
                             if (row.flag("micMuted")) "mod:unmute" else "mod:mute", id))
                         if (owner && row.flag("registered")) add(StaffOption(
