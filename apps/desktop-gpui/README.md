@@ -1,12 +1,12 @@
-# Yapper GPUI prototype
+# Yapper for Windows and Linux
 
-This client validates the native Windows and Linux path for Stage 2. It accepts a server address, admits or restores a guest, and lists text and voice channels. The text view fetches the most recent 50 messages for the selected channel and supports sending. The voice connection uses LiveKit with the host's default input and output. The microphone starts muted. The interface is available in English and Polish. The current Web UI is the visual reference.
+This native GPUI client supports saved servers, guest admission, staff sign-in, and text and voice channels. Chat loads recent messages and older pages, receives live changes, and supports editing or deleting messages where the server permits it. Voice uses LiveKit with system audio by default. The microphone starts muted. The interface is available in English and Polish. Web is the visual reference.
 
-The app embeds the Web wordmark image, [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1), and the Lucide 1.77.0 glyphs used by its Web reference. The font and icon licenses are bundled in [assets/fonts](assets/fonts) and [assets/icons](assets/icons).
+The app embeds the Web wordmark image, [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1), and bundled Lucide 1.77.0 glyphs. The font and icon licenses are bundled in [assets/fonts](assets/fonts) and [assets/icons](assets/icons).
 
 ## Build and run
 
-Install the toolchain with rustup and run these commands from this directory.
+Install the pinned Rust toolchain with rustup and run these commands from this directory. Use the platform prerequisites below.
 
 ```sh
 cargo build --locked
@@ -48,12 +48,14 @@ Join a voice channel and use **Enable microphone** or open **Audio settings** an
 
 ## Integration smoke test
 
-Set `YAPPER_GPUI_TEST_SERVER` and `YAPPER_GPUI_TEST_INVITATION` in a local, private environment for a disposable Stage 2 server. Run the ignored native smoke case with the pinned toolchain.
+Set `YAPPER_GPUI_TEST_SERVER` and `YAPPER_GPUI_TEST_INVITATION` in a local, private environment for a disposable Yapper installation. Run the ignored native smoke case with the pinned toolchain.
 
 ```sh
 cargo test --locked joins_through_yapper_signaling_gate -- --ignored
 ```
 
 This exercises guest admission, credential restoration when a store is available, the grant, the WebSocket upgrade through Go, the native SDK room connection, and release of the grant. Verify microphone capture and audible playback separately on physical Windows and Linux setups.
+
+See the [desktop acceptance record](../../docs/evidence/stage-4-desktop.md) and [Stage 7.5 verification](../../docs/evidence/stage-7-5-verification.md) for platform coverage.
 
 The lockfile uses `libc 0.2.189` and `mio 1.2.4` because the GPUI 0.2.2 dependency chain includes an older `xattr` that requires the Linux `ENOATTR` alias removed in libc 0.2.190. Keep the lockfile when building.

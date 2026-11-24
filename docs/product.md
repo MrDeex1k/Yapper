@@ -70,7 +70,9 @@ The initial supported products are:
 
 The first private release supports macOS through Web. Record supported OS/browser versions, CPU architectures, and Linux distributions or desktop sessions in the first-release platform matrix after validation.
 
-The next priority is native mobile. Android phones and tablets use Kotlin and Jetpack Compose for the interface. iPhone and iPad use Swift and SwiftUI. Both share client logic through Kotlin Multiplatform. A dedicated Swift/SwiftUI macOS client follows, then a Rust/Ratatui terminal client. Stabilization is deferred. See the [mobile plan](stage-6-mobile-plan.md) for the first mobile milestone and acceptance criteria.
+The repository includes native Android, iPhone, iPad, and macOS clients in development. Android uses Jetpack Compose. iPhone and iPad use SwiftUI, with client logic shared with Android through Kotlin Multiplatform. macOS uses SwiftUI and a Swift client. Physical-device and distribution acceptance are tracked in [Validation](validation.md#native-mobile-acceptance). Stabilization is deferred.
+
+The [planned Stage 8 Rust/Ratatui terminal client](stage-8-terminal-plan.md) targets macOS, Linux, and Windows. Its scope is reading and sending plain-text channel messages and joining or leaving voice channels. Message editing, message deletion, and moderation are outside the terminal client's scope.
 
 ## Privacy and distribution
 

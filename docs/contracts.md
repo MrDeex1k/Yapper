@@ -1,6 +1,6 @@
-# Initial protocol contract
+# Yapper v1 protocol contract
 
-The initial conversation endpoints are implemented in Stage 1. The authoritative HTTP schema is [`packages/api/openapi.json`](../packages/api/openapi.json). `pnpm check:api` checks the generated TypeScript types. The protocol version is `v1`. A successful identity probe does not grant community permissions.
+Web and native clients use the versioned HTTP API, the ticketed application event stream, and separate LiveKit signaling. The authoritative HTTP schema is [`packages/api/openapi.json`](../packages/api/openapi.json). `pnpm check:api` checks the generated TypeScript types. The identity probe verifies the token subject. Community access is checked separately.
 
 ## Implemented HTTP boundary
 
@@ -16,6 +16,8 @@ Go is authoritative for participant IDs, membership state and current roles. An 
 Versioned HTTP resources cover setup state, guest admission, current participant, invitations, channels, messages and media admission. Errors carry a stable `code` translated by clients, never an unfiltered database exception. Validate unknown fields, body sizes, identifier formats and UTF-8 text at ingress. Require an exact trusted Origin for cookie-authenticated mutations and WebSocket upgrades.
 
 A message send includes a client-generated UUID request ID. The unique key is `(participant_id, request_id)`; retries return the original committed message, while reuse with a different payload fails. Persist before returning success or broadcasting. Pagination uses a server-assigned monotonic sequence as a cursor, not timestamps alone.
+
+Request a single-use ticket from `POST /api/v1/events/ticket`, then upgrade `GET /api/v1/events` with the installation Origin and subprotocols `yapper.v1` and `yapper.ticket.<ticket>`. Tickets expire after 10 seconds. Obtain a fresh ticket on reconnect.
 
 WebSocket envelopes use `{ "version": 1, "type": "...", "payload": {...} }`. Stage 1 events are `ready` and `message.created`. Stage 2 adds catalog and member invalidation events. Revocation closes the connection. Durable message state is reconciled from HTTP history on reconnect; presence is replaced by a fresh snapshot. Bound frames, write queues and idle time. Disconnect slow consumers instead of accumulating unbounded buffers.
 
@@ -63,6 +65,6 @@ After an established room's SDK reconnect attempts end with a transient disconne
 
 Browser and GPUI signaling send the grant in the `access_token` query and use the exact installation `Origin`. The native Android and Swift SDKs send the media grant as `Authorization: Bearer`. Their requests may omit `Origin`. A supplied origin must match the installation, and a request with both credential formats is rejected. Both formats use the same token, session, and membership checks. The application event WebSocket still uses the installation origin and its own ticket.
 
-## Planned Rust desktop conformance
+## Native client conformance
 
-The Windows and Linux GPUI client uses the same server contract as Web. The Stage 2 prototype verifies origin handling, guest admission and restoration, basic timeline and message writes, and Go-gated LiveKit signaling. The full desktop conformance checks cover AUTH login/logout and versioned WebSocket events and tickets. Preserve browser origin protections and server-side authorization as native coverage expands.
+GPUI, Android, iPhone, iPad, and macOS use this contract for admission, chat, and voice. Guest requests carry the server-issued cookie and the installation Origin. Registered sessions use AUTH tokens for application authorization. Native clients hold their own credentials for each origin. See the [platform evidence](validation.md) and [Stage 8 plan](stage-8-terminal-plan.md).

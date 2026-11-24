@@ -1,6 +1,6 @@
 # Stage 2 implementation proposal
 
-**Status:** implementation approved. `feat/stage-2-community` is the target branch. The Stage 1 baseline was brought forward from `main`, and the maintainer has accepted it. Keep the work items below as separate reviewable commits on the target branch.
+**Status: closed.** This document records the original work sequence. See the [Stage 2 acceptance record](evidence/stage-2-acceptance.md) for outcomes and platform limits.
 
 ## Change sequence
 
@@ -54,4 +54,4 @@ Use Rust and Cargo with [GPUI](https://gpui.rs/) for the native UI. The followin
 
 ## Review and evidence
 
-Work items 1–5 are implemented on the target branch. See the [admission report](evidence/stage-2-admission.md), [channel report](evidence/stage-2-channels.md), [moderation report](evidence/stage-2-moderation.md), [message report](evidence/stage-2-messages.md), and [voice report](evidence/stage-2-voice.md) for local results and remaining acceptance checks. Work item 6 has a native prototype in [apps/desktop-gpui](../apps/desktop-gpui/README.md). See the [GPUI evidence](evidence/stage-2-gpui.md) for build and runtime verification. Record each result against the [functional scenarios and desktop acceptance](validation.md) with the tested revision and relevant platform limits. The [implementation roadmap](implementation-plan.md) tracks formal stage completion separately.
+Work items 1–5 are implemented. See the [admission report](evidence/stage-2-admission.md), [channel report](evidence/stage-2-channels.md), [moderation report](evidence/stage-2-moderation.md), [message report](evidence/stage-2-messages.md), and [voice report](evidence/stage-2-voice.md) for local results and remaining acceptance checks. Work item 6 has a native prototype in [apps/desktop-gpui](../apps/desktop-gpui/README.md). See the [GPUI evidence](evidence/stage-2-gpui.md) for build and runtime verification. Record each result against the [functional scenarios and desktop acceptance](validation.md) with the tested revision and relevant platform limits. The [implementation roadmap](implementation-plan.md) tracks formal stage completion separately.

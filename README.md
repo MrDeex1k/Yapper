@@ -1,34 +1,22 @@
 # Yapper
 
-Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
+Yapper is a self-hosted voice and text communicator for friends. Each installation is an independent community run through Docker Compose, with local accounts, persistent chat history, and self-hosted LiveKit voice.
 
-**Stage 4 is closed. Native phone and tablet clients are in development.** Stage 5 stabilization is deferred. See the [implementation roadmap](docs/implementation-plan.md) and the [desktop verification record](docs/evidence/stage-4-desktop.md).
+## Clients
 
-Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
+| Client                              | Current status                                                                                                 | Build or acceptance                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Web                                 | React client for setup, chat, voice, and community administration. Part of the first private release baseline. | [Browser and desktop acceptance](docs/validation.md#platform-matrix) |
+| Windows and Linux                   | Native Rust/GPUI client for chat, voice, and saved servers. Part of the first private release baseline.        | [GPUI builds](apps/desktop-gpui/README.md)                           |
+| Android, iPhone, and iPad           | Native Compose and SwiftUI clients with shared Kotlin logic. Emulator and simulator results are recorded.      | [Mobile builds](apps/mobile/README.md)                               |
+| macOS                               | Native SwiftUI client builds on Apple Silicon for macOS 26 or later.                                           | [macOS builds and Web transition](apps/macos/README.md)              |
+| macOS, Linux, and Windows terminals | Stage 8 is planned for plain-text chat and two-way voice.                                                      | [Terminal client plan](docs/stage-8-terminal-plan.md)                |
 
-## Documentation
-
-- [Product specification](docs/product.md): agreed scope, user behavior, languages, and platform roadmap.
-- [Architecture](docs/architecture.md): service responsibilities, identities, protocols, storage, and deployment boundaries.
-- [Implementation plan](docs/implementation-plan.md): ordered stages, dependencies, deliverables, and completion gates.
-- [Native mobile plan](docs/stage-6-mobile-plan.md): Android and iOS/iPadOS work sequence, architecture, and acceptance checks.
-- [Mobile client builds](apps/mobile/README.md): build and connect the Compose and SwiftUI apps.
-- [Validation](docs/validation.md): functional, platform, recovery, and load acceptance scenarios.
-- [Development workflow](docs/development.md): repository layout, branches, squash commits, tooling, and local verification.
-- [Approved toolchain](docs/toolchain.md): pnpm, Turborepo, standard Vite, Bun runtime boundaries, and multi-language integration.
-- [Operations](docs/operations.md): planned installation, updates, backups, diagnostics, and history reset procedure.
-
-The initial plan was approved on 2026-09-28. The [native desktop decision](docs/architecture.md#native-desktop-direction) updates that plan. Each stage has explicit completion criteria. Record changes to product scope, trust boundaries, or hosting requirements in the relevant specification.
-
-## First private release baseline
-
-The first-release scope includes text and voice channels, persistent message history, invitations, moderation, and local administration. Its client targets are Web, including macOS browsers, and native GPUI on Windows and Linux. The Astro landing has Polish and English status pages. The [validation record](docs/validation.md) tracks verified combinations and remaining checks.
-
-The native mobile clients come next, using Kotlin Multiplatform for shared logic, Jetpack Compose on Android, and SwiftUI on iPhone and iPad. The dedicated Swift macOS client follows. The Rust terminal client stays in the later roadmap.
+The [implementation roadmap](docs/implementation-plan.md) tracks stage status. Stage 4 is closed, Stage 5 is deferred, and native mobile and macOS acceptance is ongoing. The [validation record](docs/validation.md) lists tested environments and open checks.
 
 ## Local development
 
-Install the versions in `.node-version`, `.bun-version`, `.go-version`, and `package.json`. Then:
+Install the versions in `.node-version`, `.bun-version`, `.go-version`, and `package.json`. From the repository root, run the following for a fresh disposable environment.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -39,13 +27,18 @@ pnpm migrate:server
 pnpm dev
 ```
 
-Open `http://127.0.0.1:5173`. Use the host-local setup token from `.env` to create the owner, then log in and create invitations. Keep that token private. The Astro status page runs on port 4321. Generated `.env` credentials remain local. Setup refuses to overwrite an existing environment.
+Open `http://127.0.0.1:5173`. Use the host-local setup token from `.env` to create the owner, then sign in and create invitations. Keep the token and generated credentials private. Setup preserves an existing `.env`. The bilingual Astro status page runs on port 4321.
 
 ```sh
 pnpm check
 pnpm test:integration
 ```
 
-Integration tests create disposable schemas/accounts in the development databases and exercise local LiveKit. Never point them at production. `pnpm build` builds clients and services. See the [GPUI prototype](apps/desktop-gpui/README.md) for native build and smoke-test instructions.
+Integration tests use disposable schemas and accounts in the development databases and exercise local LiveKit. Run them only against a development installation. The native clients use their own build commands above. See the [development workflow](docs/development.md) for browser tests and Go and Rust verification.
 
-The existing GitHub repository is retained; its default branch now has a new root history. See [reset evidence](docs/evidence/stage-0.md#repository-reset).
+## Documentation
+
+- [Product specification](docs/product.md) for scope, user behavior, language, and platform decisions.
+- [Architecture](docs/architecture.md) and [protocol contracts](docs/contracts.md) for service boundaries, identity, application events, and media admission.
+- [Development workflow](docs/development.md) and [toolchain](docs/toolchain.md) for repository layout, dependency ownership, and local checks.
+- [Operations](docs/operations.md) for installation, upgrades, backup and restore, and diagnostics.

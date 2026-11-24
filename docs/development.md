@@ -7,23 +7,24 @@ Use English for source identifiers, comments, documentation, branches, and commi
 Current monorepo layout; exact packages are listed by pnpm:
 
 ```text
-apps/web/          React application and administration UI
-apps/desktop/      Stage 1 Electron development shell and historical smoke tooling
-apps/desktop-gpui/ Rust/GPUI desktop app for Windows and Linux
-apps/macos/        Native Swift and SwiftUI macOS client
-apps/mobile/       Android and iOS clients, shared Kotlin module and Apple Xcode project
-apps/auth/         Bun, Elysia 2 RC, Better Auth
-apps/landing/      Astro project website
-packages/ui/      Shared design-system components
-packages/i18n/    Shared UI translations and locale helpers
-packages/api/     Generated TS contracts and client transport
-server/           Go application module
-deploy/           Compose, ingress, and deployment configuration
-scripts/          Development and operational commands
-docs/             Specifications, plans, and decision records
+apps/web/             React application and administration UI
+apps/desktop/         Stage 1 Electron development shell and smoke tooling
+apps/desktop-gpui/    Rust/GPUI desktop app for Windows and Linux
+apps/macos/           Native Swift and SwiftUI macOS client
+apps/mobile/          Android and iOS clients, shared Kotlin module and Apple Xcode project
+apps/auth/            Bun, Elysia 2 RC, Better Auth
+apps/landing/         Astro project website
+packages/ui/          Shared design-system components
+packages/i18n/        Shared UI translations and locale helpers
+packages/api/         Generated TS contracts and client transport
+crates/voice-policy/  Shared Rust microphone publication rule
+server/               Go application module
+deploy/               Compose, ingress, and deployment configuration
+scripts/              Development and operational commands
+docs/                 Specifications, plans, and decision records
 ```
 
-Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun runs AUTH, Turborepo orchestrates repository tasks, and Vite builds the React client. Consult the [approved toolchain](toolchain.md#planned-rust-desktop-toolchain) when adding the Rust desktop prototype or its build tasks. Add native client source when its implementation stage starts.
+Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun runs AUTH, Turborepo orchestrates repository tasks, and Vite builds the React client. Cargo builds GPUI and its voice policy. Gradle builds the Android app and shared Kotlin module. Xcode builds the Apple clients. See the [toolchain](toolchain.md#native-client-builds) and the client README files for local commands.
 
 Repository scripts and Astro configuration use TypeScript. Node 26 executes `.ts` scripts through native type stripping; `pnpm typecheck:scripts` checks them with strict types and `erasableSyntaxOnly`, and is included in `pnpm typecheck`/`pnpm check`. Type stripping does not perform type checking. Preload and native Electron smoke sources use `.cts` and are compiled to CommonJS for Electron. The smoke harness is emitted into ignored `.test-tools/`, outside the application's package allowlist; the preload is emitted into `dist/preload.cjs`. Both are checked by the desktop type-check command. Do not commit generated JavaScript.
 
@@ -82,7 +83,7 @@ The [shadcn lint documentation](https://github.com/shadcn-ui/lint) inspected dur
 
 GitHub Actions workflows are not permitted in this repository. Run checks locally and record their results in the PR; do not add files under `.github/workflows/`.
 
-Run `pnpm check` for formatting, lint, type checking, isolated tests and builds. Run `pnpm test:integration` separately against the disposable development database; it is uncached. Root build/test/typecheck wrappers include actual toolchain/platform versions in Turbo cache identity. Use those wrappers for artifact-producing checks.
+Run `pnpm check` for formatting, lint, API drift, type checking, isolated tests, and builds in the pnpm workspace. Run Cargo, Gradle, and Xcode checks separately. Run `pnpm test:integration` separately against the disposable development database; it is uncached. Root build/test/typecheck wrappers include actual toolchain/platform versions in Turbo cache identity. Use those wrappers for artifact-producing checks.
 
 Local JS/TS verification checks formatting, lint, types, translation parity, and relevant unit/integration tests. Local Go verification uses formatting, static analysis, tests, and race testing for concurrency-sensitive code. Test contracts between AUTH, Go, and clients against real services where mocks would hide compatibility failures.
 

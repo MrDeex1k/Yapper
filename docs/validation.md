@@ -4,7 +4,9 @@ Stages 0 through 3 have passed their scoped acceptance gates. The maintainer clo
 
 The [Stage 3 verification record](evidence/stage-3-automated.md#stage-3-implementation-verification) documents the local operational drills and capacity measurements. The maintainer confirmed the Windows GPUI and macOS Web [conversation during load](evidence/stage-3-automated.md#physical-acceptance-under-load).
 
-The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the current version baseline and compatibility exceptions. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
+The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) records the versions and compatibility exceptions verified in that run. Consult the manifests and lockfiles for current pins. Prior results are in the [2026-10-17 report](evidence/dependency-refresh-2026-10-17.md) and [2026-10-06 report](evidence/dependency-refresh-2026-10-06.md).
+
+Stage 7.5 recorded Go and Rust analysis and repeatable Web smoke results. Linux arm64 ran all three browser projects. See the [verification record](evidence/stage-7-5-verification.md) for platform and coverage limits.
 
 ## Evidence format
 
@@ -85,8 +87,22 @@ Record global desktop push-to-talk and mobile background audio separately. Foreg
 
 ## Native mobile acceptance
 
-Stage 6 phone and tablet client implementation is active. The [mobile acceptance matrix](stage-6-mobile-plan.md#acceptance) defines Android and iOS checks against the existing server. The [mobile verification record](evidence/stage-6-mobile.md) tracks emulator and simulator results separately from real-device audio, background behavior and signing checks.
+Stage 6 clients build for Android and iPhone/iPad and have emulator and simulator evidence. The [mobile acceptance matrix](stage-6-mobile-plan.md#acceptance) defines Android and iOS checks against the existing server. The [mobile verification record](evidence/stage-6-mobile.md) tracks emulator and simulator results separately from real-device audio, background behavior and signing checks.
 
 ## Native macOS acceptance
 
-Track native desktop builds, session restoration, live chat, voice and packaging in the [Stage 7 verification record](evidence/stage-7-macos.md).
+Stage 7 has Apple Silicon build, session restoration, chat, and muted voice-join evidence. Physical two-way audio and clean-machine Gatekeeper installation remain open. See the [Stage 7 verification record](evidence/stage-7-macos.md).
+
+## Terminal client acceptance
+
+[Stage 8](stage-8-terminal-plan.md) is planned. Record the OS, architecture, terminal, credential store, audio devices, server revision, and client build for each macOS, Linux, and Windows run. All platform checks are pending.
+
+| Area               | Required evidence                                                                                                                                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session            | Open and invitation-only admission work. Restart restores the guest identity. Credentials remain scoped by origin. An unavailable vault produces an explicit temporary-session option.                                                         |
+| Chat               | Exchange plain-text messages with an existing client. Retry an uncertain send without duplication. Load older history and reconcile edits, deletions, and retention after reconnect. Archived channels stay read-only.                         |
+| Voice              | Join muted, unmute explicitly, and confirm audible speech in both directions with physical microphones. Verify that leave, room switching, and graceful exit end capture and release the old grant.                                            |
+| Authorization      | Server checks still apply to channel access, kicks, bans, forced mute, and voice grants. Verify the action surface contains no message editing, deletion, or moderation controls, including for privileged accounts if staff sign-in is added. |
+| Terminal and build | Build with locked dependencies and install on a clean target. Check keyboard navigation, resize, EN/PL copy, and terminal restoration after exit and interruption.                                                                             |
+
+The documentation pass checked local Markdown links and anchors, Git diff whitespace, and the documented API and build entry points against source. Terminal builds and runtime behavior remain pending the first compatibility probe.

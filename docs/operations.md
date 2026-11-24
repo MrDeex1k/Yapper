@@ -1,6 +1,6 @@
-# Operations plan
+# Installation and operations
 
-The local Compose smoke installation has passed. A temporary Cloudflare Tunnel test also verified public HTTPS, login and chat over WSS. The tunnel was removed after testing. Public media and production recovery remain pending. See the [Stage 1 evidence and remaining checks](evidence/stage-1.md#current-status). `compose.yaml` provides Caddy, Go, AUTH, PostgreSQL and LiveKit. Use `compose.smoke.yaml` only for loopback HTTP testing.
+The local Compose smoke installation has passed. A temporary Cloudflare Tunnel test also verified public HTTPS, login and chat over WSS. The tunnel was removed after testing. Stage 3 rehearsed backup, clean-project restore, update, and diagnostics locally. The desktop LAN call and local TURN fixture have separate evidence. Public-network media and deployment-host acceptance remain open. See the [Stage 3 record](evidence/stage-3-automated.md), [desktop call](evidence/stage-4-desktop.md), and [TURN test](development.md#turn-deployment-test). `compose.yaml` provides Caddy, Go, AUTH, PostgreSQL and LiveKit. Use `compose.smoke.yaml` only for loopback HTTP testing.
 
 The base Compose configuration requires `YAPPER_DOMAIN` (trusted public domain), `YAPPER_PUBLIC_IP` (advertised media address), and the distinct secrets/database settings in `.env.example`. Ingress uses TCP 80/443; media uses TCP 7881 and UDP 7882. Internal signaling port 7880 must remain private so clients cannot bypass Go admission/revocation. The optional [TURN overlay](#turntls-on-one-public-ipv4-address) adds restrictive-network fallback. Generated development settings are not a production installation procedure.
 
@@ -104,7 +104,7 @@ Set `YAPPER_GUEST_JOINS_PER_MINUTE` (default 180, by verified client IP) and `YA
 
 ## Client distribution
 
-Private distribution to friends comes first. Prepare Rust/GPUI packages for Windows and Linux. macOS users access the first release through Web. Provide manual update instructions and record package signing or integrity verification by platform. Document how users of Stage 1 development builds can sign in or rejoin, including the treatment of saved servers and guest identities. Select supported Linux distributions and package formats during release preparation. Windows signing is not available at planning time.
+The first private release baseline covers GPUI on Windows and Linux and Web on supported browsers, including macOS. The desktop verification record covers local builds and a Windows LAN call. Clean install and update coverage, signing status, and supported distributions belong in the release checklist. Native mobile and macOS have separate build instructions and distribution gates. See [Validation](validation.md#first-private-release-checklist).
 
 Before public distribution, revisit installer signing/notarization, update trust, artifact integrity, supported architectures, and license selection. License selection is deferred because the current scope is private testing; do not invent a license or describe the project as open source without one.
 
