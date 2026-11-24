@@ -133,6 +133,7 @@ enum CallState {
 impl Yapper {
     fn new(window: &mut Window, cx: &mut Context<Self>, runtime: Handle) -> Self {
         let preferences = Preferences::load();
+        appearance::apply_message_size(preferences.message_size(), cx);
         let language = match preferences.language.as_deref() {
             Some("pl") => Language::Polish,
             _ => Language::English,

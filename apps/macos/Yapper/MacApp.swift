@@ -5,12 +5,20 @@ import LiveKit
 struct MacApp: App {
     @StateObject private var model = CommunityModel()
     @StateObject private var audioRoutes = DesktopAudioRoutes()
+    @AppStorage("messageTextSize") private var messageSize = 0
+    private var textScale: CGFloat {
+        guard DesktopTextSettings.sizes.contains(messageSize) else { return 1 }
+        return CGFloat(messageSize) / NSFont.preferredFont(forTextStyle: .body).pointSize
+    }
+
     var body: some Scene {
         Window("Yapper", id: "community") {
             Group {
                 if let member = model.state.membership { DesktopWorkspace(member: member) }
                 else { Entry().frame(maxWidth: .infinity, maxHeight: .infinity).background(appBackground) }
             }
+            .yapperFont(.body)
+            .environment(\.yapperTextScale, textScale)
             .environmentObject(model)
             .environmentObject(audioRoutes)
             .foregroundStyle(foreground)
@@ -21,6 +29,46 @@ struct MacApp: App {
         }
         .defaultSize(width: 1100, height: 740)
         .windowResizability(.contentMinSize)
+
+        Settings {
+            DesktopTextSettings(model: model, size: $messageSize)
+                .yapperFont(.body)
+                .environment(\.yapperTextScale, textScale)
+        }
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var yapperTextScale: CGFloat = 1
+}
+
+struct DesktopTextStyle: ViewModifier {
+    @Environment(\.yapperTextScale) private var scale
+    let font: Font
+
+    func body(content: Content) -> some View {
+        content.font(font.scaled(by: scale))
+    }
+}
+
+private struct DesktopTextSettings: View {
+    static let sizes = [12, 14, 16, 18, 20]
+
+    @ObservedObject var model: CommunityModel
+    @Binding var size: Int
+
+    var body: some View {
+        Form {
+            Picker(model.text("messageTextSize"), selection: $size) {
+                Text(model.text("defaultTextSize")).tag(0)
+                ForEach(Self.sizes, id: \.self) { size in
+                    Text(verbatim: "\(size) pt").tag(size)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -40,7 +88,7 @@ struct DesktopWorkspace: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 10) {
                     Image("Brand").resizable().frame(width: 32, height: 32).clipShape(.rect(cornerRadius: 8))
-                    Text(state.installation?.name ?? "Yapper").font(.headline).lineLimit(2)
+                    Text(state.installation?.name ?? "Yapper").yapperFont(.headline).lineLimit(2)
                     Spacer()
                 }.padding(14)
                 Divider()
@@ -57,10 +105,11 @@ struct DesktopWorkspace: View {
                         .frame(width: 32, height: 32).background(selectedSurface, in: Circle())
                     VStack(alignment: .leading) {
                         Text(member.participant.nickname).fontWeight(.semibold)
-                        Text(t(member.participant.role)).font(.caption).foregroundStyle(muted)
+                        Text(t(member.participant.role)).yapperFont(.caption).foregroundStyle(muted)
                     }
                     Spacer()
                     Menu {
+                        SettingsLink { Text(t("messageTextSize")) }
                         if member.participant.role != "participant" {
                             Button(t("preferences")) { staff = true }
                         }
@@ -94,7 +143,7 @@ struct DesktopWorkspace: View {
                                 .fill(state.connected ? muted : state.connectionProblem == nil ? .secondary : danger)
                                 .frame(width: 6, height: 6)
                             Text(t(state.connected ? "connected" : state.connectionProblem == nil ? "connecting" : "disconnected"))
-                                .font(.callout).foregroundStyle(muted)
+                                .yapperFont(.callout).foregroundStyle(muted)
                         }
                         .accessibilityElement(children: .combine)
                         Divider().frame(height: 16)
@@ -107,13 +156,13 @@ struct DesktopWorkspace: View {
                             }.pickerStyle(.inline)
                         } label: {
                             HStack(spacing: 6) {
-                                Text(model.language.uppercased()).font(.callout.weight(.medium))
+                                Text(model.language.uppercased()).yapperFont(.callout.weight(.medium))
                                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
                             }.padding(.horizontal, 9).frame(height: 26)
                             .contentShape(Capsule())
                         }
                         .menuStyle(.borderlessButton).menuIndicator(.hidden)
-                        .frame(width: 46)
+                        .frame(minWidth: 46)
                         .contentShape(Capsule())
                         .glassEffect(.regular.interactive(), in: Capsule())
                         .accessibilityLabel(t("language")).accessibilityValue(model.language.uppercased())
@@ -123,8 +172,8 @@ struct DesktopWorkspace: View {
                 .sharedBackgroundVisibility(.hidden)
             }
         }
-        .sheet(isPresented: $staff) { StaffSettings().frame(minWidth: 490, minHeight: 420) }
-        .sheet(isPresented: $audio) { DesktopAudioSettings(pushToTalk: $pushToTalk).frame(minWidth: 410, minHeight: 290) }
+        .sheet(isPresented: $staff) { StaffSettings().yapperFont(.body).frame(minWidth: 490, minHeight: 420) }
+        .sheet(isPresented: $audio) { DesktopAudioSettings(pushToTalk: $pushToTalk).yapperFont(.body).frame(minWidth: 410, minHeight: 290) }
         .background(PushToTalkKey(enabled: pushToTalk && state.voice?.connected == true && state.voice?.canPublish == true
                                   && state.voice?.deafened == false && !composerFocused && !audio && !staff,
                                   setHeld: model.setPushToTalkHeld))
@@ -133,12 +182,12 @@ struct DesktopWorkspace: View {
     @ViewBuilder private func catalog(voice: Bool) -> some View {
         let channels = member.channels.filter { $0.kind == (voice ? "voice" : "text") && !(voice && $0.archived) }
         if !channels.isEmpty {
-            Text(t(voice ? "voiceChannels" : "textChannels")).font(.caption.bold()).foregroundStyle(muted)
+            Text(t(voice ? "voiceChannels" : "textChannels")).yapperFont(.caption.bold()).foregroundStyle(muted)
                 .padding(.top, 12).padding(.horizontal, 9)
             ForEach([Category(id: "", name: "")] + member.categories, id: \.id) { category in
                 let group = channels.filter { $0.categoryId == category.id }
                 if !group.isEmpty && !category.name.isEmpty {
-                    Text(category.name).font(.caption).foregroundStyle(muted).padding(.leading, 10).padding(.top, 4)
+                    Text(category.name).yapperFont(.caption).foregroundStyle(muted).padding(.leading, 10).padding(.top, 4)
                 }
                 ForEach(group, id: \.id) { channel in
                     let active = state.channel?.id == channel.id || state.voice?.channel.id == channel.id
@@ -151,7 +200,7 @@ struct DesktopWorkspace: View {
                             Text(channel.name).lineLimit(1)
                             Spacer()
                             if channel.archived { Image(systemName: "archivebox").accessibilityLabel(t("archived")) }
-                        }.padding(.horizontal, 10).frame(height: 34).contentShape(Rectangle())
+                        }.padding(.horizontal, 10).frame(minHeight: 34).contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).background(active ? selectedSurface : .clear, in: .rect(cornerRadius: 7))
                     .accessibilityAddTraits(active ? .isSelected : [])
@@ -161,7 +210,7 @@ struct DesktopWorkspace: View {
                             HStack {
                                 Circle().fill(peer.speaking ? accent : muted).frame(width: 6, height: 6)
                                 Text(peer.name).lineLimit(1)
-                            }.font(.caption).padding(.leading, 30)
+                            }.yapperFont(.caption).padding(.leading, 30)
                                 .accessibilityValue(peer.speaking ? t("speaking") : "")
                         }
                     }
@@ -173,8 +222,8 @@ struct DesktopWorkspace: View {
     private func voiceDock(_ voice: VoiceState) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
-            Text(voice.channel.name).font(.headline)
-            Text(t(!voice.connected ? "connecting" : voice.microphone ? "micActive" : "micMuted")).font(.caption).foregroundStyle(muted)
+            Text(voice.channel.name).yapperFont(.headline)
+            Text(t(!voice.connected ? "connecting" : voice.microphone ? "micActive" : "micMuted")).yapperFont(.caption).foregroundStyle(muted)
             GlassEffectContainer(spacing: 5) {
                 HStack(spacing: 5) {
                     if !pushToTalk {
@@ -248,12 +297,12 @@ private struct DesktopAudioSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(model.text("audioSettings")).font(.title2.bold())
+            Text(model.text("audioSettings")).yapperFont(.title2.bold())
             if model.state.voice?.canPublish == true {
                 Toggle(model.text("pushToTalk"), isOn: $pushToTalk)
                     .toggleStyle(.switch)
                     .onChange(of: pushToTalk) { model.setPushToTalkHeld(false) }
-                Text(model.text("holdSpace")).font(.caption).foregroundStyle(muted)
+                Text(model.text("holdSpace")).yapperFont(.caption).foregroundStyle(muted)
                 Divider()
             }
             devicePicker("inputDevice", devices: routes.inputs,

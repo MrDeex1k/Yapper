@@ -65,13 +65,13 @@ struct Workspace: View {
                     }
                     if let problem = state.connectionProblem {
                         HStack {
-                            Text(t(problem)).font(.caption).foregroundStyle(danger)
+                            Text(t(problem)).yapperFont(.caption).foregroundStyle(danger)
                             Spacer()
                             Button(t("reconnect"), action: model.client.reconnect).disabled(state.busy)
-                                .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                                .yapperFont(.caption.weight(.semibold)).frame(minHeight: 44)
                         }.padding(.horizontal, 16)
                     } else if !state.connected {
-                        Text(t("connecting")).font(.caption).foregroundStyle(muted)
+                        Text(t("connecting")).yapperFont(.caption).foregroundStyle(muted)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 5)
                     }
                     Rectangle().fill(divider).frame(height: 1)
@@ -98,10 +98,10 @@ struct Workspace: View {
                 Image(systemName: "sidebar.left").foregroundStyle(muted).accessibilityHidden(true)
             }
             if state.channel != nil {
-                Image(systemName: "number").font(.subheadline).foregroundStyle(muted).accessibilityHidden(true)
+                Image(systemName: "number").yapperFont(.subheadline).foregroundStyle(muted).accessibilityHidden(true)
             }
             Text(state.channel?.name ?? t("channels"))
-                .font(.subheadline.weight(.bold)).lineLimit(1)
+                .yapperFont(.subheadline.weight(.bold)).lineLimit(1)
                 .accessibilityAddTraits(expanded ? .isHeader : [])
             Spacer()
             if !expanded {
@@ -119,8 +119,8 @@ struct Workspace: View {
             LazyVStack(alignment: .leading, spacing: 2) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(state.installation?.name ?? "").font(.subheadline.bold()).lineLimit(1)
-                        Text(membership.participant.nickname).font(.caption).foregroundStyle(muted)
+                        Text(state.installation?.name ?? "").yapperFont(.subheadline.bold()).lineLimit(1)
+                        Text(membership.participant.nickname).yapperFont(.caption).foregroundStyle(muted)
                     }
                     Spacer()
                     LanguageButton()
@@ -145,7 +145,7 @@ struct Workspace: View {
                 }.padding(.leading, 10)
                 ForEach(membership.channelGroups, id: \.category.id) { group in
                     if !group.category.name.isEmpty {
-                        Text(group.category.name).font(.subheadline.weight(.semibold)).foregroundStyle(muted)
+                        Text(group.category.name).yapperFont(.subheadline.weight(.semibold)).foregroundStyle(muted)
                             .padding(.leading, 10).padding(.top, 8)
                     }
                     channelRows(group.text, voice: false)
@@ -159,7 +159,7 @@ struct Workspace: View {
 
     @ViewBuilder private func channelRows(_ channels: [Channel], voice: Bool) -> some View {
         if !channels.isEmpty {
-            Text(t(voice ? "voiceChannels" : "textChannels")).font(.caption.weight(.semibold))
+            Text(t(voice ? "voiceChannels" : "textChannels")).yapperFont(.caption.weight(.semibold))
                 .foregroundStyle(muted).padding(.leading, 10).padding(.top, 4)
             ForEach(channels, id: \.id) { channel in
                 let active = channel.id == state.channel?.id || channel.id == state.voice?.channel.id
@@ -173,10 +173,10 @@ struct Workspace: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: voice ? "speaker.wave.2" : "number")
-                            .font(.subheadline).foregroundStyle(active ? accent : muted).accessibilityHidden(true)
+                            .yapperFont(.subheadline).foregroundStyle(active ? accent : muted).accessibilityHidden(true)
                         Text(channel.name).foregroundStyle(active ? foreground : muted).lineLimit(1)
                         Spacer()
-                        if channel.archived { Text(t("archived")).font(.caption2).foregroundStyle(muted) }
+                        if channel.archived { Text(t("archived")).yapperFont(.caption2).foregroundStyle(muted) }
                     }
                     .padding(.horizontal, 10).frame(minHeight: 44)
                     .background(active ? selectedSurface : navigation, in: .rect(cornerRadius: 7))
@@ -194,9 +194,9 @@ struct Workspace: View {
             Rectangle().fill(divider).frame(height: 1)
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(voice.channel.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(voice.channel.name).yapperFont(.subheadline.weight(.semibold)).lineLimit(1)
                     Text(t(!voice.connected ? "connecting" : voice.microphone ? "micActive" : "micMuted"))
-                        .font(.caption).foregroundStyle(muted).lineLimit(1)
+                        .yapperFont(.caption).foregroundStyle(muted).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 SymbolButton(symbol: voice.microphone ? "mic" : "mic.slash",
@@ -238,18 +238,18 @@ struct Chat: View {
             }
             if let error = model.localError ?? state.error {
                 HStack {
-                    Text(t(error)).font(.caption).foregroundStyle(danger)
+                    Text(t(error)).yapperFont(.caption).foregroundStyle(danger)
                     Spacer()
                     Button(t("dismiss")) { model.localError = nil; model.client.dismissError() }
-                        .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                        .yapperFont(.caption.weight(.semibold)).frame(minHeight: 44)
                 }.padding(.horizontal, 14)
             }
             if chatMessageLength(draft) > 2000 {
-                Text(t("invalid_message")).font(.caption).foregroundStyle(danger)
+                Text(t("invalid_message")).yapperFont(.caption).foregroundStyle(danger)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14)
             }
             if state.channel?.archived == true {
-                Text(t("archivedNotice")).font(.caption).foregroundStyle(muted).padding(14)
+                Text(t("archivedNotice")).yapperFont(.caption).foregroundStyle(muted).padding(14)
             } else if state.channel != nil {
                 Rectangle().fill(divider).frame(height: 1)
                 HStack(spacing: 4) {
@@ -317,15 +317,15 @@ struct Chat: View {
     private var empty: some View {
         VStack(spacing: 8) {
             if state.channel != nil && state.messages != nil {
-                Image(systemName: "number").font(.title2)
+                Image(systemName: "number").yapperFont(.title2)
                     .foregroundStyle(muted).frame(width: 54, height: 54)
                     .background(selectedSurface, in: .rect(cornerRadius: 11))
                     .accessibilityHidden(true).padding(.bottom, 4)
             }
             Text(t(state.channel == nil ? "noChannels" : state.messages == nil ? "loadingHistory" : "emptyChat"))
-                .font(.headline)
+                .yapperFont(.headline)
             if state.channel != nil && state.messages != nil {
-                Text(t("emptyChatDescription")).font(.caption).foregroundStyle(muted)
+                Text(t("emptyChatDescription")).yapperFont(.caption).foregroundStyle(muted)
             }
         }.multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, maxHeight: .infinity).padding(.horizontal, 20)
@@ -365,12 +365,12 @@ struct Chat: View {
         let own = participant?.id == message.authorId
         let mayDelete = own || ["owner", "moderator"].contains(participant?.role ?? "")
         return HStack(alignment: .top, spacing: 10) {
-            Text(String(message.nickname.prefix(1)).uppercased()).font(.subheadline.weight(.semibold))
+            Text(String(message.nickname.prefix(1)).uppercased()).yapperFont(.subheadline.weight(.semibold))
                 .frame(width: 34, height: 34).background(selectedSurface, in: .circle)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(message.nickname).font(.subheadline.weight(.bold)).lineLimit(1)
+                    Text(message.nickname).yapperFont(.subheadline.weight(.bold)).lineLimit(1)
                     if own && !channel.archived {
                         SymbolButton(symbol: "pencil", title: t("editMessage"), enabled: actionsAllowed) {
                             model.client.dismissError()
@@ -383,11 +383,11 @@ struct Chat: View {
                     }
                     if let sent = messageDate(message.createdAt) {
                         Text(sent.formatted(.dateTime.hour().minute().locale(Locale(identifier: model.language))))
-                            .font(.caption2).foregroundStyle(muted).lineLimit(1)
+                            .yapperFont(.caption2).foregroundStyle(muted).lineLimit(1)
                     }
-                    if message.editedAt != nil { Text(t("messageEdited")).font(.caption2).foregroundStyle(muted) }
+                    if message.editedAt != nil { Text(t("messageEdited")).yapperFont(.caption2).foregroundStyle(muted) }
                 }
-                Text(message.body).font(.body).textSelection(.enabled)
+                Text(message.body).yapperFont(.body).textSelection(.enabled)
             }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }

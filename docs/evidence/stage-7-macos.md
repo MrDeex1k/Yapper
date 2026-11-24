@@ -19,3 +19,10 @@ The local archive is a development artifact. Clean-machine Gatekeeper installati
 ## Staff session and moderation regression checks
 
 The native arm64 macOS debug build passed after integrating the Stage 6 review fixes. A loopback HTTP fixture exercised the Swift client with two overlapping membership requests that returned in reverse order. The selected channel retained the newer archive flag. The same run verified that the staff panel reloaded the server's admission mode, offered IP blocking only for an eligible guest whose address was still unblocked, and cleared the local account credential and membership when remote sign-out returned HTTP 401.
+
+## Desktop text size
+
+The native macOS Settings window and the GPUI settings menu allow the user to choose the message text size. Both clients scale their text styles relative to that size and save it locally. Web continues to support browser zoom.
+
+- macOS arm64 built successfully. In an isolated app profile, selecting 20 pt enlarged the settings label and the main window's typography. Opening Settings after restarting the app showed 20 pt. The shared Swift views also built for the arm64 iOS simulator.
+- Linux arm64 GPUI passed Clippy and ten tests against the branch's committed dependency lock. The optional live signaling test was skipped. In X11 at 560 × 480, the settings menu applied 20 px, the server chooser heading wrapped onto two lines, and the same heading layout returned on restart. Selecting 12 px updated the saved preference. The Windows UI was not exercised.

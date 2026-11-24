@@ -90,7 +90,7 @@ struct StaffSettings: View {
                 HStack {
                     Text(title)
                     Spacer()
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(muted)
+                    Image(systemName: "chevron.right").yapperFont(.caption).foregroundStyle(muted)
                 }.frame(minHeight: 44)
             }
             Rectangle().fill(divider).frame(height: 1)
@@ -114,8 +114,8 @@ struct StaffSettings: View {
 
     @ViewBuilder private func staffRow(_ item: StaffItem) -> some View {
         Rectangle().fill(divider).frame(height: 1)
-        Text(item.title).font(.headline)
-        if !item.detail.isEmpty { Text(item.detail).font(.caption).foregroundStyle(muted) }
+        Text(item.title).yapperFont(.headline)
+        if !item.detail.isEmpty { Text(item.detail).yapperFont(.caption).foregroundStyle(muted) }
         ForEach(Array(item.actions.enumerated()), id: \.offset) { entry in
             Button { choose(entry.element) } label: {
                 Text(entry.element.label).frame(minHeight: 44, alignment: .leading)

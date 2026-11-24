@@ -1,3 +1,4 @@
+use super::appearance::text_length;
 use super::{
     Call, CallState, Yapper,
     appearance::{
@@ -78,7 +79,7 @@ impl Yapper {
                     .border_b_1()
                     .border_color(rgb(LINE))
                     .child(brand())
-                    .child(self.language_menu(cx)),
+                    .child(self.display_controls(cx)),
             )
             .child(
                 div()
@@ -109,7 +110,7 @@ impl Yapper {
                         .px(margin)
                         .border_t_1()
                         .border_color(rgb(LINE))
-                        .text_size(px(12.))
+                        .text_size(text_length(12.))
                         .text_color(rgb(MUTED))
                         .child(copy.privacy)
                         .child(copy.build),
@@ -141,7 +142,7 @@ impl Yapper {
                         .gap(px(8.))
                         .child(
                             div()
-                                .text_size(px(12.))
+                                .text_size(text_length(12.))
                                 .text_color(rgb(ACCENT))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .child(copy.current_server),
@@ -216,8 +217,8 @@ impl Yapper {
                     )
                     .child(
                         div()
-                            .text_size(px(12.))
-                            .line_height(px(20.))
+                            .text_size(text_length(12.))
+                            .line_height(text_length(20.))
                             .text_color(rgb(MUTED))
                             .child(copy.identity_notice),
                     );
@@ -312,7 +313,7 @@ impl Yapper {
                                 .rounded(px(6.))
                                 .bg(gpui::rgba((ACCENT << 8) | 0x24))
                                 .text_color(rgb(ACCENT))
-                                .text_size(px(13.))
+                                .text_size(text_length(13.))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .child(copy.connect_saved_server)
                                 .child(icon("icons/arrow-right.svg", 14., ACCENT)),
@@ -353,7 +354,8 @@ impl Yapper {
             ),
             _ => self.workspace_body(admission),
         };
-        if width <= COMPACT_WIDTH {
+        let scale = f32::from(self.preferences.message_size()) / 14.;
+        if width <= COMPACT_WIDTH * scale.max(1.) {
             div()
                 .size_full()
                 .flex()
@@ -443,7 +445,7 @@ impl Yapper {
                         div()
                             .px(px(7.))
                             .pt(px(7.))
-                            .text_size(px(11.))
+                            .text_size(text_length(11.))
                             .text_color(rgb(MUTED))
                             .child(title.to_owned()),
                     );
@@ -482,7 +484,7 @@ impl Yapper {
                     .child(
                         div()
                             .truncate()
-                            .text_size(px(13.))
+                            .text_size(text_length(13.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(name.to_owned()),
                     ),
@@ -521,7 +523,7 @@ impl Yapper {
             .h(px(row_height))
             .justify_start()
             .px(px(7.))
-            .text_size(px(13.))
+            .text_size(text_length(13.))
             .when(selected, |row| row.bg(rgb(SELECTED)))
             .child(
                 div()
@@ -533,7 +535,7 @@ impl Yapper {
                     .child(
                         div()
                             .truncate()
-                            .text_size(px(13.))
+                            .text_size(text_length(13.))
                             .child(channel.name.clone()),
                     )
                     .into_any_element(),
@@ -575,7 +577,7 @@ impl Yapper {
                                 .items_center()
                                 .gap(px(8.))
                                 .py(px(5.))
-                                .text_size(px(12.))
+                                .text_size(text_length(12.))
                                 .text_color(rgb(MUTED))
                                 .child(status_dot(if peer.speaking { ACCENT } else { MUTED }))
                                 .child(div().flex_1().truncate().child(peer.name.clone()))
@@ -655,7 +657,7 @@ impl Yapper {
                     .rounded_full()
                     .bg(rgb(SELECTED))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .text_size(px(13.))
+                    .text_size(text_length(13.))
                     .child(initial),
             )
             .child(
@@ -665,19 +667,22 @@ impl Yapper {
                     .child(
                         div()
                             .truncate()
-                            .text_size(px(13.))
+                            .text_size(text_length(13.))
                             .font_weight(FontWeight::BOLD)
                             .child(nickname.clone()),
                     )
-                    .child(div().text_size(px(11.)).text_color(rgb(MUTED)).child(
-                        match admission.membership.participant.role.as_str() {
-                            "owner" => self.language.copy().owner,
-                            "moderator" => self.language.copy().moderator,
-                            _ => self.language.copy().participant,
-                        },
-                    )),
+                    .child(
+                        div()
+                            .text_size(text_length(11.))
+                            .text_color(rgb(MUTED))
+                            .child(match admission.membership.participant.role.as_str() {
+                                "owner" => self.language.copy().owner,
+                                "moderator" => self.language.copy().moderator,
+                                _ => self.language.copy().participant,
+                            }),
+                    ),
             )
-            .when(compact, |profile| profile.child(self.language_menu(cx)))
+            .when(compact, |profile| profile.child(self.display_controls(cx)))
             .when(admission.session.is_account(), |profile| {
                 profile.child(
                     Button::new("sign-out")
@@ -716,7 +721,7 @@ impl Yapper {
             .items_center()
             .gap(px(8.))
             .font_weight(FontWeight::BOLD)
-            .text_size(px(15.))
+            .text_size(text_length(15.))
             .child(icon(glyph, 17., MUTED))
             .child(div().truncate().child(title.clone()));
         div()
@@ -759,7 +764,7 @@ impl Yapper {
                         .flex()
                         .items_center()
                         .gap(px(8.))
-                        .text_size(px(12.))
+                        .text_size(text_length(12.))
                         .text_color(rgb(MUTED))
                         .child(status_dot(MUTED))
                         .child(if self.events_connected {
@@ -776,7 +781,7 @@ impl Yapper {
                     .disabled(self.session_request_pending || self.switching_server)
                     .on_click(cx.listener(|app, _, window, cx| app.change_server(window, cx))),
             )
-            .when(!compact, |bar| bar.child(self.language_menu(cx)))
+            .when(!compact, |bar| bar.child(self.display_controls(cx)))
     }
 
     fn workspace_body(&self, admission: &Admission) -> Div {
@@ -796,14 +801,14 @@ impl Yapper {
                     .flex()
                     .flex_col()
                     .gap(px(8.))
-                    .text_size(px(14.))
+                    .text_size(text_length(14.))
                     .text_color(rgb(MUTED))
                     .when(self.call.is_none(), |body| body.child(copy.select_voice))
                     .when(!admission.credential_saved, |body| {
                         body.child(
                             div()
-                                .text_size(px(12.))
-                                .line_height(px(20.))
+                                .text_size(text_length(12.))
+                                .line_height(text_length(20.))
                                 .child(copy.unsaved),
                         )
                     })
@@ -850,13 +855,13 @@ impl Yapper {
                         div()
                             .truncate()
                             .font_weight(FontWeight::BOLD)
-                            .text_size(px(13.))
+                            .text_size(text_length(13.))
                             .child(call.name.clone()),
                     )
                     .child(
                         div()
                             .truncate()
-                            .text_size(px(11.))
+                            .text_size(text_length(11.))
                             .text_color(rgb(MUTED))
                             .child(status),
                     ),
@@ -1024,7 +1029,38 @@ impl Yapper {
         })
     }
 
-    fn language_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn display_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let copy = self.language.copy();
+        let current_size = self.preferences.message_size();
+        let owner = cx.entity().downgrade();
+        let settings = outline_button("display-settings", cx)
+            .tooltip(copy.settings)
+            .child(icon("icons/sliders-horizontal.svg", 16., TEXT).into_any_element())
+            .dropdown_menu_with_anchor(Corner::TopRight, move |menu, _, _| {
+                let menu = menu.label(copy.message_size);
+                super::Preferences::MESSAGE_SIZES
+                    .into_iter()
+                    .fold(menu, |menu, size| {
+                        let owner = owner.clone();
+                        let label = if size == 14 {
+                            format!("{} (14 px)", copy.default_size)
+                        } else {
+                            format!("{size} px")
+                        };
+                        menu.item(
+                            PopupMenuItem::new(label)
+                                .checked(current_size == size)
+                                .on_click(move |_, _, cx| {
+                                    let _ = owner.update(cx, |app, cx| {
+                                        app.preferences.message_size = Some(size);
+                                        app.preferences.save();
+                                        super::appearance::apply_message_size(size, cx);
+                                        cx.refresh_windows();
+                                    });
+                                }),
+                        )
+                    })
+            });
         let current = self.language;
         let app = cx.entity().downgrade();
         let menu = outline_button("locale", cx)
@@ -1035,7 +1071,7 @@ impl Yapper {
                     .flex()
                     .items_center()
                     .gap(px(8.))
-                    .child(div().text_size(px(12.)).child(current.code()))
+                    .child(div().text_size(text_length(12.)).child(current.code()))
                     .child(icon("icons/chevron-down.svg", 12., TEXT))
                     .into_any_element(),
             )
@@ -1073,18 +1109,19 @@ impl Yapper {
             .gap(px(8.))
             .child(
                 div()
-                    .text_size(px(12.))
+                    .text_size(text_length(12.))
                     .text_color(rgb(MUTED))
                     .child(self.language.copy().language),
             )
             .child(menu)
+            .child(settings)
     }
 
     pub(super) fn render_error(&self) -> Option<Div> {
         self.error.map(|error| {
             div()
-                .text_size(px(13.))
-                .line_height(px(20.))
+                .text_size(text_length(13.))
+                .line_height(text_length(20.))
                 .text_color(rgb(DANGER))
                 .child(self.language.failure(error))
         })
@@ -1098,7 +1135,7 @@ fn channel_group(title: &'static str, rows: impl IntoIterator<Item = Div>) -> Di
                 .mt(px(18.))
                 .mb(px(6.))
                 .mx(px(9.))
-                .text_size(px(11.))
+                .text_size(text_length(11.))
                 .text_color(rgb(MUTED))
                 .font_weight(FontWeight::SEMIBOLD)
                 .child(title),
@@ -1108,7 +1145,7 @@ fn channel_group(title: &'static str, rows: impl IntoIterator<Item = Div>) -> Di
 
 fn entry_section_title(title: &'static str) -> Div {
     div()
-        .text_size(px(14.))
+        .text_size(text_length(14.))
         .font_weight(FontWeight::SEMIBOLD)
         .child(title)
 }
@@ -1141,16 +1178,16 @@ fn server_identity(name: &str, address: &str) -> Div {
                     div()
                         .truncate()
                         .text_color(rgb(TEXT))
-                        .text_size(px(16.))
-                        .line_height(px(20.))
+                        .text_size(text_length(16.))
+                        .line_height(text_length(20.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(name.to_owned()),
                 )
                 .child(
                     div()
                         .truncate()
-                        .text_size(px(12.))
-                        .line_height(px(16.))
+                        .text_size(text_length(12.))
+                        .line_height(text_length(16.))
                         .text_color(rgb(MUTED))
                         .child(address.to_owned()),
                 ),
@@ -1160,16 +1197,16 @@ fn server_identity(name: &str, address: &str) -> Div {
 fn entry_title(title: &'static str, width: f32) -> Div {
     let size = (width * 0.04).clamp(27., 34.);
     div()
-        .text_size(px(size))
-        .line_height(px(size * 1.13))
+        .text_size(text_length(size))
+        .line_height(text_length(size * 1.13))
         .font_weight(FontWeight::BOLD)
         .child(title)
 }
 
 fn entry_description(description: &'static str) -> Div {
     div()
-        .text_size(px(14.))
-        .line_height(px(22.))
+        .text_size(text_length(14.))
+        .line_height(text_length(22.))
         .text_color(rgb(MUTED))
         .child(description)
 }
@@ -1184,7 +1221,7 @@ fn primary_entry(id: &'static str, label: &'static str, pending: bool) -> Button
                 .flex()
                 .items_center()
                 .gap(px(10.))
-                .text_size(px(14.))
+                .text_size(text_length(14.))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(rgb(NAVIGATION))
                 .child(label)
@@ -1209,7 +1246,12 @@ fn field(
         .flex()
         .flex_col()
         .gap(px(8.))
-        .child(div().text_size(px(13.)).line_height(px(17.)).child(label))
+        .child(
+            div()
+                .text_size(text_length(13.))
+                .line_height(text_length(17.))
+                .child(label),
+        )
         .child(
             div()
                 .h(px(48.))

@@ -38,7 +38,7 @@
 "deafen" = "Wycisz dźwięk";
 "delete" = "Usuń";
 "deleteMessage" = "Usuń wiadomość";
-"dismiss" = "Zamknij komunikat";
+"dismiss" = "Zamknij";
 "earpiece" = "Słuchawka telefonu";
 "edit" = "Edytuj";
 "editMessage" = "Edytuj wiadomość";
@@ -148,3 +148,5 @@
 "you" = "Ty";
 "disconnected" = "Rozłączono";
 "systemDefault" = "Domyślne systemowe";
+"messageTextSize" = "Rozmiar tekstu wiadomości";
+"defaultTextSize" = "Domyślny";

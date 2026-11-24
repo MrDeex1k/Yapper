@@ -126,6 +126,15 @@ impl AssetSource for Assets {
     }
 }
 
+// Express typography in rems so that the window theme scales text and line spacing together.
+pub(super) fn text_length(design_pixels: f32) -> gpui::Rems {
+    gpui::rems(design_pixels / 16.)
+}
+
+pub(super) fn apply_message_size(size: u8, cx: &mut App) {
+    Theme::global_mut(cx).font_size = px(16. * f32::from(size) / 14.);
+}
+
 pub(super) fn configure(cx: &mut App) {
     Theme::change(ThemeMode::Dark, None, cx);
     let inter_loaded = cx
@@ -175,7 +184,7 @@ pub(super) fn brand() -> Div {
         .items_center()
         .gap(px(9.))
         .font_weight(gpui::FontWeight::BOLD)
-        .text_size(px(19.))
+        .text_size(text_length(19.))
         .child(
             img(Arc::clone(&LOGO))
                 .size(px(30.))

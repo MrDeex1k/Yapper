@@ -148,3 +148,5 @@
 "you" = "You";
 "disconnected" = "Disconnected";
 "systemDefault" = "System default";
+"messageTextSize" = "Message text size";
+"defaultTextSize" = "Default";
