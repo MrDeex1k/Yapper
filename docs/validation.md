@@ -86,3 +86,7 @@ Record global desktop push-to-talk and mobile background audio separately. Foreg
 ## Native mobile acceptance
 
 Stage 6 phone and tablet client implementation is active. The [mobile acceptance matrix](stage-6-mobile-plan.md#acceptance) defines Android and iOS checks against the existing server. The [mobile verification record](evidence/stage-6-mobile.md) tracks emulator and simulator results separately from real-device audio, background behavior and signing checks.
+
+## Native macOS acceptance
+
+Track native desktop builds, session restoration, live chat, voice and packaging in the [Stage 7 verification record](evidence/stage-7-macos.md).

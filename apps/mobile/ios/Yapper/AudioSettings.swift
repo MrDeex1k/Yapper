@@ -1,9 +1,11 @@
 import AVFAudio
 import SwiftUI
+#if os(iOS)
 import YapperShared
+#endif
 
 struct AudioSettings: View {
-    @EnvironmentObject var model: MobileModel
+    @EnvironmentObject var model: CommunityModel
     @Environment(\.dismiss) private var dismiss
     @State private var inputs: [AVAudioSessionPortDescription] = []
     @State private var selectedInput = ""

@@ -44,7 +44,7 @@ After upgrading `webrtc-sys`, put [Blaze v0.20261029.7](https://github.com/index
 
 Use a trusted HTTPS installation. Debug builds also allow HTTP on a loopback address for disposable local tests. Enter a nickname and an invitation when the server requires one. Select a text channel to read messages or send one with Enter. Archived channels are read-only.
 
-Join a voice channel and use **Enable microphone** or turn on **Push to talk**. In push-to-talk mode, hold Space with the window active and focus outside the message field. Releasing Space or switching to another window mutes the microphone. Leave voice before changing servers. If saved credentials cannot be read or restored, retry from the server chooser. If an admitted session cannot be saved, it stays in memory for the current run.
+Join a voice channel and use **Enable microphone** or open **Audio settings** and turn on **Push to talk**. In push-to-talk mode, hold Space with the window active and focus outside the message field. Releasing Space or switching to another window mutes the microphone. Leave voice before changing servers. If saved credentials cannot be read or restored, retry from the server chooser. If an admitted session cannot be saved, it stays in memory for the current run.
 
 ## Integration smoke test
 

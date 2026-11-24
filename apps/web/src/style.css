@@ -978,7 +978,7 @@ h1 {
 .voice-device-settings summary {
   cursor: pointer;
 }
-.voice-device-settings label {
+.voice-device-settings label:not(.voice-push-mode) {
   display: grid;
   gap: 4px;
   margin: 8px 0;

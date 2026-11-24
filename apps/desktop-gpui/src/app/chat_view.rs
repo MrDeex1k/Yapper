@@ -1,3 +1,4 @@
+use super::appearance::text_length;
 use super::{
     Yapper,
     appearance::{
@@ -48,7 +49,7 @@ impl Yapper {
                     .child(
                         div()
                             .truncate()
-                            .text_size(px(13.))
+                            .text_size(text_length(13.))
                             .child(channel.name.clone()),
                     )
                     .into_any_element(),
@@ -139,7 +140,7 @@ impl Yapper {
                                         .child(
                                             div()
                                                 .mt(px(12.))
-                                                .text_size(px(24.))
+                                                .text_size(text_length(24.))
                                                 .child(copy.empty_chat),
                                         )
                                         .child(status(copy.empty_chat_description).mt(px(6.))),
@@ -262,7 +263,7 @@ impl Yapper {
                     .items_center()
                     .gap(px(8.))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .text_size(px(14.))
+                    .text_size(text_length(14.))
                     .child(icon("icons/pencil.svg", 15., ACCENT))
                     .child(copy.edit_message),
             )
@@ -321,7 +322,7 @@ impl Yapper {
             .child(
                 div()
                     .min_w(px(0.))
-                    .text_size(px(13.))
+                    .text_size(text_length(13.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .truncate()
                     .child(message.nickname.clone()),
@@ -375,8 +376,8 @@ impl Yapper {
                     content.child(
                         div()
                             .mt(px(5.))
-                            .text_size(px(14.))
-                            .line_height(px(22.))
+                            .text_size(text_length(14.))
+                            .line_height(text_length(22.))
                             .child(message.body.clone()),
                     )
                 })
@@ -394,7 +395,11 @@ impl Yapper {
         let copy = self.language.copy();
         let id = id.to_owned();
         message_action_panel(DANGER)
-            .child(div().text_size(px(14.)).child(copy.confirm_message_delete))
+            .child(
+                div()
+                    .text_size(text_length(14.))
+                    .child(copy.confirm_message_delete),
+            )
             .child(
                 div()
                     .flex()
@@ -493,8 +498,8 @@ fn confirm_item(
 
 fn status(text: &'static str) -> Div {
     div()
-        .text_size(px(13.))
-        .line_height(px(21.))
+        .text_size(text_length(13.))
+        .line_height(text_length(21.))
         .text_color(rgb(MUTED))
         .child(text)
 }
@@ -579,7 +584,7 @@ fn message_row(message: &Message, content: Div) -> Div {
                 .rounded_full()
                 .bg(rgb(SELECTED))
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_size(px(13.))
+                .text_size(text_length(13.))
                 .child(initial),
         )
         .child(content)

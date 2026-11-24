@@ -18,7 +18,7 @@
    productRefGroup = A00000000000000000000004;
    projectDirPath = "";
    projectRoot = "";
-   targets = (A00000000000000000000002);
+   targets = (A00000000000000000000002, B00000000000000000000002);
   };
   A00000000000000000000002 = {
    isa = PBXNativeTarget;
@@ -33,9 +33,9 @@
    productReference = A00000000000000000000006;
    productType = "com.apple.product-type.application";
   };
-  A00000000000000000000003 = { isa = PBXGroup; children = (A00000000000000000000005, A00000000000000000000014, A00000000000000000000004); sourceTree = "<group>"; };
-  A00000000000000000000004 = { isa = PBXGroup; children = (A00000000000000000000006); name = Products; sourceTree = "<group>"; };
-  A00000000000000000000005 = { isa = PBXFileSystemSynchronizedRootGroup; path = Yapper; sourceTree = "<group>"; };
+  A00000000000000000000003 = { isa = PBXGroup; children = (B00000000000000000000005, B00000000000000000000014, A00000000000000000000005, A00000000000000000000014, A00000000000000000000004); sourceTree = "<group>"; };
+  A00000000000000000000004 = { isa = PBXGroup; children = (A00000000000000000000006, B00000000000000000000006); name = Products; sourceTree = "<group>"; };
+  A00000000000000000000005 = { isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B00000000000000000000015); path = Yapper; sourceTree = "<group>"; };
   A00000000000000000000006 = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Yapper.app; sourceTree = BUILT_PRODUCTS_DIR; };
   A00000000000000000000007 = {
    isa = PBXShellScriptBuildPhase;
@@ -60,6 +60,31 @@
   A00000000000000000000012 = { isa = XCBuildConfiguration; baseConfigurationReference = A00000000000000000000014; buildSettings = { KMP_VARIANT = debug; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; }; name = Debug; };
   A00000000000000000000013 = { isa = XCBuildConfiguration; baseConfigurationReference = A00000000000000000000014; buildSettings = { KMP_VARIANT = release; }; name = Release; };
   A00000000000000000000014 = { isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Yapper.xcconfig; sourceTree = SOURCE_ROOT; };
+  B00000000000000000000002 = {
+   isa = PBXNativeTarget;
+   buildConfigurationList = B0000000000000000000000C;
+   buildPhases = (B00000000000000000000008, B00000000000000000000009, B0000000000000000000000A);
+   buildRules = ();
+   dependencies = ();
+   fileSystemSynchronizedGroups = (A00000000000000000000005, B00000000000000000000005);
+   name = YapperMac;
+   packageProductDependencies = (B00000000000000000000010);
+   productName = Yapper;
+   productReference = B00000000000000000000006;
+   productType = "com.apple.product-type.application";
+  };
+  B00000000000000000000005 = { isa = PBXFileSystemSynchronizedRootGroup; path = ../../macos/Yapper; sourceTree = "<group>"; };
+  B00000000000000000000006 = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Yapper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+  B00000000000000000000008 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  B00000000000000000000009 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000011); runOnlyForDeploymentPostprocessing = 0; };
+  B0000000000000000000000A = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  B0000000000000000000000C = { isa = XCConfigurationList; buildConfigurations = (B00000000000000000000012, B00000000000000000000013); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  B00000000000000000000010 = { isa = XCSwiftPackageProductDependency; package = A0000000000000000000000F; productName = LiveKit; };
+  B00000000000000000000011 = { isa = PBXBuildFile; productRef = B00000000000000000000010; };
+  B00000000000000000000012 = { isa = XCBuildConfiguration; baseConfigurationReference = B00000000000000000000014; buildSettings = { SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; }; name = Debug; };
+  B00000000000000000000013 = { isa = XCBuildConfiguration; baseConfigurationReference = B00000000000000000000014; buildSettings = {}; name = Release; };
+  B00000000000000000000014 = { isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Mac.xcconfig; sourceTree = SOURCE_ROOT; };
+  B00000000000000000000015 = { isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (AudioSettings.swift); target = B00000000000000000000002; };
  };
  rootObject = A00000000000000000000001;
 }

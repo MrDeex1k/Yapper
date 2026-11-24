@@ -13,10 +13,20 @@ pub(super) struct Preferences {
     #[serde(default)]
     pub(super) language: Option<String>,
     #[serde(default)]
+    pub(super) message_size: Option<u8>,
+    #[serde(default)]
     pub(super) servers: Vec<SavedServer>,
 }
 
 impl Preferences {
+    pub(super) const MESSAGE_SIZES: [u8; 5] = [12, 14, 16, 18, 20];
+
+    pub(super) fn message_size(&self) -> u8 {
+        self.message_size
+            .filter(|size| Self::MESSAGE_SIZES.contains(size))
+            .unwrap_or(14)
+    }
+
     pub(super) fn load() -> Self {
         path()
             .and_then(|path| fs::read(path).ok())

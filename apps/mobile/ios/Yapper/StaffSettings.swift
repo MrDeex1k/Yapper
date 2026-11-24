@@ -1,8 +1,10 @@
 import SwiftUI
+#if os(iOS)
 import YapperShared
+#endif
 
 struct StaffSettings: View {
-    @EnvironmentObject var model: MobileModel
+    @EnvironmentObject var model: CommunityModel
     @Environment(\.dismiss) private var dismiss
     @State private var section: String?
     @State private var cursor = ""
@@ -28,7 +30,7 @@ struct StaffSettings: View {
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
             }.background(appBackground)
                 .navigationTitle(t(section ?? "preferences"))
-                .navigationBarTitleDisplayMode(.inline)
+                .inlineAppleTitle()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button(t("dismiss")) { dismiss() } } }
         }
         .sheet(isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
@@ -53,7 +55,7 @@ struct StaffSettings: View {
                         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .background(appBackground)
-                    .navigationTitle(pending.label).navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle(pending.label).inlineAppleTitle()
                     .toolbar { ToolbarItem(placement: .cancellationAction) {
                         Button(t("cancel")) { self.pending = nil }.disabled(model.state.busy)
                     } }
@@ -63,13 +65,21 @@ struct StaffSettings: View {
             }
         }
         .alert(t("invitationCode"), isPresented: Binding(get: { invitation != nil }, set: { if !$0 { invitation = nil } })) {
-            Button(t("copy")) { UIPasteboard.general.string = invitation; invitation = nil }
+            Button(t("copy")) { if let invitation {
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(invitation, forType: .string)
+                    #else
+                    UIPasteboard.general.string = invitation
+                    #endif
+                }
+                invitation = nil }
             Button(t("dismiss"), role: .cancel) { invitation = nil }
         } message: { Text(invitation ?? "") }
     }
 
     private var sections: some View {
-        let names = StaffKt.staffSections(role: model.state.membership?.participant.role ?? "")
+        let names = staffSectionsForRole(model.state.membership?.participant.role ?? "")
         return ForEach(names, id: \.self) { name in
             let title = t(name)
             Button {
@@ -80,7 +90,7 @@ struct StaffSettings: View {
                 HStack {
                     Text(title)
                     Spacer()
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(muted)
+                    Image(systemName: "chevron.right").yapperFont(.caption).foregroundStyle(muted)
                 }.frame(minHeight: 44)
             }
             Rectangle().fill(divider).frame(height: 1)
@@ -104,8 +114,8 @@ struct StaffSettings: View {
 
     @ViewBuilder private func staffRow(_ item: StaffItem) -> some View {
         Rectangle().fill(divider).frame(height: 1)
-        Text(item.title).font(.headline)
-        if !item.detail.isEmpty { Text(item.detail).font(.caption).foregroundStyle(muted) }
+        Text(item.title).yapperFont(.headline)
+        if !item.detail.isEmpty { Text(item.detail).yapperFont(.caption).foregroundStyle(muted) }
         ForEach(Array(item.actions.enumerated()), id: \.offset) { entry in
             Button { choose(entry.element) } label: {
                 Text(entry.element.label).frame(minHeight: 44, alignment: .leading)

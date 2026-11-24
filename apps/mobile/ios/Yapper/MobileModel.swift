@@ -1,17 +1,23 @@
+#if os(macOS)
+import AVFoundation
+#else
 import AVFAudio
+#endif
 import Foundation
 import LiveKit
 import Security
 import SwiftUI
+#if os(iOS)
 import YapperShared
+#endif
 
-private final class SessionStore: NSObject, DeviceStore {
+private final class SessionStore: NSObject, CredentialStore {
     private let preferences = UserDefaults.standard
 
     private func query(_ key: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "pl.yapper.mobile.session.v1",
+            kSecAttrService as String: "\(Bundle.main.bundleIdentifier!).session.v1",
             kSecAttrAccount as String: key,
         ]
     }
@@ -47,12 +53,12 @@ private final class SessionStore: NSObject, DeviceStore {
 }
 
 @MainActor
-final class MobileModel: NSObject, ObservableObject, RoomDelegate {
-    @Published private(set) var state: MobileState
+final class CommunityModel: NSObject, ObservableObject, RoomDelegate {
+    @Published private(set) var state: CommunityState
     @Published private(set) var language: String
     @Published var localError: String?
 
-    let client: MobileClient
+    let client: CommunityClient
     private let store: SessionStore
     private var room: Room?
     private var grant: VoiceGrant?
@@ -72,7 +78,7 @@ final class MobileModel: NSObject, ObservableObject, RoomDelegate {
         #else
         let debugLoopback = false
         #endif
-        let client = MobileClient(store: settings, debugLoopback: debugLoopback)
+        let client = CommunityClient(store: settings, debugLoopback: debugLoopback)
         self.client = client
         state = client.state
         language = settings.readSetting(key: "locale")
@@ -85,7 +91,7 @@ final class MobileModel: NSObject, ObservableObject, RoomDelegate {
         }
     }
 
-    func text(_ key: String) -> String { CopyKt.mobileText(locale: language, key: key) }
+    func text(_ key: String) -> String { appleText(language, key) }
 
     func changeLanguage() {
         language = language == "pl" ? "en" : "pl"
@@ -124,6 +130,12 @@ final class MobileModel: NSObject, ObservableObject, RoomDelegate {
         if canUseMicrophone { setMicrophone(!mic.enabled) }
     }
 
+    #if os(macOS)
+    func setPushToTalkHeld(_ held: Bool) {
+        if !held || canUseMicrophone { setMicrophone(held) }
+    }
+    #endif
+
     private func setMicrophone(_ enabled: Bool) {
         guard let session = room else { return }
         mic.update(enabled: enabled)
@@ -134,7 +146,11 @@ final class MobileModel: NSObject, ObservableObject, RoomDelegate {
                 let revision = mic.revision
                 let target = mic.enabled && canUseMicrophone
                 if target {
+                    #if os(macOS)
+                    let allowed = await AVCaptureDevice.requestAccess(for: .audio)
+                    #else
                     let allowed = await AVAudioApplication.requestRecordPermission()
+                    #endif
                     guard room === session, !Task.isCancelled else { return }
                     guard revision == mic.revision && canUseMicrophone else { continue }
                     if !allowed {
