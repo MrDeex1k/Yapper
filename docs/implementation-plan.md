@@ -1,8 +1,8 @@
 # Implementation plan
 
-**Stages 0 and 1 are complete. Stage 2 has passed acceptance on its feature branch.** The first private desktop release targets Windows and Linux with Rust and GPUI. macOS users access the first release through Web. See the [Stage 1 acceptance record](evidence/stage-1.md#acceptance-run--2026-11-21) and the [Stage 2 acceptance record](evidence/stage-2-acceptance.md).
+**Stages 0–4 are closed. Stage 5 is deferred. Stage 6 mobile client implementation is active.** The maintainer closed Stage 4 on 2026-11-24 and moved native mobile and macOS ahead of stabilization. See [Validation](validation.md) for release evidence and outstanding platform checks.
 
-Stages use completion gates rather than dates. Each stage depends on the preceding stage unless stated otherwise. Keep changes reviewable.
+Stages use completion gates rather than dates. Stage 6 can proceed while Stage 5 is deferred. Retain stage numbers so existing records remain traceable.
 
 ## Stage 0 — Repository and compatibility foundation
 
@@ -105,6 +105,8 @@ Suggested branches: `feat/implement-gpui-desktop`, `feat/package-desktop-client`
 
 ## Stage 5 — Stabilization
 
+**Status: deferred.** Private-group feedback, release-blocking defect triage, and the Web runtime benchmark remain available when this stage resumes.
+
 Collect deliberately shared feedback from the first group. Prioritize data loss, joining failures, audio defects, resource growth, and upgrade/restore failures. Maintain no automatic external telemetry.
 
 The [Stage 2 TanStack Redact benchmark](evidence/stage-2-redact.md) measured a smaller Web bundle and a faster cold start. Repeat the comparison after measuring deferred loading of LiveKit. Verify physical-device voice behavior and compatibility across supported Web browsers before deciding whether to adopt the alternate runtime.
@@ -113,24 +115,24 @@ The [Stage 2 TanStack Redact benchmark](evidence/stage-2-redact.md) measured a s
 
 ## Stage 6 — Native mobile clients
 
-Build Swift clients for iOS/iPadOS and Kotlin/Jetpack Compose clients for Android phones/tablets against the same server contract. Reuse product semantics rather than adding new server features concurrently.
+**Status: phone and tablet client implementation.** The shared Kotlin Multiplatform module handles client logic and server API integration. Android uses Jetpack Compose and the Apple client uses SwiftUI. Windows at least 760 dp wide on Android or 760 points wide on iOS and iPadOS show the channel list next to chat. Narrower windows use a collapsible channel list.
 
-At stage entry, specify credential transfer/recovery, native auth redirects, background audio, interruption handling, Bluetooth routing, and any push-notification infrastructure. Preserve installation independence when evaluating optional external push services.
+Start with guest admission and a two-way audio proof on real phones, then deliver core chat and voice on both platforms. See the [mobile implementation plan](stage-6-mobile-plan.md) for scope, dependencies, milestones, and acceptance checks.
 
 **Completion gate:** shared API conformance and core product scenarios pass, together with real-device background-call and OS interruption tests. Platform-specific service dependencies and limits are documented.
 
-## Stage 7 — Rust terminal client
+## Stage 7 — Native macOS client
+
+**Status: queued after the initial mobile work.** Develop the dedicated Swift/SwiftUI macOS application using the established protocol and product behavior. At stage entry, decide supported macOS versions, the Web-to-native transition, and which Apple-side mobile code can be reused.
+
+**Completion gate:** verify core scenarios, media behavior, package installation, and the documented transition from Web.
+
+## Stage 8 — Rust terminal client
 
 Develop a Rust/Ratatui client. Define its text, moderation, and voice-control scope at stage entry, including the media/audio implementation and credential storage.
 
 **Completion gate:** the declared terminal feature set passes the same protocol and authorization contracts as other clients.
 
-## Stage 8 — Native macOS client
-
-Develop the dedicated Swift macOS application using the established protocol and product behavior. Decide how users move from Web, how existing identities can be reused, and which macOS versions are supported at stage entry.
-
-**Completion gate:** verify core scenarios, media behavior, package installation, and the documented transition from Web.
-
 ## Later feature backlog
 
-Attachments, direct messages, screen sharing, camera, search, reactions, custom roles, account linking, optional Google login, and wider hosting topologies remain candidates. Their order is determined from usage after stabilization and the native-mobile priority. They are not hidden requirements of Stages 0–5.
+Attachments, direct messages, screen sharing, camera, search, reactions, custom roles, account linking, optional Google login, and wider hosting topologies remain candidates. Order them using feedback when stabilization resumes.

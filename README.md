@@ -2,7 +2,7 @@
 
 Yapper is a self-hosted voice and text communicator for friends, with a longer-term direction toward Discord-like capabilities.
 
-**Stage 2 has passed acceptance.** The community features and the Windows/Linux GPUI prototype are implemented. See the [Stage 2 acceptance record](docs/evidence/stage-2-acceptance.md).
+**Stage 4 is closed. Native phone and tablet clients are in development.** Stage 5 stabilization is deferred. See the [implementation roadmap](docs/implementation-plan.md) and the [desktop verification record](docs/evidence/stage-4-desktop.md).
 
 Each installation is an independent community, operated through one Docker Compose project. Its operation does not depend on a central Yapper account service or cloud media provider.
 
@@ -11,6 +11,8 @@ Each installation is an independent community, operated through one Docker Compo
 - [Product specification](docs/product.md): agreed scope, user behavior, languages, and platform roadmap.
 - [Architecture](docs/architecture.md): service responsibilities, identities, protocols, storage, and deployment boundaries.
 - [Implementation plan](docs/implementation-plan.md): ordered stages, dependencies, deliverables, and completion gates.
+- [Native mobile plan](docs/stage-6-mobile-plan.md): Android and iOS/iPadOS work sequence, architecture, and acceptance checks.
+- [Mobile client builds](apps/mobile/README.md): build and connect the Compose and SwiftUI apps.
 - [Validation](docs/validation.md): functional, platform, recovery, and load acceptance scenarios.
 - [Development workflow](docs/development.md): repository layout, branches, squash commits, tooling, and local verification.
 - [Approved toolchain](docs/toolchain.md): pnpm, Turborepo, standard Vite, Bun runtime boundaries, and multi-language integration.
@@ -18,11 +20,11 @@ Each installation is an independent community, operated through one Docker Compo
 
 The initial plan was approved on 2026-09-28. The [native desktop decision](docs/architecture.md#native-desktop-direction) updates that plan. Each stage has explicit completion criteria. Record changes to product scope, trust boundaries, or hosting requirements in the relevant specification.
 
-## Planned first private release
+## First private release baseline
 
-The first private release is planned to include text and voice channels, persistent message history, invitations, moderation, and local administration. The target clients are desktop and mobile browsers, including browsers on macOS, and native Rust/GPUI on Windows and Linux. The Astro landing currently has Polish and English status pages. Download links and installation guidance are part of release preparation.
+The first-release scope includes text and voice channels, persistent message history, invitations, moderation, and local administration. Its client targets are Web, including macOS browsers, and native GPUI on Windows and Linux. The Astro landing has Polish and English status pages. The [validation record](docs/validation.md) tracks verified combinations and remaining checks.
 
-Native mobile clients, a Rust terminal client, and a dedicated Swift macOS client follow after the first release is stabilized. Additional communication features are prioritized from real usage.
+The native mobile clients come next, using Kotlin Multiplatform for shared logic, Jetpack Compose on Android, and SwiftUI on iPhone and iPad. The dedicated Swift macOS client follows. The Rust terminal client stays in the later roadmap.
 
 ## Local development
 

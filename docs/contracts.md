@@ -61,6 +61,8 @@ A manual join sends the channel ID to `POST /api/v1/voice/grant`. The service in
 
 After an established room's SDK reconnect attempts end with a transient disconnect, clients can request a fresh grant with the previous `resumeIdentity` and the same `channelId`. Go checks both against the current unrevoked media session while rotating the grant. If LiveKit cleanup fails, the same resume request can retry that pending replacement. A kick, ban, forced mute, archival, stale identity, or manual leave prevents that automatic recovery. Clients use a manual join to return to an available room with current permissions. An automatic replacement starts muted.
 
+Browser and GPUI signaling send the grant in the `access_token` query and use the exact installation `Origin`. The native Android and Swift SDKs send the media grant as `Authorization: Bearer`. Their requests may omit `Origin`. A supplied origin must match the installation, and a request with both credential formats is rejected. Both formats use the same token, session, and membership checks. The application event WebSocket still uses the installation origin and its own ticket.
+
 ## Planned Rust desktop conformance
 
 The Windows and Linux GPUI client uses the same server contract as Web. The Stage 2 prototype verifies origin handling, guest admission and restoration, basic timeline and message writes, and Go-gated LiveKit signaling. The full desktop conformance checks cover AUTH login/logout and versioned WebSocket events and tickets. Preserve browser origin protections and server-side authorization as native coverage expands.

@@ -24,6 +24,38 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func TestSignalingGrantTransport(t *testing.T) {
+	const origin = "https://voice.example"
+	for _, tc := range []struct {
+		name, origin, query, authorization string
+		want                               string
+		bearer                             bool
+	}{
+		{name: "browser", origin: origin, query: "?access_token=browser", want: "browser"},
+		{name: "native", authorization: "Bearer native", want: "native", bearer: true},
+		{name: "native with matching origin", origin: origin, authorization: "Bearer native", want: "native", bearer: true},
+		{name: "browser requires origin", query: "?access_token=browser"},
+		{name: "unexpected origin", origin: "https://other.example", authorization: "Bearer native"},
+		{name: "ambiguous grant", origin: origin, query: "?access_token=browser", authorization: "Bearer native"},
+		{name: "duplicate query", origin: origin, query: "?access_token=one&access_token=two"},
+		{name: "non-bearer authorization", authorization: "Basic native"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/livekit/rtc"+tc.query, nil)
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.authorization != "" {
+				request.Header.Set("Authorization", tc.authorization)
+			}
+			token, bearer := signalingGrant(request, origin)
+			if token != tc.want || bearer != tc.bearer {
+				t.Fatalf("signaling credential = (%q, %t), want (%q, %t)", token, bearer, tc.want, tc.bearer)
+			}
+		})
+	}
+}
+
 func TestSelfHostedReplayGate(t *testing.T) {
 	dsn, endpoint := os.Getenv("TEST_DATABASE_URL"), os.Getenv("TEST_LIVEKIT_URL")
 	if dsn == "" || endpoint == "" {

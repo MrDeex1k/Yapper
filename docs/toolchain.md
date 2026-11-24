@@ -14,9 +14,10 @@ Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH
 | Tooling execution     | Pinned supported Node.js                 | Frontend tooling and repository scripts                    |
 | Electron desktop      | Electron                                 | Stage 1 development shell and historical smoke tests       |
 | Planned Rust desktop  | Rust, Cargo, GPUI                        | Native desktop builds and UI on Windows and Linux          |
-| Planned Swift desktop | Swift, Xcode                             | Native macOS client in Stage 8                             |
+| Planned mobile        | Kotlin Multiplatform, Gradle, Xcode      | Shared Kotlin logic and native mobile UIs in Stage 6       |
+| Planned Swift desktop | Swift, Xcode                             | Native macOS client in Stage 7                             |
 | Quality               | Oxlint, Bun fmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy            |
-| Backend/mobile builds | Go, later Xcode and Gradle               | Language-specific compilation and dependencies             |
+| Application server    | Go                                       | Compilation and dependencies for the application server    |
 | Deployed services     | Docker Compose                           | Runtime lifecycle and networking                           |
 
 Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser. Cargo builds the Windows and Linux desktop client. The retained Stage 1 shell uses the Electron runtime.
