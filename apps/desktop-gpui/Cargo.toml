@@ -26,3 +26,4 @@ tokio-tungstenite = { version = "=0.29.0", default-features = false, features = 
 ] }
 url = "=2.5.8"
 uuid = { version = "=1.29.3", features = ["v4"] }
+yapper-voice-policy = { path = "../../crates/voice-policy" }

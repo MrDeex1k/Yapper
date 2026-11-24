@@ -2,6 +2,7 @@ use crate::server::{Failure, Session};
 use livekit::{options::TrackPublishOptions, prelude::*};
 use std::{collections::HashSet, ops::ControlFlow, time::Duration};
 use tokio::sync::{mpsc, mpsc::error::TryRecvError, watch};
+use yapper_voice_policy::MicrophoneState;
 
 pub enum Command {
     Leave,
@@ -302,7 +303,13 @@ async fn call(
                 if changed.is_err() {
                     break Ok(());
                 }
-                let wanted = *desired_microphone.borrow_and_update() && connected && can_publish && !controls.playback.deafened;
+                let wanted = MicrophoneState {
+                    requested: *desired_microphone.borrow_and_update(),
+                    connected,
+                    can_publish,
+                    deafened: controls.playback.deafened,
+                }
+                .allows_publication();
                 if wanted && microphone.is_none() {
                     let track = LocalAudioTrack::create_audio_track("microphone", audio.rtc_source());
                     // Publishing can outlast a space-bar press. Start muted and reread intent.

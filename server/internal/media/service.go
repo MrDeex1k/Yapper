@@ -158,7 +158,7 @@ func signalingGrant(r *http.Request, origin string) (token string, bearer bool) 
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "access denied", 403)
+		http.Error(w, "access denied", http.StatusForbidden)
 		return
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/livekit")
@@ -170,7 +170,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, bearer := signalingGrant(r, s.origin)
 	if len(raw) == 0 || len(raw) > 8192 {
-		http.Error(w, "access denied", 403)
+		http.Error(w, "access denied", http.StatusForbidden)
 		return
 	}
 	var claims struct {
@@ -179,7 +179,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := jwt.ParseWithClaims(raw, &claims, func(*jwt.Token) (any, error) { return []byte(s.secret), nil }, jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer(s.key), jwt.WithExpirationRequired())
 	if err != nil || !token.Valid || claims.Video == nil || !claims.Video.RoomJoin {
-		http.Error(w, "access denied", 403)
+		http.Error(w, "access denied", http.StatusForbidden)
 		return
 	}
 	m, err := s.current(r.Context(), claims.Subject)
@@ -187,7 +187,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = s.store.CheckGuestAddress(r.Context(), identity.ClientAddress(r.Context()))
 	}
 	if err != nil || m.ChannelID != claims.Video.Room {
-		http.Error(w, "access denied", 403)
+		http.Error(w, "access denied", http.StatusForbidden)
 		return
 	}
 	proxy := &httputil.ReverseProxy{
@@ -201,7 +201,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				p.Out.Header.Set("Authorization", "Bearer "+raw)
 			}
 		},
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) { http.Error(w, "media unavailable", 502) },
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
+			http.Error(w, "media unavailable", http.StatusBadGateway)
+		},
 		ModifyResponse: func(response *http.Response) error {
 			if response.StatusCode != http.StatusSwitchingProtocols {
 				return nil

@@ -178,6 +178,9 @@ importers:
       '@electron/packager':
         specifier: 20.3.0
         version: 20.3.0(supports-color@10.2.2)
+      '@playwright/test':
+        specifier: npm:flashwright-test@1.64.1-flashwright.12
+        version: flashwright-test@1.64.1-flashwright.12
       '@shadcn/lint':
         specifier: 0.2.5
         version: 0.2.5
@@ -2395,6 +2398,21 @@ packages:
   filenamify@6.0.0:
     resolution: {integrity: sha512-vqIlNogKeyD3yzrm0yhRMQg8hOVwYcYRfjEoODd49iCprMn4HL85gK3HcykQE53EPIpX3HcAbGA5ELQv216dAQ==}
     engines: {node: '>=16'}
+
+  flashwright-core@1.64.1-flashwright.12:
+    resolution: {integrity: sha512-iuK+eMGQufE4BjzsPQeLMrE35pgrJt1th63zzDHfogw0mVtwAzIXHazeBQv2RetMIiUUFtrPQTYuvJ19bDr85A==}
+    engines: {node: '>=22.18.0'}
+    hasBin: true
+
+  flashwright-test@1.64.1-flashwright.12:
+    resolution: {integrity: sha512-s++qu9esGJKFscRU2BuEX7QJdYtaLDpibUfEnjPLosKxjhGqECLQ11B/g/LMRpJtbxnFehnr+2o0eUvF4LJAHg==}
+    engines: {node: '>=22.18.0'}
+    hasBin: true
+
+  flashwright@1.64.1-flashwright.12:
+    resolution: {integrity: sha512-uHVbEdcIcMz+/4kvfqYXE5oOMo9EObjQ/AN8yJystNDN6oY5eKa9aRkfwHWaPdlND5V+J/W5qoVQYzxNy3Q8xg==}
+    engines: {node: '>=22.18.0'}
+    hasBin: true
 
   flattie@1.1.1:
     resolution: {integrity: sha512-9UbaD6XdAL97+k/n+N7JwX46K/M6Zc6KcFYskrYL8wbBV/Uyk0CTAMY0VT+qiK5PM7AIc9aTWYtq65U7T+aCNQ==}
@@ -5194,6 +5212,16 @@ snapshots:
   filenamify@6.0.0:
     dependencies:
       filename-reserved-regex: 3.0.0
+
+  flashwright-core@1.64.1-flashwright.12: {}
+
+  flashwright-test@1.64.1-flashwright.12:
+    dependencies:
+      playwright: flashwright@1.64.1-flashwright.12
+
+  flashwright@1.64.1-flashwright.12:
+    dependencies:
+      playwright-core: flashwright-core@1.64.1-flashwright.12
 
   flattie@1.1.1: {}
 

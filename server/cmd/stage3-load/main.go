@@ -69,8 +69,9 @@ func main() {
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if err := run(ctx, *origin, *tone, *warmup, *duration); err != nil {
+	err := run(ctx, *origin, *tone, *warmup, *duration)
+	stop()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
