@@ -1,6 +1,6 @@
 # Implementation plan
 
-**Stages 0–4 are closed and Stage 5 is deferred. Stages 6 and 7 have working native clients with acceptance checks open. Stage 7.5 tooling is in place. Stage 8 is planned.** See [Validation](validation.md) for recorded results and outstanding checks.
+**Stages 0–4 are closed and Stage 5 is deferred. Stages 6 and 7 have working native clients with acceptance checks open. Stage 7.5 tooling is in place. Stage 8 has a terminal client with platform acceptance open.** See [Validation](validation.md) for recorded results and outstanding checks.
 
 Stages use completion gates rather than dates. Stage 6 can proceed while Stage 5 is deferred. Retain stage numbers so existing records remain traceable.
 
@@ -135,9 +135,9 @@ Guest admission, chat, muted voice joins, and tablet layouts were exercised on A
 
 ## Stage 8 — Rust terminal client
 
-**Status: planned.** Build a Rust/Ratatui client for macOS, Linux, and Windows. Users can read and send plain-text messages in accessible text channels and join or leave voice channels for two-way audio. The terminal client does not offer message editing, message deletion, or moderation.
+**Status: client implemented, with platform and physical audio acceptance open.** The Rust/Ratatui client targets macOS, Linux, and Windows. Users can read and send plain-text messages in accessible text channels and join or leave voice channels for two-way audio. The terminal client does not offer message editing, message deletion, or moderation.
 
-Start with a compatibility probe for credential storage, terminal lifecycle, and two-way audio on all three platforms. Then deliver text chat, voice, and private build verification. See the [Stage 8 plan](stage-8-terminal-plan.md) for the work sequence and exit checks.
+See the [terminal build instructions](../apps/terminal/README.md), [Stage 8 plan](stage-8-terminal-plan.md), and [verification record](evidence/stage-8-terminal.md).
 
 **Completion gate:** the [terminal acceptance checks](validation.md#terminal-client-acceptance) pass on macOS, Linux, and Windows against the existing protocol and authorization contracts.
 

@@ -72,7 +72,7 @@ The first private release supports macOS through Web. Record supported OS/browse
 
 The repository includes native Android, iPhone, iPad, and macOS clients in development. Android uses Jetpack Compose. iPhone and iPad use SwiftUI, with client logic shared with Android through Kotlin Multiplatform. macOS uses SwiftUI and a Swift client. Physical-device and distribution acceptance are tracked in [Validation](validation.md#native-mobile-acceptance). Stabilization is deferred.
 
-The [planned Stage 8 Rust/Ratatui terminal client](stage-8-terminal-plan.md) targets macOS, Linux, and Windows. Its scope is reading and sending plain-text channel messages and joining or leaving voice channels. Message editing, message deletion, and moderation are outside the terminal client's scope.
+The [Stage 8 Rust/Ratatui terminal client](../apps/terminal/README.md) targets macOS, Linux, and Windows. Its scope is reading and sending plain-text channel messages and joining or leaving voice channels. Message editing, message deletion, and moderation are outside the terminal client's scope.
 
 ## Privacy and distribution
 

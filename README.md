@@ -10,7 +10,7 @@ Yapper is a self-hosted voice and text communicator for friends. Each installati
 | Windows and Linux                   | Native Rust/GPUI client for chat, voice, and saved servers. Part of the first private release baseline.        | [GPUI builds](apps/desktop-gpui/README.md)                           |
 | Android, iPhone, and iPad           | Native Compose and SwiftUI clients with shared Kotlin logic. Emulator and simulator results are recorded.      | [Mobile builds](apps/mobile/README.md)                               |
 | macOS                               | Native SwiftUI client builds on Apple Silicon for macOS 26 or later.                                           | [macOS builds and Web transition](apps/macos/README.md)              |
-| macOS, Linux, and Windows terminals | Stage 8 is planned for plain-text chat and two-way voice.                                                      | [Terminal client plan](docs/stage-8-terminal-plan.md)                |
+| macOS, Linux, and Windows terminals | Rust/Ratatui client for guest chat and voice. Platform acceptance is ongoing.                                  | [Terminal client builds](apps/terminal/README.md)                    |
 
 The [implementation roadmap](docs/implementation-plan.md) tracks stage status. Stage 4 is closed, Stage 5 is deferred, and native mobile and macOS acceptance is ongoing. The [validation record](docs/validation.md) lists tested environments and open checks.
 

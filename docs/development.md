@@ -10,6 +10,7 @@ Current monorepo layout; exact packages are listed by pnpm:
 apps/web/             React application and administration UI
 apps/desktop/         Stage 1 Electron development shell and smoke tooling
 apps/desktop-gpui/    Rust/GPUI desktop app for Windows and Linux
+apps/terminal/        Rust/Ratatui terminal app for guest chat and voice
 apps/macos/           Native Swift and SwiftUI macOS client
 apps/mobile/          Android and iOS clients, shared Kotlin module and Apple Xcode project
 apps/auth/            Bun, Elysia 2 RC, Better Auth
@@ -24,7 +25,7 @@ scripts/              Development and operational commands
 docs/                 Specifications, plans, and decision records
 ```
 
-Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun runs AUTH, Turborepo orchestrates repository tasks, and Vite builds the React client. Cargo builds GPUI and its voice policy. Gradle builds the Android app and shared Kotlin module. Xcode builds the Apple clients. See the [toolchain](toolchain.md#native-client-builds) and the client README files for local commands.
+Use pnpm workspaces and one committed `pnpm-lock.yaml` for JS/TS dependency installation. Bun runs AUTH, Turborepo orchestrates repository tasks, and Vite builds the React client. Cargo builds GPUI, the terminal client, and their shared voice policy. Gradle builds the Android app and shared Kotlin module. Xcode builds the Apple clients. See the [toolchain](toolchain.md#native-client-builds) and the client README files for local commands.
 
 Repository scripts and Astro configuration use TypeScript. Node 26 executes `.ts` scripts through native type stripping; `pnpm typecheck:scripts` checks them with strict types and `erasableSyntaxOnly`, and is included in `pnpm typecheck`/`pnpm check`. Type stripping does not perform type checking. Preload and native Electron smoke sources use `.cts` and are compiled to CommonJS for Electron. The smoke harness is emitted into ignored `.test-tools/`, outside the application's package allowlist; the preload is emitted into `dist/preload.cjs`. Both are checked by the desktop type-check command. Do not commit generated JavaScript.
 

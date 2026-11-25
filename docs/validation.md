@@ -95,7 +95,7 @@ Stage 7 has Apple Silicon build, session restoration, chat, and muted voice-join
 
 ## Terminal client acceptance
 
-[Stage 8](stage-8-terminal-plan.md) is planned. Record the OS, architecture, terminal, credential store, audio devices, server revision, and client build for each macOS, Linux, and Windows run. All platform checks are pending.
+The [Stage 8 verification record](evidence/stage-8-terminal.md) tracks results against this matrix. Record the OS, architecture, terminal, credential store, audio devices, server revision, and client build for each macOS, Linux, and Windows run.
 
 | Area               | Required evidence                                                                                                                                                                                                                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -104,5 +104,3 @@ Stage 7 has Apple Silicon build, session restoration, chat, and muted voice-join
 | Voice              | Join muted, unmute explicitly, and confirm audible speech in both directions with physical microphones. Verify that leave, room switching, and graceful exit end capture and release the old grant.                                            |
 | Authorization      | Server checks still apply to channel access, kicks, bans, forced mute, and voice grants. Verify the action surface contains no message editing, deletion, or moderation controls, including for privileged accounts if staff sign-in is added. |
 | Terminal and build | Build with locked dependencies and install on a clean target. Check keyboard navigation, resize, EN/PL copy, and terminal restoration after exit and interruption.                                                                             |
-
-The documentation pass checked local Markdown links and anchors, Git diff whitespace, and the documented API and build entry points against source. Terminal builds and runtime behavior remain pending the first compatibility probe.

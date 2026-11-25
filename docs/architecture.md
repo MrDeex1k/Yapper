@@ -48,7 +48,7 @@ Stage 2 validated a GPUI prototype and Stage 4 built the native client for Windo
 
 ## Terminal client direction
 
-Stage 8 plans to reuse the v1 API, ticketed application events, and Go-gated LiveKit signaling. The compatibility probe will verify terminal handling, per-origin secure storage, and native audio on macOS, Linux, and Windows. See the [terminal client plan](stage-8-terminal-plan.md).
+The Rust/Ratatui client uses the v1 API, ticketed application events, and Go-gated LiveKit bearer signaling. It keeps guest credentials in an OS-backed store scoped by server origin. The platform and audio acceptance results are tracked in the [Stage 8 verification record](evidence/stage-8-terminal.md).
 
 ## Identity and authorization
 

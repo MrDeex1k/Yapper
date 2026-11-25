@@ -1,6 +1,6 @@
 # Stage 8 — Rust terminal client
 
-**Status: planned.** Deliver an interactive Rust/Ratatui client for macOS, Linux, and Windows. Work against the current Yapper v1 API and a self-hosted installation. This plan covers a local compatibility probe, text chat, voice, and private build verification.
+**Status: implemented, with platform acceptance open.** See the [verification record](evidence/stage-8-terminal.md). Deliver an interactive Rust/Ratatui client for macOS, Linux, and Windows. Work against the current Yapper v1 API and a self-hosted installation. This plan covers a local compatibility probe, text chat, voice, and private build verification.
 
 ## Scope
 
@@ -17,7 +17,7 @@
 - **Voice.** Start the probe with the LiveKit Rust SDK and system input/output path used by GPUI. Try native bearer signaling for upgrades and validation through Go, as supported by the current server. If the SDK needs the origin-checked query format, evaluate GPUI's adapter before changing server behavior. Restrict signaling to the selected installation, preserve trusted TLS and grant checks, and reuse the production microphone publication rule in [yapper-voice-policy](../crates/voice-policy/Cargo.toml). Serialize room connections and submit the specific media identity on leave, exit, or room replacement. Follow the existing eligible-resume contract if automatic recovery is included. Require explicit unmute after a fresh grant.
 - **Terminal lifecycle.** Start with Ratatui and Crossterm. Restore raw mode, cursor state, and the alternate screen on normal exit, interrupt, and recoverable terminal errors. Exercise panic restoration and noninteractive invocation separately. Keep HTTP and media work off the input and rendering loop.
 
-Ratatui's lifecycle was checked through Context7 against upstream documentation. Context7 returned current LiveKit docs instead of the GPUI pin, so the existing GPUI implementation and lockfile are the starting reference (`livekit 0.12.0`, `webrtc-sys 0.3.55`). Confirm the exact APIs, native archive availability, and macOS microphone permission behavior from the terminal host before choosing terminal dependencies. See the [Ratatui terminal lifecycle source](https://github.com/ratatui/ratatui/blob/main/ratatui/src/init.rs) and [GPUI build instructions](../apps/desktop-gpui/README.md).
+Ratatui's lifecycle was checked through Context7 against upstream documentation. Context7 returned current LiveKit docs instead of the GPUI pin, so the existing GPUI implementation and lockfile are the starting reference (`livekit 0.12.0`, `webrtc-sys 0.3.55`). The client uses the pinned SDK and its native WebRTC archives. Physical microphone permission behavior remains part of platform acceptance. See the [Ratatui terminal lifecycle source](https://github.com/ratatui/ratatui/blob/main/ratatui/src/init.rs) and [GPUI build instructions](../apps/desktop-gpui/README.md).
 
 ## Work sequence
 
@@ -29,7 +29,7 @@ Start with macOS arm64, Linux x64 GNU, and Windows x64 MSVC as candidate targets
 
 ### 2. Session and text
 
-Add the proposed `apps/terminal` app with a committed Cargo lockfile, connection and invitation prompts, session restore, channel browser, timeline, composer, retry, and event recovery. Reuse GPUI transport and wire behavior where practical and extract shared code only for verified common behavior.
+Add the `apps/terminal` app with a committed Cargo lockfile, connection and invitation prompts, session restore, channel browser, timeline, composer, retry, and event recovery. Reuse GPUI transport and wire behavior where practical and extract shared code only for verified common behavior.
 
 **Exit check.** A terminal guest and a Web guest exchange messages on a disposable installation. Reconnect and relaunch preserve identity and converge on the same history without duplicate sends.
 

@@ -28,7 +28,7 @@ The Windows and Linux desktop client pins Rust 1.100.0 and GPUI 0.2.2 with a com
 
 Stage 4 uses Blaze to lock the native WebRTC archives for Linux and Windows. The [SDK preparation workflow](../apps/desktop-gpui/README.md#prepare-the-pinned-webrtc-sdk) verifies and caches those archives for Cargo. The [Blaze evaluation](evidence/stage-4-blaze.md) records compiler compatibility.
 
-Gradle and Xcode own the [mobile builds](../apps/mobile/README.md). The same Xcode project has a [macOS target](../apps/macos/README.md) that builds without Gradle or Kotlin. Stage 8 will pin the Rust terminal dependencies after the [platform probe](stage-8-terminal-plan.md#work-sequence).
+Gradle and Xcode own the [mobile builds](../apps/mobile/README.md). The same Xcode project has a [macOS target](../apps/macos/README.md) that builds without Gradle or Kotlin. The [Rust terminal client](../apps/terminal/README.md) pins Ratatui and LiveKit in a separate Cargo lockfile and shares the microphone publication policy with GPUI.
 
 Pin pnpm, Node, Bun, Go, and build-tool versions independently. Use `pnpm-workspace.yaml` with `apps/*`, `packages/*`, and `server` when using its wrapper described below. Use `workspace:*` for local JS/TS dependencies. Commit one pnpm lockfile; retain language-native manifests such as `go.mod`/`go.sum`. Do not run `bun install` or generate a second JS lockfile. Disable Bun runtime auto-install so missing dependencies fail instead of bypassing pnpm's resolved graph. Reproducible local verification installs through `pnpm install --frozen-lockfile`.
 
