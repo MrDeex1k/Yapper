@@ -14,7 +14,8 @@ use crate::{
     api::{Error, Installation, Membership, Server, Session, Storage},
     copy::{Label, Language},
     field::{Field, safe_text},
-    read_event,
+    read_event, shortcut_view,
+    shortcuts::{Shortcut, Shortcuts},
 };
 
 pub(crate) struct Joined {
@@ -28,6 +29,7 @@ pub(crate) async fn launch(
     terminal: &mut DefaultTerminal,
     input: &mut Input,
     language: &mut Language,
+    shortcuts: &mut Shortcuts,
     address: String,
 ) -> io::Result<Option<Joined>> {
     let mut model = Launcher {
@@ -35,14 +37,14 @@ pub(crate) async fn launch(
         ..Launcher::default()
     };
     loop {
-        terminal.draw(|frame| model.draw(frame, *language))?;
+        terminal.draw(|frame| model.draw(frame, *language, shortcuts))?;
         tokio::select! {
             event = read_event(input) => match event? {
-                None => {
-                    if let Some(job) = model.job {
-                        job.abort();
+                None => break,
+                Some(Event::Key(key)) if key.code == shortcut_view::SETTINGS_KEY => {
+                    if !shortcut_view::edit(terminal, input, shortcuts, *language).await? {
+                        break;
                     }
-                    return Ok(None);
                 }
                 Some(Event::Key(key)) if key.code == KeyCode::F(1) => language.switch(),
                 Some(event) if model.job.is_none() => model.input(event),
@@ -74,6 +76,10 @@ pub(crate) async fn launch(
             },
         }
     }
+    if let Some(job) = model.job {
+        job.abort();
+    }
+    Ok(None)
 }
 
 #[derive(Default)]
@@ -200,11 +206,39 @@ impl Launcher {
         self.notice = None;
     }
 
-    fn draw(&self, frame: &mut Frame, lang: Language) {
+    fn draw(&self, frame: &mut Frame, lang: Language, shortcuts: &Shortcuts) {
+        let editing = self.job.is_none() && self.pending.is_none();
+        let settings = lang.label(Label::ConfigureShortcuts);
+        let mut entries = Vec::new();
+        if self.job.is_none() {
+            let submit = if !editing {
+                Label::RetryConnection
+            } else if self.server.is_some() {
+                Label::Join
+            } else {
+                Label::Connect
+            };
+            entries.push(("Enter".to_owned(), lang.label(submit)));
+            if editing && self.needs_invite() {
+                entries.push(("Tab".to_owned(), lang.label(Label::NextField)));
+            }
+            if editing && self.server.is_some() {
+                entries.push(("F3".to_owned(), lang.label(Label::SessionMode)));
+            }
+        }
+        entries.extend([
+            ("F1".to_owned(), lang.label(Label::SwitchLanguage)),
+            ("F2".to_owned(), settings),
+        ]);
+        if self.job.is_none() && (self.server.is_some() || self.pending.is_some()) {
+            entries.push(("Esc".to_owned(), lang.label(Label::Back)));
+        }
+        entries.push(("Ctrl+C".to_owned(), lang.shortcut(Shortcut::Quit)));
+        let lines = shortcut_view::grid(&entries, ("F2", settings), frame.area());
         let [header, body, footer] = Layout::vertical([
             Constraint::Length(2),
             Constraint::Min(1),
-            Constraint::Length(3),
+            Constraint::Length(lines.len() as u16 + 1),
         ])
         .areas(frame.area());
         frame.render_widget(
@@ -226,9 +260,8 @@ impl Launcher {
         if let Some((_, installation)) = &self.server {
             frame.render_widget(Paragraph::new(safe_text(&installation.name)), title);
         }
-        let editing = self.job.is_none() && self.pending.is_none();
-        if self.pending.is_some() {
-            frame.render_widget(Paragraph::new(lang.label(Label::RetryConnection)), first);
+        if let Some((_, name, _)) = &self.pending {
+            frame.render_widget(Paragraph::new(safe_text(name)), title);
         } else if self.server.is_some() {
             draw_field(
                 frame,
@@ -253,10 +286,7 @@ impl Launcher {
             } else {
                 Storage::Remember
             };
-            frame.render_widget(
-                Paragraph::new(format!("F3  {}", lang.storage(storage))),
-                detail,
-            );
+            frame.render_widget(Paragraph::new(lang.storage(storage)), detail);
         } else {
             draw_field(
                 frame,
@@ -276,11 +306,13 @@ impl Launcher {
                     .style(Style::default().fg(Color::Yellow)),
                 feedback,
             );
+        } else if let Some(notice) = shortcuts.startup_notice {
+            frame.render_widget(
+                Paragraph::new(lang.shortcut_notice(notice)).wrap(Wrap { trim: true }),
+                feedback,
+            );
         }
-        frame.render_widget(
-            Paragraph::new(lang.label(Label::LaunchShortcuts)).wrap(Wrap { trim: true }),
-            footer,
-        );
+        shortcut_view::draw_footer(frame, footer, lines);
     }
 }
 

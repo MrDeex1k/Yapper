@@ -20,3 +20,13 @@ The macOS PTY exercised a disposable Compose deployment through loopback HTTP. I
 The initial macOS muted voice join aborted when WebRTC looked up an Objective-C codec category. The executable now links the categories at its final link step. The subsequent joins and moderation checks above passed. The macOS build embeds a bilingual microphone usage description.
 
 The PTY fixture used a protocol peer. Browser interoperability, a trusted HTTPS deployment, physical two-way speech and device behavior, Linux credential-store and voice integration, Windows runtime, and private clean-machine installation remain open. See the [acceptance matrix](../validation.md#terminal-client-acceptance).
+
+## Configurable shortcuts on 2026-11-26
+
+On macOS arm64, the Polish workspace shortcut footer aligned every key and action label at 112 columns and reflowed at 58 columns. In a PTY with an isolated home directory and loopback API fixture, the editor rejected an occupied key, saved two replacements, and loaded both after a process restart. The remapped key opened chat and sent a message. The previous server shortcut stopped working, the replacement returned to the server prompt, and restoring defaults cleared the saved overrides.
+
+The locked build, formatting, Clippy with warnings denied, and all eight unit tests passed on macOS. All eight tests also passed in the Ubuntu arm64 container. They check preference reload, reset, conflicts, write failure, and malformed settings. Interactive Windows and Linux shortcut handling remains unverified.
+
+The server prompt, invitation form, and shortcut editor were moved to the same footer layout. A macOS PTY verified column alignment at 58 columns, a single row at 95 columns, and all applicable invitation actions at 38 columns. Language switching and navigation back from the editor passed. The workspace remapping and restart probe, rustfmt, Clippy, and all eight unit tests passed again.
+
+The connection footer now pairs each bracketed key with an explicit action, including Connect, Join, and the destination language. The macOS PTY rechecked both languages, the key and action pairs at 38, 58 and 95 columns, and shortcut persistence. The locked build, rustfmt, Clippy, and all eight tests passed.

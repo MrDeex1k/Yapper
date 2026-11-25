@@ -17,7 +17,9 @@ use crate::{
     events::Link,
     field::{Field, safe_message, safe_text},
     launcher::{Joined, draw_value},
-    read_event, voice,
+    read_event, shortcut_view,
+    shortcuts::{Binding, Shortcut, Shortcuts},
+    voice,
     workspace::{Action, Snapshot, Workspace},
 };
 
@@ -29,6 +31,7 @@ pub(crate) async fn run(
     terminal: &mut DefaultTerminal,
     input: &mut Input,
     language: &mut Language,
+    shortcuts: &mut Shortcuts,
     joined: Joined,
 ) -> io::Result<bool> {
     let mut work = Workspace::start(joined.session, joined.membership);
@@ -38,7 +41,7 @@ pub(crate) async fn run(
         cursor: *work.selected.borrow(),
         ..App::default()
     };
-    let result = interact(terminal, input, language, &mut model, &mut work).await;
+    let result = interact(terminal, input, language, shortcuts, &mut model, &mut work).await;
     work.close().await;
     result
 }
@@ -47,6 +50,7 @@ async fn interact(
     terminal: &mut DefaultTerminal,
     input: &mut Input,
     language: &mut Language,
+    shortcuts: &mut Shortcuts,
     model: &mut App,
     work: &mut Workspace,
 ) -> io::Result<bool> {
@@ -56,13 +60,23 @@ async fn interact(
         let snapshot = work.snapshot.borrow_and_update().clone();
         let voice = *work.voice.borrow_and_update();
         model.update(&snapshot);
-        terminal.draw(|frame| model.draw(frame, &snapshot, voice, *language))?;
+        terminal.draw(|frame| model.draw(frame, &snapshot, voice, *language, shortcuts))?;
         tokio::select! {
             event = read_event(input) => match event? {
                 None => return Ok(false),
-                Some(Event::Key(key)) if key.code == KeyCode::F(1) => language.switch(),
-                Some(Event::Key(key)) if key.code == KeyCode::F(4) => return Ok(true),
-                Some(event) => model.input(event, &snapshot, work),
+                Some(Event::Key(key)) if key.code == shortcut_view::SETTINGS_KEY => {
+                    if !shortcut_view::edit(terminal, input, shortcuts, *language).await? {
+                        return Ok(false);
+                    }
+                }
+                Some(Event::Key(key)) => match shortcuts.action(key) {
+                    Some(Shortcut::Language) => language.switch(),
+                    Some(Shortcut::Server) => return Ok(true),
+                    Some(Shortcut::Quit) => return Ok(false),
+                    action => model.key(key, action, &snapshot, work),
+                },
+                Some(Event::Paste(text)) => model.paste(&text, &snapshot, work),
+                _ => {},
             },
             updated = work.snapshot.changed(), if snapshot_open => snapshot_open = updated.is_ok(),
             updated = work.voice.changed(), if voice_open => voice_open = updated.is_ok(),
@@ -86,6 +100,11 @@ struct App {
 struct Draft {
     field: Field,
     request: Option<Uuid>,
+}
+
+enum ComposeInput {
+    Send,
+    Edit(KeyEvent),
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -118,51 +137,59 @@ impl App {
         }
     }
 
-    fn input(&mut self, event: Event, snapshot: &Snapshot, work: &Workspace) {
-        match event {
-            Event::Key(key) => self.key(key, snapshot, work),
-            Event::Paste(text)
-                if self.focus == Focus::Compose && !matches!(snapshot.link, Link::Removed(_)) =>
-            {
-                let draft = self.draft(*work.selected.borrow());
-                if let Some(draft) = draft.filter(|draft| draft.request.is_none()) {
-                    draft.field.paste(&text, COMPOSE_LIMIT);
-                }
+    fn paste(&mut self, text: &str, snapshot: &Snapshot, work: &Workspace) {
+        if self.focus == Focus::Compose && !matches!(snapshot.link, Link::Removed(_)) {
+            let draft = self.draft(*work.selected.borrow());
+            if let Some(draft) = draft.filter(|draft| draft.request.is_none()) {
+                draft.field.paste(text, COMPOSE_LIMIT);
             }
-            _ => {}
         }
     }
 
-    fn key(&mut self, key: KeyEvent, snapshot: &Snapshot, work: &Workspace) {
+    fn key(
+        &mut self,
+        key: KeyEvent,
+        action: Option<Shortcut>,
+        snapshot: &Snapshot,
+        work: &Workspace,
+    ) {
         if matches!(snapshot.link, Link::Removed(_)) {
             return;
         }
-        match key.code {
-            KeyCode::Tab | KeyCode::BackTab => {
+        match action {
+            Some(Shortcut::Focus) => {
                 self.focus = if self.focus == Focus::Channels {
                     Focus::Compose
                 } else {
                     Focus::Channels
                 };
             }
-            KeyCode::Esc => self.focus = Focus::Channels,
-            KeyCode::F(5) => {
+            Some(Shortcut::Microphone) => {
                 let _ = work.actions.try_send(Action::Microphone);
             }
-            KeyCode::F(6) => {
+            Some(Shortcut::Older) => {
                 if let Some(channel) = *work.selected.borrow() {
                     let _ = work.actions.try_send(Action::Older(channel));
                 }
             }
-            KeyCode::F(7) => {
+            Some(Shortcut::Leave) => {
                 let _ = work.actions.try_send(Action::Leave);
             }
-            KeyCode::F(8) => {
+            Some(Shortcut::Refresh) => {
                 let _ = work.actions.try_send(Action::Refresh);
             }
-            KeyCode::PageUp => self.scroll_back = self.scroll_back.saturating_add(8),
-            KeyCode::PageDown => self.scroll_back = self.scroll_back.saturating_sub(8),
-            KeyCode::Enter if self.focus == Focus::Channels => self.open(snapshot, work),
+            Some(Shortcut::ScrollUp) => self.scroll_back = self.scroll_back.saturating_add(8),
+            Some(Shortcut::ScrollDown) => self.scroll_back = self.scroll_back.saturating_sub(8),
+            Some(Shortcut::Open) if self.focus == Focus::Channels => self.open(snapshot, work),
+            Some(Shortcut::Open) => self.compose(ComposeInput::Send, snapshot, work),
+            None => self.edit_key(key, snapshot, work),
+            _ => {}
+        }
+    }
+
+    fn edit_key(&mut self, key: KeyEvent, snapshot: &Snapshot, work: &Workspace) {
+        match key.code {
+            KeyCode::Esc => self.focus = Focus::Channels,
             KeyCode::Up | KeyCode::Down if self.focus == Focus::Channels => {
                 let choices: Vec<_> = channel_entries(snapshot).map(|entry| entry.id).collect();
                 if let Some(index) = self
@@ -177,7 +204,9 @@ impl App {
                     self.cursor = choices.get(next).copied().or(self.cursor);
                 }
             }
-            _ if self.focus == Focus::Compose => self.compose(key, snapshot, work),
+            _ if self.focus == Focus::Compose => {
+                self.compose(ComposeInput::Edit(key), snapshot, work)
+            }
             _ => {}
         }
     }
@@ -206,7 +235,7 @@ impl App {
         channel.map(|channel| self.drafts.entry(channel).or_default())
     }
 
-    fn compose(&mut self, key: KeyEvent, snapshot: &Snapshot, work: &Workspace) {
+    fn compose(&mut self, input: ComposeInput, snapshot: &Snapshot, work: &Workspace) {
         let Some(channel) = *work.selected.borrow() else {
             return;
         };
@@ -216,7 +245,7 @@ impl App {
             return;
         }
         let draft = self.drafts.entry(channel).or_default();
-        if key.code == KeyCode::Enter {
+        if matches!(input, ComposeInput::Send) {
             let body = draft.field.text.trim();
             if !body.is_empty() {
                 let request = draft.request.unwrap_or_else(Uuid::new_v4);
@@ -236,10 +265,12 @@ impl App {
                     self.scroll_back = 0;
                 }
             }
-        } else if key.code == KeyCode::Char('u') && key.modifiers == KeyModifiers::CONTROL {
-            *draft = Draft::default();
-        } else if draft.request.is_none() {
-            draft.field.edit(key, COMPOSE_LIMIT);
+        } else if let ComposeInput::Edit(key) = input {
+            if key.code == KeyCode::Char('u') && key.modifiers == KeyModifiers::CONTROL {
+                *draft = Draft::default();
+            } else if draft.request.is_none() {
+                draft.field.edit(key, COMPOSE_LIMIT);
+            }
         }
     }
 
@@ -249,14 +280,27 @@ impl App {
         snapshot: &Snapshot,
         voice: voice::State,
         lang: Language,
+        shortcuts: &Shortcuts,
     ) {
         let wide = frame.area().width >= WIDE_TERMINAL;
-        let [heading, content, footer] = Layout::vertical([
+        let lines = shortcut_view::footer(shortcuts, lang, frame.area());
+        let notice = snapshot
+            .notice
+            .map(|notice| lang.error(notice))
+            .or_else(|| {
+                shortcuts
+                    .startup_notice
+                    .map(|notice| lang.shortcut_notice(notice))
+            })
+            .or_else(|| (self.storage == Storage::Temporary).then(|| lang.storage(self.storage)));
+        let [heading, content, feedback, footer] = Layout::vertical([
             Constraint::Length(if wide { 2 } else { 3 }),
             Constraint::Min(1),
-            Constraint::Length(5),
+            Constraint::Length(u16::from(notice.is_some())),
+            Constraint::Length(lines.len() as u16 + 1),
         ])
         .areas(frame.area());
+        let open = shortcuts.key(Shortcut::Open);
         let brand = Line::from(vec![
             Span::styled(" Yapper  ", Style::default().fg(ACCENT).bold()),
             Span::raw(safe_text(&self.name)),
@@ -289,24 +333,20 @@ impl App {
             let [navigation, chat] =
                 Layout::horizontal([Constraint::Length(26), Constraint::Min(1)]).areas(content);
             self.draw_channels(frame, navigation, snapshot, lang);
-            self.draw_chat(frame, chat, snapshot, lang);
+            self.draw_chat(frame, chat, snapshot, lang, open);
         } else if self.focus == Focus::Channels {
             self.draw_channels(frame, content, snapshot, lang);
         } else {
-            self.draw_chat(frame, content, snapshot, lang);
+            self.draw_chat(frame, content, snapshot, lang, open);
         }
 
-        let notice = snapshot
-            .notice
-            .map(|notice| lang.error(notice))
-            .or_else(|| (self.storage == Storage::Temporary).then(|| lang.storage(self.storage)));
-        let shortcuts = lang.label(Label::WorkspaceShortcuts);
-        let mut lines = vec![Line::styled(
-            notice.unwrap_or_default(),
-            Style::default().fg(Color::Yellow),
-        )];
-        lines.extend(shortcuts.lines().map(Line::raw));
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), footer);
+        if let Some(notice) = notice {
+            frame.render_widget(
+                Paragraph::new(notice).style(Style::default().fg(Color::Yellow)),
+                feedback,
+            );
+        }
+        shortcut_view::draw_footer(frame, footer, lines);
     }
 
     fn draw_channels(
@@ -344,7 +384,14 @@ impl App {
         frame.render_stateful_widget(list, area, &mut self.list);
     }
 
-    fn draw_chat(&mut self, frame: &mut Frame, area: Rect, snapshot: &Snapshot, lang: Language) {
+    fn draw_chat(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        snapshot: &Snapshot,
+        lang: Language,
+        open: Binding,
+    ) {
         let [title, history, compose] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Min(1),
@@ -399,13 +446,17 @@ impl App {
         let draft = self.drafts.get(&channel.id);
         let sending = self.sending.is_some_and(|(id, _)| id == channel.id);
         let label = if channel.archived {
-            lang.label(Label::ReadOnly)
+            Line::raw(lang.label(Label::ReadOnly))
         } else if sending {
-            lang.label(Label::Sending)
+            Line::raw(lang.label(Label::Sending))
         } else if draft.is_some_and(|draft| draft.request.is_some()) {
-            lang.label(Label::RetrySend)
+            Line::raw(format!(
+                "{open}  {}    Ctrl+U  {}",
+                lang.label(Label::RetryAction),
+                lang.label(Label::ClearDraft)
+            ))
         } else {
-            lang.label(Label::Message)
+            Line::raw(lang.label(Label::Message))
         };
         let [label_area, input_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(compose);

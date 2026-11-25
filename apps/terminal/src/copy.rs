@@ -1,6 +1,7 @@
 use crate::{
     api::{Error, Storage},
     events::Link,
+    shortcuts::{Problem, Shortcut},
     voice::State,
 };
 
@@ -81,8 +82,8 @@ impl Language {
                 "Mikrofon jest niedostępny. Sprawdź urządzenie i uprawnienia.",
             ),
             Error::Kicked => self.text(
-                "You were disconnected by the server. Reconnect with F4.",
-                "Serwer Cię rozłączył. Połącz się ponownie klawiszem F4.",
+                "You were disconnected by the server. Return to the server prompt to reconnect.",
+                "Serwer Cię rozłączył. Wróć do wyboru serwera, aby połączyć się ponownie.",
             ),
         }
     }
@@ -126,8 +127,22 @@ pub(crate) enum Label {
     Invitation,
     ServerAddress,
     Working,
-    LaunchShortcuts,
-    WorkspaceShortcuts,
+    Connect,
+    Join,
+    NextField,
+    SessionMode,
+    Back,
+    SwitchLanguage,
+    ConfigureShortcuts,
+    Shortcuts,
+    ShortcutConflict,
+    PressShortcut,
+    CancelShortcut,
+    SelectShortcut,
+    ChangeShortcut,
+    ResetShortcuts,
+    RetryAction,
+    ClearDraft,
     Channels,
     Archive,
     SelectChannel,
@@ -135,22 +150,43 @@ pub(crate) enum Label {
     LoadingHistory,
     ReadOnly,
     Sending,
-    RetrySend,
     Message,
 }
 
 impl Language {
     pub fn label(self, label: Label) -> &'static str {
         match label {
-            Label::InteractiveRequired => self.text("Yapper requires an interactive terminal.", "Yapper wymaga interaktywnego terminala."),
-            Label::Usage => self.text("Usage: yapper-terminal [--lang en|pl] [SERVER]", "Użycie: yapper-terminal [--lang en|pl] [SERWER]"),
-            Label::RetryConnection => self.text("Enter  Retry connection", "Enter  Ponów połączenie"),
+            Label::InteractiveRequired => self.text(
+                "Yapper requires an interactive terminal.",
+                "Yapper wymaga interaktywnego terminala.",
+            ),
+            Label::Usage => self.text(
+                "Usage: yapper-terminal [--lang en|pl] [SERVER]",
+                "Użycie: yapper-terminal [--lang en|pl] [SERWER]",
+            ),
+            Label::RetryConnection => self.text("Retry connection", "Ponów połączenie"),
             Label::Nickname => self.text("Nickname", "Pseudonim"),
             Label::Invitation => self.text("Invitation code", "Kod zaproszenia"),
             Label::ServerAddress => self.text("Server address", "Adres serwera"),
             Label::Working => self.text("Connecting…", "Łączenie…"),
-            Label::LaunchShortcuts => self.text("Enter  Continue    Tab  Next field\nF1  Polski    Esc  Back    Ctrl+C  Quit", "Enter  Dalej    Tab  Następne pole\nF1  English    Esc  Wstecz    Ctrl+C  Wyjdź"),
-            Label::WorkspaceShortcuts => self.text("Tab  Channel / chat    Enter  Open / send    PgUp/PgDn  Scroll\nF5  Mic    F6  Older    F7  Leave    F8  Refresh\nF1  Polski    F4  Server    Ctrl+C  Quit", "Tab  Kanały / czat    Enter  Otwórz / wyślij    PgUp/PgDn  Przewiń\nF5  Mikrofon    F6  Starsze    F7  Opuść    F8  Odśwież\nF1  English    F4  Serwer    Ctrl+C  Wyjdź"),
+            Label::Connect => self.text("Connect", "Połącz"),
+            Label::Join => self.text("Join", "Dołącz"),
+            Label::NextField => self.text("Next field", "Następne pole"),
+            Label::SessionMode => self.text("Session mode", "Tryb sesji"),
+            Label::Back => self.text("Back", "Wstecz"),
+            Label::SwitchLanguage => self.text("Switch to Polish", "Przełącz na angielski"),
+            Label::ConfigureShortcuts => self.text("Set shortcuts", "Ustaw skróty"),
+            Label::Shortcuts => self.text("Shortcuts", "Skróty"),
+            Label::ShortcutConflict => self.text("Already assigned to", "Przypisano już do"),
+            Label::PressShortcut => {
+                self.text("Press the new shortcut key.", "Naciśnij nowy skrót.")
+            }
+            Label::CancelShortcut => self.text("Cancel", "Anuluj"),
+            Label::SelectShortcut => self.text("Select", "Wybierz"),
+            Label::ChangeShortcut => self.text("Change", "Zmień"),
+            Label::ResetShortcuts => self.text("Restore defaults", "Przywróć domyślne"),
+            Label::RetryAction => self.text("Retry", "Ponów"),
+            Label::ClearDraft => self.text("Clear", "Wyczyść"),
             Label::Channels => self.text("Channels", "Kanały"),
             Label::Archive => self.text(" (archive)", " (archiwum)"),
             Label::SelectChannel => self.text("Select a text channel.", "Wybierz kanał tekstowy."),
@@ -158,8 +194,44 @@ impl Language {
             Label::LoadingHistory => self.text("Loading history…", "Wczytywanie historii…"),
             Label::ReadOnly => self.text("Read-only channel", "Kanał tylko do odczytu"),
             Label::Sending => self.text("Sending…", "Wysyłanie…"),
-            Label::RetrySend => self.text("Enter  Retry    Ctrl+U  Clear", "Enter  Ponów    Ctrl+U  Wyczyść"),
             Label::Message => self.text("Message", "Wiadomość"),
+        }
+    }
+}
+
+impl Language {
+    pub fn shortcut(self, action: Shortcut) -> &'static str {
+        match action {
+            Shortcut::Focus => self.text("Channels / chat", "Kanały / czat"),
+            Shortcut::Open => self.text("Open / send", "Otwórz / wyślij"),
+            Shortcut::ScrollUp => self.text("Scroll up", "Przewiń w górę"),
+            Shortcut::ScrollDown => self.text("Scroll down", "Przewiń w dół"),
+            Shortcut::Microphone => self.text("Microphone", "Mikrofon"),
+            Shortcut::Older => self.text("Older messages", "Starsze wiadomości"),
+            Shortcut::Leave => self.text("Leave voice", "Opuść rozmowę"),
+            Shortcut::Refresh => self.text("Refresh", "Odśwież"),
+            Shortcut::Language => self.text("Change language", "Zmień język"),
+            Shortcut::Server => self.text("Change server", "Zmień serwer"),
+            Shortcut::Quit => self.text("Quit", "Wyjdź"),
+        }
+    }
+
+    pub fn shortcut_notice(self, problem: Problem) -> &'static str {
+        match problem {
+            Problem::Load => self.text(
+                "Could not read shortcuts. Defaults are active.",
+                "Nie udało się odczytać skrótów. Działają ustawienia domyślne.",
+            ),
+            Problem::Save => self.text(
+                "Could not save shortcuts.",
+                "Nie udało się zapisać skrótów.",
+            ),
+            Problem::Unsupported => self.text(
+                "Key unavailable. Try F1–F12 or Ctrl/Alt + a letter.",
+                "Klawisz niedostępny. Spróbuj F1–F12 lub Ctrl/Alt + litera.",
+            ),
+            Problem::Saved => self.text("Saved.", "Zapisano."),
+            Problem::Conflict(_) => self.label(Label::ShortcutConflict),
         }
     }
 }

@@ -29,6 +29,7 @@ For a local installation, run `cargo install --locked --path .` from this direct
 | Key | Action |
 | --- | --- |
 | F1 | Switch English and Polish |
+| F2 | Open shortcut settings |
 | Tab, Esc | Switch between channels and chat, or return to channels |
 | ↑, ↓, Enter | Move in the channel list and open a text channel or join voice |
 | Enter in chat | Send or retry the draft using the original request ID |
@@ -37,6 +38,18 @@ For a local installation, run `cargo install --locked --path .` from this direct
 | F5, F7 | Toggle the microphone or leave voice |
 | F4, F8 | Return to the server prompt or refresh the workspace |
 | Ctrl+C | Exit the client and leave voice |
+
+### Customize shortcuts
+
+Open **Shortcuts** with F2 from the server prompt or workspace. Select an action with ↑ or ↓, press Enter, then press the new key. Each accepted change applies to the workspace immediately. If the key is already assigned, choose another one. F3 restores all defaults, and Esc cancels capture or returns to the previous screen.
+
+Bindings work across server connections and are saved in `shortcuts.json` under the local user directory:
+
+- macOS uses `~/Library/Application Support/yapper-terminal/`.
+- Linux uses `$XDG_CONFIG_HOME/yapper-terminal/` or `~/.config/yapper-terminal/`.
+- Windows uses `%APPDATA%\yapper-terminal\`.
+
+F2 always opens settings. Ctrl+C always exits. The server prompt and shortcut editor use their own navigation keys.
 
 Voice starts muted. A reconnect or permission change requires another explicit unmute. Chat stays available while you talk. Archived text channels are read-only. If the credential store cannot be used, F3 offers a temporary guest session that lasts for the current connection.
 

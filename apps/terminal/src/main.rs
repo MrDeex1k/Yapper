@@ -19,6 +19,8 @@ mod copy;
 mod events;
 mod field;
 mod launcher;
+mod shortcut_view;
+mod shortcuts;
 mod voice;
 mod workspace;
 
@@ -79,11 +81,26 @@ async fn run(args: Arguments) -> io::Result<()> {
     };
     let mut language = args.lang;
     let mut address = args.address;
-    while let Some(joined) =
-        launcher::launch(&mut terminal, &mut input, &mut language, address).await?
+    let mut shortcuts = shortcuts::Shortcuts::load();
+    while let Some(joined) = launcher::launch(
+        &mut terminal,
+        &mut input,
+        &mut language,
+        &mut shortcuts,
+        address,
+    )
+    .await?
     {
         address = joined.session.server.origin();
-        if !app::run(&mut terminal, &mut input, &mut language, joined).await? {
+        if !app::run(
+            &mut terminal,
+            &mut input,
+            &mut language,
+            &mut shortcuts,
+            joined,
+        )
+        .await?
+        {
             break;
         }
     }
