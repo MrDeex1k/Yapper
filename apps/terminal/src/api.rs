@@ -16,6 +16,7 @@ pub(crate) enum Error {
     Network,
     Setup,
     Denied,
+    Blocked,
     Invitation,
     Nickname,
     Archived,
@@ -37,7 +38,7 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Installation {
     pub name: String,
@@ -95,6 +96,12 @@ pub(crate) struct Change {
     pub id: Uuid,
     pub revision: i64,
     pub message: Option<Message>,
+}
+
+#[derive(Debug)]
+pub(crate) enum GrantError {
+    Rejected(Error),
+    Unconfirmed(Error),
 }
 
 #[derive(Deserialize)]
@@ -173,22 +180,32 @@ impl Server {
         nickname: &str,
         invitation: &str,
         storage: Storage,
+        previous: Option<&Session>,
     ) -> Result<(Session, Storage), Error> {
+        let previous = previous.filter(|session| session.server.origin() == self.origin());
         let response = self
             .send(
                 Method::POST,
                 "/api/v1/guests",
-                None,
+                previous.map(|session| &session.cookie),
                 Some(json!({ "nickname": nickname.trim(), "invitation": invitation.trim() })),
             )
             .await?;
-        let secret = response
-            .headers()
-            .get_all(SET_COOKIE)
-            .iter()
-            .filter_map(|header| header.to_str().ok()?.split(';').next()?.split_once('='))
-            .find_map(|(name, value)| (name == self.cookie_name()).then_some(value))
-            .ok_or(Error::Data)?;
+        let secret = if response.status() == StatusCode::OK {
+            // Go returned the still-valid identity without setting a new cookie.
+            previous
+                .and_then(|session| session.cookie.to_str().ok())
+                .and_then(|value| value.split_once('='))
+                .map(|(_, secret)| secret)
+        } else {
+            response
+                .headers()
+                .get_all(SET_COOKIE)
+                .iter()
+                .filter_map(|header| header.to_str().ok()?.split(';').next()?.split_once('='))
+                .find_map(|(name, value)| (name == self.cookie_name()).then_some(value))
+        }
+        .ok_or(Error::Data)?;
         let session = self.session(secret)?;
         if storage == Storage::Remember {
             let secret = secret.to_owned();
@@ -259,6 +276,7 @@ impl Server {
         }
         let code = decode::<Failure>(response).await.ok();
         Err(match code.as_ref().map(|code| code.code.as_str()) {
+            Some("participant_banned" | "ip_blocked") => Error::Blocked,
             Some("invalid_nickname") => Error::Nickname,
             Some("invitation_denied" | "invalid_invitation") => Error::Invitation,
             Some("channel_archived") => Error::Archived,
@@ -347,13 +365,25 @@ impl Session {
         .await
     }
 
-    pub async fn grant(&self, channel: Uuid) -> Result<Grant, Error> {
-        self.request(
-            Method::POST,
-            "/api/v1/voice/grant",
-            Some(json!({ "channelId": channel })),
-        )
-        .await
+    pub async fn grant(&self, channel: Uuid) -> Result<Grant, GrantError> {
+        let response = self
+            .server
+            .send(
+                Method::POST,
+                "/api/v1/voice/grant",
+                Some(&self.cookie),
+                Some(json!({ "channelId": channel })),
+            )
+            .await
+            .map_err(|error| match error {
+                Error::Network => GrantError::Unconfirmed(error),
+                error => GrantError::Rejected(error),
+            })?;
+        let grant: Grant = decode(response).await.map_err(GrantError::Unconfirmed)?;
+        if grant.identity.is_empty() {
+            return Err(GrantError::Unconfirmed(Error::Data));
+        }
+        Ok(grant)
     }
 
     pub async fn leave(&self, identity: &str) -> Result<(), Error> {

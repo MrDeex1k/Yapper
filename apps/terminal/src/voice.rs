@@ -15,10 +15,11 @@ use tokio::{sync::watch, task::JoinHandle, time::timeout};
 use uuid::Uuid;
 use yapper_voice_policy::MicrophoneState;
 
-use crate::api::{self, Error, Grant, Session};
+use crate::api::{self, Error, Grant, GrantError, Session};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum State {
+    #[default]
     Idle,
     Joining,
     Listening,
@@ -29,26 +30,78 @@ pub(crate) enum State {
     Failed(Error),
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Status {
+    pub state: State,
+    controls: Option<Controls>,
+    generation: u64,
+}
+
+#[derive(Debug, Clone)]
+struct Controls {
+    channel: Uuid,
+    stop: watch::Sender<bool>,
+    microphone: watch::Sender<MicrophoneIntent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MicrophoneIntent {
+    Mute,
+    Enable(u64),
+}
+
+impl Status {
+    pub fn channel(&self) -> Option<Uuid> {
+        self.controls.as_ref().map(|controls| controls.channel)
+    }
+
+    pub fn leave(&self) {
+        if let Some(controls) = &self.controls {
+            controls.stop.send_replace(true);
+        }
+    }
+
+    pub fn microphone(&self) {
+        if let Some(controls) = &self.controls {
+            let intent = match self.state {
+                State::Muted => MicrophoneIntent::Enable(self.generation),
+                State::MicrophoneOn => MicrophoneIntent::Mute,
+                _ => return,
+            };
+            controls.microphone.send_replace(intent);
+        }
+    }
+}
+
 pub(crate) struct Call {
     pub channel: Uuid,
     stop: watch::Sender<bool>,
-    microphone: watch::Sender<bool>,
     task: JoinHandle<()>,
 }
 
 impl Call {
-    pub fn start(session: Session, channel: Uuid, state: watch::Sender<State>) -> Self {
+    pub fn start(session: Session, channel: Uuid, status: watch::Sender<Status>) -> Self {
         let (stop, stopped) = watch::channel(false);
-        let (microphone, desired) = watch::channel(false);
-        state.send_replace(State::Joining);
+        let (microphone, desired) = watch::channel(MicrophoneIntent::Mute);
+        status.send_replace(Status {
+            controls: Some(Controls {
+                channel,
+                stop: stop.clone(),
+                microphone,
+            }),
+            state: State::Joining,
+            generation: 0,
+        });
         let task = tokio::spawn(async move {
-            let result = run(&session, channel, stopped, desired, &state).await;
-            state.send_replace(result.map_or_else(State::Failed, |()| State::Idle));
+            let result = run(&session, channel, stopped, desired, &status).await;
+            status.send_replace(Status {
+                state: result.map_or_else(State::Failed, |()| State::Idle),
+                ..Status::default()
+            });
         });
         Self {
             channel,
             stop,
-            microphone,
             task,
         }
     }
@@ -57,51 +110,52 @@ impl Call {
         !self.task.is_finished()
     }
 
-    pub fn microphone(&self, state: State) {
-        match state {
-            State::Muted => {
-                self.microphone.send_replace(true);
-            }
-            State::MicrophoneOn => {
-                self.microphone.send_replace(false);
-            }
-            _ => {}
-        }
-    }
-
     pub async fn close(self) {
         self.stop.send_replace(true);
         let _ = self.task.await;
     }
 }
 
+fn set_state(status: &watch::Sender<Status>, state: State) {
+    status.send_modify(|status| status.state = state);
+}
+
 async fn run(
     session: &Session,
     channel: Uuid,
     mut stop: watch::Receiver<bool>,
-    desired: watch::Receiver<bool>,
-    state: &watch::Sender<State>,
+    desired: watch::Receiver<MicrophoneIntent>,
+    status: &watch::Sender<Status>,
 ) -> Result<(), Error> {
     // A completed grant must be learned and revoked even if the user leaves while it is requested.
-    let grant = session.grant(channel).await?;
+    let grant = match session.grant(channel).await {
+        Ok(grant) => grant,
+        Err(GrantError::Rejected(error)) => return Err(error),
+        Err(GrantError::Unconfirmed(error)) => {
+            // Match Web's recovery when the grant may have committed without an identity.
+            release_grant(session, "").await?;
+            return Err(error);
+        }
+    };
     let result = if *stop.borrow() {
         Ok(())
     } else {
-        call(session, channel, &grant, &mut stop, desired, state).await
+        call(session, channel, &grant, &mut stop, desired, status).await
     };
-    state.send_replace(State::Leaving);
-    if grant.identity.is_empty() {
-        return result.and(Err(Error::Data));
+    set_state(status, State::Leaving);
+    result.and(release_grant(session, &grant.identity).await)
+}
+
+async fn release_grant(session: &Session, identity: &str) -> Result<(), Error> {
+    let mut result = session.leave(identity).await;
+    // Retrying an identity-specific release cannot revoke a replacement grant.
+    if result == Err(Error::Network) && !identity.is_empty() {
+        result = session.leave(identity).await;
     }
-    let mut leave = session.leave(&grant.identity).await;
-    if matches!(leave, Err(Error::Network)) {
-        leave = session.leave(&grant.identity).await;
+    match result {
+        Err(Error::Denied | Error::Blocked) => Ok(()),
+        result => result,
     }
-    // A revoked guest cannot request cleanup. The server already owns revocation.
-    if leave == Err(Error::Denied) {
-        leave = Ok(());
-    }
-    result.and(leave)
 }
 
 async fn call(
@@ -109,8 +163,8 @@ async fn call(
     channel: Uuid,
     grant: &Grant,
     stop: &mut watch::Receiver<bool>,
-    desired: watch::Receiver<bool>,
-    state: &watch::Sender<State>,
+    desired: watch::Receiver<MicrophoneIntent>,
+    status: &watch::Sender<Status>,
 ) -> Result<(), Error> {
     let url = session.grant_url(grant, channel)?;
     let _transport = Signaling::install(session, url.clone())?;
@@ -131,7 +185,7 @@ async fn call(
         grant.can_publish,
         stop,
         desired,
-        state,
+        status,
     )
     .await;
     let closed = timeout(Duration::from_secs(5), room.close())
@@ -147,13 +201,13 @@ async fn use_room(
     audio: &PlatformAudio,
     mut can_publish: bool,
     stop: &mut watch::Receiver<bool>,
-    mut desired: watch::Receiver<bool>,
-    state: &watch::Sender<State>,
+    mut desired: watch::Receiver<MicrophoneIntent>,
+    status: &watch::Sender<Status>,
 ) -> Result<(), Error> {
     let mut track: Option<LocalAudioTrack> = None;
     let mut connected = true;
     let mut pending_enable = false;
-    state.send_replace(muted_state(can_publish));
+    set_state(status, muted_state(can_publish));
 
     let result = loop {
         tokio::select! {
@@ -166,12 +220,15 @@ async fn use_room(
                     if let Some(track) = &track {
                         mute(track, audio);
                     }
-                    state.send_replace(State::Reconnecting);
+                    status.send_modify(|status| {
+                        status.generation += 1;
+                        status.state = State::Reconnecting;
+                    });
                 }
                 Some(RoomEvent::Reconnected) => {
                     connected = true;
                     desired.borrow_and_update();
-                    state.send_replace(muted_state(can_publish));
+                    set_state(status, muted_state(can_publish));
                 }
                 Some(RoomEvent::ParticipantPermissionChanged { participant, permission })
                     if participant.identity() == room.local_participant().identity() => {
@@ -181,9 +238,12 @@ async fn use_room(
                     if let Some(track) = &track {
                         mute(track, audio);
                     }
-                    if connected {
-                        state.send_replace(muted_state(can_publish));
-                    }
+                    status.send_modify(|status| {
+                        status.generation += 1;
+                        if connected {
+                            status.state = muted_state(can_publish);
+                        }
+                    });
                 }
                 Some(RoomEvent::Disconnected { .. }) | None => break Err(Error::Voice),
                 _ => {}
@@ -192,7 +252,8 @@ async fn use_room(
                 if change.is_err() {
                     break Ok(());
                 }
-                let requested = *desired.borrow_and_update();
+                let requested = *desired.borrow_and_update()
+                    == MicrophoneIntent::Enable(status.borrow().generation);
                 pending_enable = MicrophoneState {
                     requested,
                     connected,
@@ -202,7 +263,7 @@ async fn use_room(
                 if !pending_enable && let Some(track) = &track {
                     mute(track, audio);
                     if connected {
-                        state.send_replace(muted_state(can_publish));
+                        set_state(status, muted_state(can_publish));
                     }
                 }
                 if pending_enable && track.is_none() {
@@ -225,7 +286,7 @@ async fn use_room(
                         break Err(Error::Microphone);
                     }
                     track.unmute();
-                    state.send_replace(State::MicrophoneOn);
+                    set_state(status, State::MicrophoneOn);
                 }
             },
         }
@@ -438,6 +499,55 @@ impl HttpClient for Signaling {
 #[cfg(test)]
 mod tests {
     use super::{Route, Url, validate_target};
+
+    #[test]
+    fn controls_use_the_displayed_intent_and_cannot_target_a_replacement_call() {
+        use super::{Controls, MicrophoneIntent, State, Status};
+        use tokio::sync::watch;
+        use uuid::Uuid;
+
+        let channel = Uuid::new_v4();
+        let (stop, stopped) = watch::channel(false);
+        let (microphone, intent) = watch::channel(MicrophoneIntent::Mute);
+        let shown = Status {
+            state: State::MicrophoneOn,
+            controls: Some(Controls {
+                channel,
+                stop,
+                microphone,
+            }),
+            generation: 7,
+        };
+        let (replacement_stop, replacement_stopped) = watch::channel(false);
+        let (replacement_mic, replacement_intent) = watch::channel(MicrophoneIntent::Mute);
+        let replacement = Status {
+            state: State::Muted,
+            controls: Some(Controls {
+                channel,
+                stop: replacement_stop,
+                microphone: replacement_mic,
+            }),
+            generation: 0,
+        };
+
+        shown.microphone();
+        assert!(intent.has_changed().unwrap());
+        assert_eq!(*intent.borrow(), MicrophoneIntent::Mute);
+        assert!(!replacement_intent.has_changed().unwrap());
+        shown.leave();
+        assert!(*stopped.borrow());
+        assert!(!*replacement_stopped.borrow());
+
+        let before_reconnect = Status {
+            state: State::Muted,
+            ..shown
+        };
+        before_reconnect.microphone();
+        assert_eq!(*intent.borrow(), MicrophoneIntent::Enable(7));
+        assert_ne!(*intent.borrow(), MicrophoneIntent::Enable(8));
+        replacement.microphone();
+        assert_eq!(*replacement_intent.borrow(), MicrophoneIntent::Enable(0));
+    }
 
     #[test]
     fn bearer_signaling_is_scoped_to_the_selected_server_and_gate() {

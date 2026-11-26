@@ -11,7 +11,7 @@ use ratatui::{
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    Input,
+    Input, InputMode,
     copy::{Label, Language},
     read_event,
     shortcuts::{Binding, Problem, Shortcut, Shortcuts},
@@ -101,7 +101,17 @@ pub(crate) async fn edit(
     };
     loop {
         terminal.draw(|frame| settings.draw(frame, shortcuts, lang))?;
-        let Some(event) = read_event(input).await? else {
+        let mode = if settings.recording
+            && settings
+                .state
+                .selected()
+                .is_some_and(|index| Shortcut::ALL[index] == Shortcut::Quit)
+        {
+            InputMode::CaptureQuit
+        } else {
+            InputMode::Normal
+        };
+        let Some(event) = read_event(input, mode).await? else {
             return Ok(false);
         };
         let Event::Key(key) = event else { continue };

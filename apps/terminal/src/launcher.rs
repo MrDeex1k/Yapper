@@ -10,7 +10,7 @@ use ratatui::{
 use tokio::task::JoinHandle;
 
 use crate::{
-    Input,
+    Input, InputMode,
     api::{Error, Installation, Membership, Server, Session, Storage},
     copy::{Label, Language},
     field::{Field, safe_text},
@@ -39,7 +39,7 @@ pub(crate) async fn launch(
     loop {
         terminal.draw(|frame| model.draw(frame, *language, shortcuts))?;
         tokio::select! {
-            event = read_event(input) => match event? {
+            event = read_event(input, InputMode::Normal) => match event? {
                 None => break,
                 Some(Event::Key(key)) if key.code == shortcut_view::SETTINGS_KEY => {
                     if !shortcut_view::edit(terminal, input, shortcuts, *language).await? {
@@ -63,12 +63,19 @@ pub(crate) async fn launch(
                         model.server = Some((server, installation));
                         model.notice = notice;
                     }
-                    Ok(Outcome::Membership { session, name, storage, membership }) => match membership {
-                        Ok(membership) => return Ok(Some(Joined { session, membership, name, storage })),
+                    Ok(Outcome::Membership { session, installation, storage, membership }) => match membership {
+                        Ok(membership) => return Ok(Some(Joined { session, membership, name: installation.name, storage })),
                         Err(error) => {
-                            model.pending = Some((session, name, storage));
                             model.invite = Field::default();
                             model.notice = Some(error);
+                            if matches!(error, Error::Denied | Error::Blocked) {
+                                model.server = Some((session.server.clone(), installation));
+                                model.pending = None;
+                                // Re-admission uses the rejected cookie so Go can still enforce bans.
+                                model.previous = Some(session);
+                            } else {
+                                model.pending = Some((session, installation, storage));
+                            }
                         }
                     },
                     Err(error) => model.notice = Some(error),
@@ -91,7 +98,8 @@ struct Launcher {
     temporary: bool,
     notice: Option<Error>,
     server: Option<(Server, Installation)>,
-    pending: Option<(Session, String, Storage)>,
+    pending: Option<(Session, Installation, Storage)>,
+    previous: Option<Session>,
     job: Option<JoinHandle<Result<Outcome, Error>>>,
 }
 
@@ -103,7 +111,7 @@ enum Outcome {
     },
     Membership {
         session: Session,
-        name: String,
+        installation: Installation,
         storage: Storage,
         membership: Result<Membership, Error>,
     },
@@ -126,6 +134,7 @@ impl Launcher {
                 KeyCode::Esc => {
                     self.server = None;
                     self.pending = None;
+                    self.previous = None;
                     self.notice = None;
                     self.temporary = false;
                     self.invite_focused = false;
@@ -162,17 +171,19 @@ impl Launcher {
     }
 
     fn submit(&mut self) {
-        if let Some((session, name, storage)) = &self.pending {
-            let (session, name, storage) = (session.clone(), name.clone(), *storage);
+        if let Some((session, installation, storage)) = &self.pending {
+            let (session, installation, storage) =
+                (session.clone(), installation.clone(), *storage);
             self.job = Some(tokio::spawn(async move {
-                Ok(finish(session, name, storage).await)
+                Ok(finish(session, installation, storage).await)
             }));
         } else if let Some((server, installation)) = &self.server {
             if self.notice == Some(Error::Vault) && !self.temporary {
                 return;
             }
             let server = server.clone();
-            let name = installation.name.clone();
+            let installation = installation.clone();
+            let previous = self.previous.clone();
             let nickname = self.nickname.text.clone();
             let invitation = self.invite.text.clone();
             let storage = if self.temporary {
@@ -181,8 +192,10 @@ impl Launcher {
                 Storage::Remember
             };
             self.job = Some(tokio::spawn(async move {
-                let (session, storage) = server.admit(&nickname, &invitation, storage).await?;
-                Ok(finish(session, name, storage).await)
+                let (session, storage) = server
+                    .admit(&nickname, &invitation, storage, previous.as_ref())
+                    .await?;
+                Ok(finish(session, installation, storage).await)
             }));
         } else {
             let address = self.address.text.clone();
@@ -190,7 +203,7 @@ impl Launcher {
                 let (server, installation) = Server::connect(&address).await?;
                 let notice = match server.restore().await {
                     Ok(Some(session)) => {
-                        return Ok(finish(session, installation.name, Storage::Remember).await);
+                        return Ok(finish(session, installation, Storage::Remember).await);
                     }
                     Ok(None) => None,
                     Err(Error::Vault) => Some(Error::Vault),
@@ -260,8 +273,8 @@ impl Launcher {
         if let Some((_, installation)) = &self.server {
             frame.render_widget(Paragraph::new(safe_text(&installation.name)), title);
         }
-        if let Some((_, name, _)) = &self.pending {
-            frame.render_widget(Paragraph::new(safe_text(name)), title);
+        if let Some((_, installation, _)) = &self.pending {
+            frame.render_widget(Paragraph::new(safe_text(&installation.name)), title);
         } else if self.server.is_some() {
             draw_field(
                 frame,
@@ -316,11 +329,11 @@ impl Launcher {
     }
 }
 
-async fn finish(session: Session, name: String, storage: Storage) -> Outcome {
+async fn finish(session: Session, installation: Installation, storage: Storage) -> Outcome {
     let membership = session.membership().await;
     Outcome::Membership {
         session,
-        name,
+        installation,
         storage,
         membership,
     }

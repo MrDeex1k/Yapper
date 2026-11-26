@@ -11,7 +11,7 @@ use ratatui::{
 use uuid::Uuid;
 
 use crate::{
-    Input,
+    Input, InputMode,
     api::{Channel, Error, Kind, Storage},
     copy::{Label, Language},
     events::Link,
@@ -58,11 +58,13 @@ async fn interact(
     let mut voice_open = true;
     loop {
         let snapshot = work.snapshot.borrow_and_update().clone();
-        let voice = *work.voice.borrow_and_update();
+        let voice = work.voice.borrow_and_update().clone();
+        let selected = *work.selected.borrow();
         model.update(&snapshot);
-        terminal.draw(|frame| model.draw(frame, &snapshot, voice, *language, shortcuts))?;
+        terminal
+            .draw(|frame| model.draw(frame, &snapshot, &voice, *language, shortcuts, selected))?;
         tokio::select! {
-            event = read_event(input) => match event? {
+            event = read_event(input, InputMode::Normal) => match event? {
                 None => return Ok(false),
                 Some(Event::Key(key)) if key.code == shortcut_view::SETTINGS_KEY => {
                     if !shortcut_view::edit(terminal, input, shortcuts, *language).await? {
@@ -73,6 +75,8 @@ async fn interact(
                     Some(Shortcut::Language) => language.switch(),
                     Some(Shortcut::Server) => return Ok(true),
                     Some(Shortcut::Quit) => return Ok(false),
+                    Some(Shortcut::Microphone) => voice.microphone(),
+                    Some(Shortcut::Leave) => voice.leave(),
                     action => model.key(key, action, &snapshot, work),
                 },
                 Some(Event::Paste(text)) => model.paste(&text, &snapshot, work),
@@ -93,7 +97,7 @@ struct App {
     drafts: HashMap<Uuid, Draft>,
     sending: Option<(Uuid, Uuid)>,
     list: ListState,
-    scroll_back: u16,
+    scroll_back: usize,
 }
 
 #[derive(Default)]
@@ -139,7 +143,7 @@ impl App {
 
     fn paste(&mut self, text: &str, snapshot: &Snapshot, work: &Workspace) {
         if self.focus == Focus::Compose && !matches!(snapshot.link, Link::Removed(_)) {
-            let draft = self.draft(*work.selected.borrow());
+            let draft = self.draft(composer_channel(snapshot, *work.selected.borrow()));
             if let Some(draft) = draft.filter(|draft| draft.request.is_none()) {
                 draft.field.paste(text, COMPOSE_LIMIT);
             }
@@ -164,16 +168,10 @@ impl App {
                     Focus::Channels
                 };
             }
-            Some(Shortcut::Microphone) => {
-                let _ = work.actions.try_send(Action::Microphone);
-            }
             Some(Shortcut::Older) => {
                 if let Some(channel) = *work.selected.borrow() {
                     let _ = work.actions.try_send(Action::Older(channel));
                 }
-            }
-            Some(Shortcut::Leave) => {
-                let _ = work.actions.try_send(Action::Leave);
             }
             Some(Shortcut::Refresh) => {
                 let _ = work.actions.try_send(Action::Refresh);
@@ -236,12 +234,10 @@ impl App {
     }
 
     fn compose(&mut self, input: ComposeInput, snapshot: &Snapshot, work: &Workspace) {
-        let Some(channel) = *work.selected.borrow() else {
+        let Some(channel) = composer_channel(snapshot, *work.selected.borrow()) else {
             return;
         };
-        if self.sending.is_some()
-            || !channel_entries(snapshot).any(|entry| entry.id == channel && !entry.archived)
-        {
+        if self.sending.is_some() {
             return;
         }
         let draft = self.drafts.entry(channel).or_default();
@@ -278,9 +274,10 @@ impl App {
         &mut self,
         frame: &mut Frame,
         snapshot: &Snapshot,
-        voice: voice::State,
+        voice: &voice::Status,
         lang: Language,
         shortcuts: &Shortcuts,
+        selected: Option<Uuid>,
     ) {
         let wide = frame.area().width >= WIDE_TERMINAL;
         let lines = shortcut_view::footer(shortcuts, lang, frame.area());
@@ -306,14 +303,14 @@ impl App {
             Span::raw(safe_text(&self.name)),
         ]);
         let nickname = safe_text(&snapshot.membership.participant.nickname);
-        let room = snapshot
-            .call_channel
+        let room = voice
+            .channel()
             .and_then(|id| channel_entries(snapshot).find(|entry| entry.id == id));
         let voice_label = match room {
-            Some(room) if !matches!(voice, voice::State::Idle | voice::State::Failed(_)) => {
-                format!("{} · {}", lang.voice(voice), safe_text(&room.name))
+            Some(room) if !matches!(voice.state, voice::State::Idle | voice::State::Failed(_)) => {
+                format!("{} · {}", lang.voice(voice.state), safe_text(&room.name))
             }
-            _ => lang.voice(voice).to_owned(),
+            _ => lang.voice(voice.state).to_owned(),
         };
         let link = lang.link(snapshot.link);
         let heading_lines = if wide {
@@ -333,11 +330,11 @@ impl App {
             let [navigation, chat] =
                 Layout::horizontal([Constraint::Length(26), Constraint::Min(1)]).areas(content);
             self.draw_channels(frame, navigation, snapshot, lang);
-            self.draw_chat(frame, chat, snapshot, lang, open);
+            self.draw_chat(frame, chat, snapshot, lang, open, selected);
         } else if self.focus == Focus::Channels {
             self.draw_channels(frame, content, snapshot, lang);
         } else {
-            self.draw_chat(frame, content, snapshot, lang, open);
+            self.draw_chat(frame, content, snapshot, lang, open, selected);
         }
 
         if let Some(notice) = notice {
@@ -391,6 +388,7 @@ impl App {
         snapshot: &Snapshot,
         lang: Language,
         open: Binding,
+        selected: Option<Uuid>,
     ) {
         let [title, history, compose] = Layout::vertical([
             Constraint::Length(1),
@@ -399,6 +397,10 @@ impl App {
         ])
         .areas(area);
         let history_data = &snapshot.history;
+        if selected != history_data.channel && !matches!(snapshot.link, Link::Removed(_)) {
+            frame.render_widget(Paragraph::new(lang.label(Label::LoadingHistory)), title);
+            return;
+        }
         let channel =
             channel_entries(snapshot).find(|entry| Some(entry.id) == history_data.channel);
         let Some(channel) = channel else {
@@ -432,14 +434,11 @@ impl App {
             };
             lines.push(Line::raw(empty));
         }
-        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
-        let bottom = paragraph
-            .line_count(history.width)
-            .saturating_sub(usize::from(history.height));
-        let max_scroll = u16::try_from(bottom).unwrap_or(u16::MAX);
-        self.scroll_back = self.scroll_back.min(max_scroll);
+        let (first, offset) = history_window(&lines, history, &mut self.scroll_back);
         frame.render_widget(
-            paragraph.scroll((max_scroll - self.scroll_back, 0)),
+            Paragraph::new(lines.split_off(first))
+                .wrap(Wrap { trim: false })
+                .scroll((offset, 0)),
             history,
         );
 
@@ -473,6 +472,31 @@ impl App {
     }
 }
 
+fn composer_channel(snapshot: &Snapshot, selected: Option<Uuid>) -> Option<Uuid> {
+    let id = selected.filter(|&id| snapshot.history.channel == Some(id))?;
+    channel_entries(snapshot)
+        .any(|channel| channel.id == id && matches!(channel.kind, Kind::Text) && !channel.archived)
+        .then_some(id)
+}
+
+fn history_window(lines: &[Line<'_>], area: Rect, scroll_back: &mut usize) -> (usize, u16) {
+    let height = usize::from(area.height);
+    let target = scroll_back.saturating_add(height);
+    let mut rows = 0;
+    for (index, line) in lines.iter().enumerate().rev() {
+        rows += Paragraph::new(line.clone())
+            .wrap(Wrap { trim: false })
+            .line_count(area.width);
+        if rows >= target {
+            // Only the offset inside the first logical line goes to Ratatui.
+            // Server message limits keep it within the widget's u16 range.
+            return (index, u16::try_from(rows - target).unwrap_or_default());
+        }
+    }
+    *scroll_back = rows.saturating_sub(height);
+    (0, 0)
+}
+
 fn channel_entries(snapshot: &Snapshot) -> impl Iterator<Item = &Channel> {
     snapshot
         .membership
@@ -486,5 +510,80 @@ fn focus_style(active: bool) -> Style {
         Style::default().fg(ACCENT)
     } else {
         Style::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use ratatui::{layout::Rect, text::Line};
+    use uuid::Uuid;
+
+    use super::{composer_channel, history_window};
+    use crate::{
+        api::{Channel, Kind, Membership, Participant},
+        events::Link,
+        workspace::{History, Snapshot},
+    };
+
+    #[test]
+    fn composer_uses_only_the_writable_channel_on_screen() {
+        let shown = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let archived = Uuid::new_v4();
+        let mut history = History::default();
+        history.channel = Some(shown);
+        let mut snapshot = Snapshot {
+            membership: Arc::new(Membership {
+                participant: Participant {
+                    nickname: "guest".into(),
+                },
+                channels: vec![
+                    Channel {
+                        id: shown,
+                        name: "first".into(),
+                        kind: Kind::Text,
+                        archived: false,
+                    },
+                    Channel {
+                        id: other,
+                        name: "other".into(),
+                        kind: Kind::Text,
+                        archived: false,
+                    },
+                    Channel {
+                        id: archived,
+                        name: "archive".into(),
+                        kind: Kind::Text,
+                        archived: true,
+                    },
+                ],
+            }),
+            history: Arc::new(history),
+            link: Link::Online,
+            notice: None,
+            sent: None,
+        };
+        assert_eq!(composer_channel(&snapshot, Some(shown)), Some(shown));
+        assert_eq!(composer_channel(&snapshot, Some(other)), None);
+        Arc::make_mut(&mut snapshot.history).channel = Some(other);
+        assert_eq!(composer_channel(&snapshot, Some(other)), Some(other));
+        Arc::make_mut(&mut snapshot.history).channel = Some(archived);
+        assert_eq!(composer_channel(&snapshot, Some(archived)), None);
+    }
+
+    #[test]
+    fn wrapped_history_can_reach_both_ends_past_the_widget_scroll_limit() {
+        let mut lines = vec![Line::raw("ab"); 40_000];
+        lines.push(Line::raw("xyz"));
+        let area = Rect::new(0, 0, 1, 2);
+        let mut scroll = 0;
+        assert_eq!(history_window(&lines, area, &mut scroll), (40_000, 1));
+        scroll = 2;
+        assert_eq!(history_window(&lines, area, &mut scroll), (39_999, 1));
+        scroll = usize::MAX;
+        assert_eq!(history_window(&lines, area, &mut scroll), (0, 0));
+        assert_eq!(scroll, 80_001);
     }
 }

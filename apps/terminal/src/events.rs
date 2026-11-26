@@ -12,6 +12,8 @@ use tokio_tungstenite::{
 
 use crate::api::{Error, Session};
 
+const WRITE_TIMEOUT: Duration = Duration::from_secs(8);
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Link {
     #[default]
@@ -34,7 +36,7 @@ pub(crate) async fn watch(session: Session, updates: watch::Sender<Update>) {
             () = updates.closed() => return,
             result = listen(&session, &updates) => result,
         };
-        if let Err(error @ (Error::Denied | Error::Kicked)) = result {
+        if let Err(error @ (Error::Denied | Error::Blocked | Error::Kicked)) = result {
             updates.send_modify(|update| update.link = Link::Removed(error));
             return;
         }
@@ -83,13 +85,10 @@ async fn listen(session: &Session, updates: &watch::Sender<Update>) -> Result<()
         let message = match tokio::time::timeout(Duration::from_secs(25), socket.next()).await {
             Ok(message) => message,
             Err(_) => {
-                tokio::time::timeout(
-                    Duration::from_secs(8),
-                    socket.send(Message::Ping(Vec::new().into())),
-                )
-                .await
-                .map_err(|_| Error::Network)?
-                .map_err(|_| Error::Network)?;
+                tokio::time::timeout(WRITE_TIMEOUT, socket.send(Message::Ping(Vec::new().into())))
+                    .await
+                    .map_err(|_| Error::Network)?
+                    .map_err(|_| Error::Network)?;
                 tokio::time::timeout(Duration::from_secs(10), socket.next())
                     .await
                     .map_err(|_| Error::Network)?
@@ -104,7 +103,10 @@ async fn listen(session: &Session, updates: &watch::Sender<Update>) -> Result<()
                     apply(&event.kind, updates);
                 }
             }
-            Message::Ping(_) => socket.flush().await.map_err(|_| Error::Network)?,
+            Message::Ping(_) => tokio::time::timeout(WRITE_TIMEOUT, socket.flush())
+                .await
+                .map_err(|_| Error::Network)?
+                .map_err(|_| Error::Network)?,
             Message::Close(frame) => {
                 if frame.is_some_and(|frame| u16::from(frame.code) == 4001) {
                     return Err(Error::Kicked);

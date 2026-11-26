@@ -23,8 +23,6 @@ pub(crate) enum Action {
         body: String,
     },
     Join(Uuid),
-    Leave,
-    Microphone,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -82,7 +80,6 @@ pub(crate) struct Snapshot {
     pub history: Arc<History>,
     pub link: Link,
     pub notice: Option<Error>,
-    pub call_channel: Option<Uuid>,
     pub sent: Option<(Uuid, Result<(), Error>)>,
 }
 
@@ -90,7 +87,7 @@ pub(crate) struct Workspace {
     pub selected: watch::Sender<Option<Uuid>>,
     pub actions: mpsc::Sender<Action>,
     pub snapshot: watch::Receiver<Snapshot>,
-    pub voice: watch::Receiver<voice::State>,
+    pub voice: watch::Receiver<voice::Status>,
     stop: watch::Sender<bool>,
     task: JoinHandle<()>,
 }
@@ -113,13 +110,12 @@ impl Workspace {
             history: Arc::new(History::default()),
             link: Link::Connecting,
             notice: None,
-            call_channel: None,
             sent: None,
         };
         let (selected, selection) = watch::channel(first);
         let (actions, commands) = mpsc::channel(8);
         let (output, read) = watch::channel(snapshot.clone());
-        let (voice, voice_state) = watch::channel(voice::State::Idle);
+        let (voice, voice_state) = watch::channel(voice::Status::default());
         let (stop, stopped) = watch::channel(false);
         let worker = Worker {
             session,
@@ -142,6 +138,7 @@ impl Workspace {
 
     pub async fn close(self) {
         self.stop.send_replace(true);
+        self.voice.borrow().leave();
         let _ = self.task.await;
     }
 }
@@ -150,7 +147,7 @@ struct Worker {
     session: Session,
     snapshot: Snapshot,
     output: watch::Sender<Snapshot>,
-    voice: watch::Sender<voice::State>,
+    voice: watch::Sender<voice::Status>,
     call: Option<Call>,
     stopped: watch::Receiver<bool>,
 }
@@ -248,13 +245,6 @@ impl Worker {
                 self.snapshot.notice = result.err();
             }
             Action::Join(channel) => self.join(channel).await,
-            Action::Leave => self.stop_call().await,
-            Action::Microphone => {
-                if let Some(call) = &self.call {
-                    let current = *self.voice.borrow();
-                    call.microphone(current);
-                }
-            }
         }
     }
 
@@ -393,7 +383,6 @@ impl Worker {
         if *self.stopped.borrow() {
             return;
         }
-        self.snapshot.call_channel = Some(channel);
         self.call = Some(Call::start(
             self.session.clone(),
             channel,
@@ -405,8 +394,6 @@ impl Worker {
         if let Some(call) = self.call.take() {
             call.close().await;
         }
-        self.snapshot.call_channel = None;
-        self.publish();
     }
 }
 

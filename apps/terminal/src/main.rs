@@ -112,7 +112,13 @@ pub(crate) struct Input {
     stop: Pin<Box<dyn Future<Output = ()> + Send>>,
 }
 
-pub(crate) async fn read_event(input: &mut Input) -> io::Result<Option<Event>> {
+#[derive(PartialEq, Eq)]
+pub(crate) enum InputMode {
+    Normal,
+    CaptureQuit,
+}
+
+pub(crate) async fn read_event(input: &mut Input, mode: InputMode) -> io::Result<Option<Event>> {
     loop {
         let event = tokio::select! {
             () = input.stop.as_mut() => return Ok(None),
@@ -121,7 +127,8 @@ pub(crate) async fn read_event(input: &mut Input) -> io::Result<Option<Event>> {
         match event {
             Some(Event::Key(key)) if key.kind == KeyEventKind::Release => continue,
             Some(Event::Key(key))
-                if key.code == KeyCode::Char('c')
+                if mode == InputMode::Normal
+                    && key.code == KeyCode::Char('c')
                     && key.modifiers.contains(KeyModifiers::CONTROL) =>
             {
                 return Ok(None);

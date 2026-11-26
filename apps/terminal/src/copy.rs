@@ -40,6 +40,10 @@ impl Language {
                 "Set up this server in the browser first.",
                 "Najpierw skonfiguruj serwer w przeglądarce.",
             ),
+            Error::Blocked => self.text(
+                "The server has blocked access.",
+                "Serwer zablokował dostęp.",
+            ),
             Error::Denied => self.text("The server denied access.", "Serwer odmówił dostępu."),
             Error::Invitation => self.text(
                 "Check your invitation code and try again.",

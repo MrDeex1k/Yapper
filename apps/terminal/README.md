@@ -49,7 +49,7 @@ Bindings work across server connections and are saved in `shortcuts.json` under 
 - Linux uses `$XDG_CONFIG_HOME/yapper-terminal/` or `~/.config/yapper-terminal/`.
 - Windows uses `%APPDATA%\yapper-terminal\`.
 
-F2 always opens settings. Ctrl+C always exits. The server prompt and shortcut editor use their own navigation keys.
+F2 always opens settings. Ctrl+C exits during normal use. When recording the Quit shortcut, it restores that binding. The server prompt and shortcut editor use their own navigation keys.
 
 Voice starts muted. A reconnect or permission change requires another explicit unmute. Chat stays available while you talk. Archived text channels are read-only. If the credential store cannot be used, F3 offers a temporary guest session that lasts for the current connection.
 
