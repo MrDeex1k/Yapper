@@ -1,6 +1,6 @@
 # Implementation plan
 
-**Stages 0–4 are closed. Stage 5 is deferred. Stage 6 mobile validation and Stage 7 native macOS work are active.** The maintainer closed Stage 4 on 2026-11-24 and moved native mobile and macOS ahead of stabilization. See [Validation](validation.md) for release evidence and outstanding platform checks.
+**Stages 0–4 are closed and Stage 5 is deferred. Stages 6 and 7 have working native clients with acceptance checks open. Stage 7.5 tooling is in place. Stage 8 has a terminal client with platform acceptance open.** See [Validation](validation.md) for recorded results and outstanding checks.
 
 Stages use completion gates rather than dates. Stage 6 can proceed while Stage 5 is deferred. Retain stage numbers so existing records remain traceable.
 
@@ -115,31 +115,31 @@ The [Stage 2 TanStack Redact benchmark](evidence/stage-2-redact.md) measured a s
 
 ## Stage 6 — Native mobile clients
 
-**Status: phone and tablet client implementation.** The shared Kotlin Multiplatform module handles client logic and server API integration. Android uses Jetpack Compose and the Apple client uses SwiftUI. Windows at least 760 dp wide on Android or 760 points wide on iOS and iPadOS show the channel list next to chat. Narrower windows use a collapsible channel list.
+**Status: Android and iPhone/iPad clients are implemented, with physical-device and distribution acceptance pending.** The shared Kotlin Multiplatform module handles client logic and server API integration. Android uses Jetpack Compose and the Apple client uses SwiftUI. Windows at least 760 dp wide on Android or 760 points wide on iOS and iPadOS show the channel list next to chat. Narrower windows use a collapsible channel list.
 
-Start with guest admission and a two-way audio proof on real phones, then deliver core chat and voice on both platforms. See the [mobile implementation plan](stage-6-mobile-plan.md) for scope, dependencies, milestones, and acceptance checks.
+Guest admission, chat, muted voice joins, and tablet layouts were exercised on Android emulators and Apple simulators. Physical two-way audio and lifecycle checks remain open. See the [mobile plan](stage-6-mobile-plan.md) and [verification record](evidence/stage-6-mobile.md).
 
 **Completion gate:** shared API conformance and core product scenarios pass, together with real-device background-call and OS interruption tests. Platform-specific service dependencies and limits are documented.
 
 ## Stage 7 — Native macOS client
 
-**Status: implementation in progress.** The first target is macOS 26 or later on Apple Silicon. The desktop application uses SwiftUI, Foundation networking, Keychain and the LiveKit Swift SDK. Mobile keeps its Kotlin Multiplatform client. The Mac target shares Swift presentation and audio code with iOS. See the [Mac build and Web transition](../apps/macos/README.md) and [verification record](evidence/stage-7-macos.md).
+**Status: native client implemented, with physical audio, accessibility, and distribution acceptance pending.** The first target is macOS 26 or later on Apple Silicon. The desktop application uses SwiftUI, Foundation networking, Keychain and the LiveKit Swift SDK. Mobile keeps its Kotlin Multiplatform client. The Mac target shares Swift presentation and audio code with iOS. See the [Mac build and Web transition](../apps/macos/README.md) and [verification record](evidence/stage-7-macos.md).
 
 **Completion gate:** verify core scenarios, media behavior, package installation, and the documented transition from Web.
 
 ## Stage 7.5 — Go and Rust verification
 
-Add local Go and Rust verification independently of the macOS and terminal clients. Use goleak in the server suites that exercise HTTP and media lifecycles, and run pinned Staticcheck and go-critic commands. Use cargo-geiger for unsafe-code inventory. Run Miri, cargo-mutants, and Kani on the Rust microphone publication rule shared with the GPUI call loop.
-
-Turn the previously manual browser smoke scenarios into a repeatable [Flashwright suite](development.md#web-end-to-end-tests).
+**Status: tooling implemented and baseline checks recorded.** The local Go checks use goleak, Staticcheck, and go-critic. The production microphone policy used by GPUI has results from cargo-geiger, Miri, cargo-mutants, and Kani. The [Flashwright suite](development.md#web-end-to-end-tests) passed in Chromium, Firefox, and WebKit on Linux arm64. Windows Rust verification remains open.
 
 **Completion gate:** run the Go race suite and analysis, exercise each Rust tool on the production policy crate, and verify the Web scenarios in Chromium, Firefox, and WebKit. Record scope and results in the [Stage 7.5 verification record](evidence/stage-7-5-verification.md).
 
 ## Stage 8 — Rust terminal client
 
-Develop a Rust/Ratatui client. Define its text, moderation, and voice-control scope at stage entry, including the media/audio implementation and credential storage.
+**Status: client implemented, with platform and physical audio acceptance open.** The Rust/Ratatui client targets macOS, Linux, and Windows. Users can read and send plain-text messages in accessible text channels and join or leave voice channels for two-way audio. The terminal client does not offer message editing, message deletion, or moderation.
 
-**Completion gate:** the declared terminal feature set passes the same protocol and authorization contracts as other clients.
+See the [terminal build instructions](../apps/terminal/README.md), [Stage 8 plan](stage-8-terminal-plan.md), and [verification record](evidence/stage-8-terminal.md).
+
+**Completion gate:** the [terminal acceptance checks](validation.md#terminal-client-acceptance) pass on macOS, Linux, and Windows against the existing protocol and authorization contracts.
 
 ## Later feature backlog
 

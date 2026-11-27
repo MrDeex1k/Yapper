@@ -1,6 +1,6 @@
 # Stage 6 — Native Android and iOS clients
 
-**Status: phone and tablet clients in development.** The [native apps](../apps/mobile/README.md) reuse the existing Web feature set. Tablet windows have a two-pane workspace at wider sizes and share the phone navigation in narrow windows. The real-device milestone is two physical phones joining the same self-hosted server as separate guests and talking to each other.
+**Status: phone and tablet clients implemented, with physical-device and distribution acceptance pending.** The [native apps](../apps/mobile/README.md) reuse the existing Web feature set. Tablet windows have a two-pane workspace at wider sizes and share the phone navigation in narrow windows. The real-device milestone is two physical phones joining the same self-hosted server as separate guests and talking to each other.
 
 ## First mobile release scope
 
@@ -9,20 +9,22 @@
 - Join and leave voice channels, start muted, mute or deafen, show participants and connection state, and resume an eligible call after a short interruption. Verify foreground operation first, then an already active call during app switching, device locking and audio interruptions.
 - Ship Polish and English copy and test accessibility on phone layouts first. Initial installation setup stays in Web. Native staff sign-in and the existing channel, invitation, retention and moderation actions use the same server APIs. Push notifications, incoming calls when the app is closed, and public store distribution sit outside the initial phone scope.
 
-## Technical boundaries
+## Implemented client boundaries
 
-| Layer                              | Proposed implementation                                                                                                                                                                                                                                  |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shared Kotlin Multiplatform module | Versioned HTTP/JSON, event WebSocket and reconnect state, session orchestration, channel catalog and message reconciliation. Evaluate Ktor with OkHttp on Android and Darwin on iOS. Check wire models against the existing OpenAPI and event contracts. |
-| Android                            | Kotlin and Jetpack Compose. Use Keystore-backed credential storage, the native LiveKit Android SDK, and platform audio and lifecycle APIs.                                                                                                               |
-| iOS and iPadOS                     | Swift and SwiftUI. Integrate the shared Kotlin framework in Xcode, use Keychain for credentials, and use the native LiveKit Swift SDK and Apple audio session APIs.                                                                                      |
-| Existing server                    | Go remains authoritative for community state, permissions, and voice admission. Better Auth owns staff accounts. Keep application events and LiveKit media signaling separate, and verify both SDKs against Yapper's Go signaling endpoint.              |
+| Layer                              | Implementation                                                                                                                                                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared Kotlin Multiplatform module | Versioned HTTP/JSON, event WebSocket and reconnect state, session orchestration, channel catalog and message reconciliation. Uses Ktor with OkHttp on Android and Darwin on iOS. Shared tests cover API and event behavior. |
+| Android                            | Kotlin and Jetpack Compose, with Keystore-backed credential storage, the native LiveKit Android SDK, and platform audio and lifecycle APIs.                                                                                 |
+| iOS and iPadOS                     | Swift and SwiftUI, with the shared Kotlin framework linked in Xcode, Keychain for credentials, and the LiveKit Swift SDK and Apple audio session APIs.                                                                      |
+| Existing server                    | Go remains authoritative for community state, permissions, and voice admission. Better Auth owns staff accounts. Application events and media signaling use separate connections. Both SDKs signal through Go.              |
 
-Match the [HTTP and event contracts](contracts.md) and the [existing identity and signaling boundaries](architecture.md#identity-and-authorization). Scope credentials and saved sessions by canonical server origin. Keep trusted TLS and origin validation in effect. Prove what each native SDK can send to the signaling endpoint during the first milestone, including the headers the gateway expects. If a bridge or contract adjustment is necessary, document the decision and demonstrate Web and GPUI compatibility before proceeding.
+Credentials and sessions are scoped by canonical server origin. Android and Apple SDKs use bearer media signaling. Application events use a ticket and the installation Origin. See the [HTTP and event contracts](contracts.md) and [identity boundaries](architecture.md#identity-and-authorization).
 
-Design the Swift-facing shared API and Apple-specific adapters so the macOS work can evaluate reuse later. Stage 7 will decide which code to share and which macOS versions to support.
+Stage 7 shares Swift presentation and audio code with the Apple mobile target. Its Swift transport and session logic build independently of the mobile Kotlin framework.
 
 ## Work sequence
+
+The [mobile verification record](evidence/stage-6-mobile.md) tracks implementation results and open physical-device checks. The original milestones below define acceptance for the stage.
 
 | Milestone                       | Work                                                                                                                                                                                                                                                                                                                                                                                                                  | Exit check                                                                                                                                                                             |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

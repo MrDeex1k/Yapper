@@ -13,22 +13,22 @@ Approved on 2026-09-29: **pnpm + Turborepo + standard Vite, with Bun as the AUTH
 | AUTH execution        | Bun                                      | Elysia 2 RC and Better Auth runtime                        |
 | Tooling execution     | Pinned supported Node.js                 | Frontend tooling and repository scripts                    |
 | Electron desktop      | Electron                                 | Stage 1 development shell and historical smoke tests       |
-| Planned Rust desktop  | Rust, Cargo, GPUI                        | Native desktop builds and UI on Windows and Linux          |
-| Planned mobile        | Kotlin Multiplatform, Gradle, Xcode      | Shared Kotlin logic and native mobile UIs in Stage 6       |
-| Planned Swift desktop | Swift, Xcode                             | Native macOS client in Stage 7                             |
+| Rust desktop          | Rust, Cargo, GPUI                        | Native desktop builds and UI on Windows and Linux          |
+| Mobile                | Kotlin Multiplatform, Gradle, Xcode      | Shared Kotlin logic and native Android and iOS/iPadOS UIs  |
+| Swift desktop         | Swift, Xcode                             | Native macOS client                                        |
 | Quality               | Oxlint, Bun fmt, TypeScript, shadcn lint | Separate lint, formatting, types, and UI policy            |
 | Application server    | Go                                       | Compilation and dependencies for the application server    |
 | Deployed services     | Docker Compose                           | Runtime lifecycle and networking                           |
 
 Root scripts delegate repository scheduling to Turbo. AUTH scripts explicitly invoke Bun, for example `bun --watch src/index.ts` or `bun src/index.ts`. Browser JavaScript runs in the browser. Cargo builds the Windows and Linux desktop client. The retained Stage 1 shell uses the Electron runtime.
 
-## Planned Rust desktop toolchain
+## Native client builds
 
-The Stage 2 prototype pins Rust 1.100.0 and GPUI 0.2.2 with a committed Cargo lockfile. Run its [Cargo checks](../apps/desktop-gpui/README.md) independently of the pnpm workspace.
+The Windows and Linux desktop client pins Rust 1.100.0 and GPUI 0.2.2 with a committed Cargo lockfile. Run its [Cargo checks](../apps/desktop-gpui/README.md) independently of the pnpm workspace.
 
 Stage 4 uses Blaze to lock the native WebRTC archives for Linux and Windows. The [SDK preparation workflow](../apps/desktop-gpui/README.md#prepare-the-pinned-webrtc-sdk) verifies and caches those archives for Cargo. The [Blaze evaluation](evidence/stage-4-blaze.md) records compiler compatibility.
 
-At the Stage 2 prototype, pin the Rust toolchain and GPUI dependency, commit the application's Cargo lockfile, and record the Windows and Linux build prerequisites. Cargo owns Rust dependencies and compilation. Choose any Turbo integration after verifying task discovery, cache invalidation, and artifact restoration on the target platforms. Include the Rust toolchain and target in the cache identity. Select Windows and Linux packaging commands during Stage 4.
+Gradle and Xcode own the [mobile builds](../apps/mobile/README.md). The same Xcode project has a [macOS target](../apps/macos/README.md) that builds without Gradle or Kotlin. The [Rust terminal client](../apps/terminal/README.md) pins Ratatui and LiveKit in a separate Cargo lockfile and shares the microphone publication policy with GPUI.
 
 Pin pnpm, Node, Bun, Go, and build-tool versions independently. Use `pnpm-workspace.yaml` with `apps/*`, `packages/*`, and `server` when using its wrapper described below. Use `workspace:*` for local JS/TS dependencies. Commit one pnpm lockfile; retain language-native manifests such as `go.mod`/`go.sum`. Do not run `bun install` or generate a second JS lockfile. Disable Bun runtime auto-install so missing dependencies fail instead of bypassing pnpm's resolved graph. Reproducible local verification installs through `pnpm install --frozen-lockfile`.
 
@@ -50,9 +50,9 @@ The decision is based on integration cost. Adopting Vite+ would require a separa
 
 Turborepo 2.11, released September 18, 2026, adds experimental native discovery for Cargo, uv, and Go workspaces. It can combine their dependency graphs with JavaScript workspaces. Native Go/Rust support is real, but remains experimental; this announcement does not establish native Swift or Gradle discovery. [Release announcement](https://turborepo.dev/blog/2-11)
 
-For the initial single Go module, use a small private `server/package.json` task adapter, included in pnpm's workspace. It exposes commands such as `go test ./...`, `go vet ./...`, and an explicit binary build to a declared output directory. Go still owns compilation and module dependencies. This uses the documented generic integration mechanism. [Multi-language guide](https://turborepo.dev/docs/guides/multi-language)
+The private `server/package.json` adapter exposes `go test -race ./...`, `go vet ./...`, and an explicit build to `server/bin/yapper`. Go owns compilation and module dependencies. [Multi-language guide](https://turborepo.dev/docs/guides/multi-language)
 
-Alternatively, Stage 0 can evaluate native Go discovery with a root `go.work` and `experimentalGoWorkspaces` on a pinned release. Validate package discovery, artifact restoration, filtering, and cross-language dependencies first. Choose one discovery mechanism per project. Evaluate Cargo integration with the GPUI prototype. Swift and Kotlin tasks can later call native build tools on appropriate local build machines.
+Cargo, Gradle, and Xcode run independently. Any later change to task discovery needs checks for package selection, artifact restoration, filtering, and cross-language dependencies.
 
 ## Task graph and cache correctness
 
@@ -66,12 +66,12 @@ Turbo schedules tools; it does not replace their native caches or guarantee corr
 - Start with local Turbo caching. Remote caching is optional development infrastructure and creates no production dependency on Vercel.
 - Use affected-task selection only after proving the graph with cross-package changes and a valid Git base after history reset. Release validation still runs all mandatory checks.
 
-Planned entry points after scaffolding are `pnpm exec turbo run dev`, `pnpm exec turbo run build`, and `pnpm exec turbo run lint typecheck test`. Package scripts invoke the correct underlying runtime/tool. Exact task names and commands become authoritative in the manifests once implemented.
+Use root `pnpm dev`, `pnpm build`, `pnpm test`, and `pnpm typecheck` to run the configured tasks. The artifact-producing wrappers include toolchain and platform information in the cache identity. Run lint, formatting, and API generation checks using the root scripts.
 
 ## Containers and acceptance gates
 
 Use separate build and runtime stages. pnpm installs AUTH dependencies during image preparation; the final AUTH image contains Bun and a complete production dependency tree, including workspace dependencies. Verify that pnpm symlinks remain valid in the final image. Go ships its compiled executable. Built Web/landing assets do not require a Vite dev server in production. Turbo is not a production process supervisor.
 
-Before completing Stage 0, verify a clean frozen install, AUTH under Bun, Web and Astro builds, Electron packaging compatibility, Go task selection, cache hit on repetition, cache miss after relevant source/config/contract changes, and restoration of deleted build outputs. Native artifacts must not be reused across incompatible OS/architecture/toolchain combinations.
+The [Stage 0 evidence](evidence/stage-0.md) records the baseline checks for installation, task selection, and cache behavior. Native artifacts must not be reused across incompatible OS/architecture/toolchain combinations.
 
 Additional references: [pnpm workspaces](https://pnpm.io/workspaces), [Bun auto-install behavior](https://bun.sh/docs/runtime/auto-install), [Vite guide](https://vite.dev/guide/).

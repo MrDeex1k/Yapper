@@ -25,7 +25,7 @@ The Dockerfile frontend and all third-party build and runtime images use pinned 
 | LiveKit server      | 1.13.11               |
 | HAProxy             | 3.4.8-alpine          |
 
-PostgreSQL 19 is a major-version change. [Operations](../operations.md#updates-and-backups) records how existing PostgreSQL 18 installations are handled before changing images. Local checks use fresh disposable volumes. The project has no existing database to migrate.
+PostgreSQL 19 is a major-version change. [Operations](../operations.md#manual-update-and-rollback) records how existing PostgreSQL 18 installations are handled before changing images. Local checks use fresh disposable volumes. The project has no existing database to migrate.
 
 ## Verification
 

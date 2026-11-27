@@ -1,8 +1,8 @@
 # Stage 3 implementation plan
 
-**Status** Stage 3 implementation and acceptance are complete on `test/verify-stage-3`, based on `main` after the Stage 2 merge. The local capacity run met all recorded thresholds. The maintainer confirmed the Windows GPUI and macOS Web call under load. See the [verification record](evidence/stage-3-automated.md#stage-3-implementation-verification).
+**Status: closed.** Stage 3 implementation and scoped acceptance are complete. The local capacity run met all recorded thresholds. The maintainer confirmed the Windows GPUI and macOS Web call under load. See the [verification record](evidence/stage-3-automated.md#stage-3-implementation-verification).
 
-The [implementation roadmap](implementation-plan.md#stage-3--operational-reliability-and-capacity), [operations plan](operations.md), and [validation criteria](validation.md#capacity-gate) define the scope. The current baseline includes Docker Compose, separate PostgreSQL databases for AUTH and the application, local ingress and persistence smoke tests, and an isolated TURN/TLS test. The production restore, failed-update drill, and capacity run are Stage 3 deliverables.
+This document records the original work sequence. See the [operations guide](operations.md) for current commands and the [validation criteria](validation.md#capacity-gate) for the acceptance gates.
 
 ## 1. Coordinated backup and clean restore
 

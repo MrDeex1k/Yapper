@@ -2,16 +2,18 @@
 
 ## Service boundaries
 
-| Component              | Responsibility                                                                 | Implementation                                      |
-| ---------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
-| Web client             | Community UI, voice controls, moderation, administration                       | React, TypeScript, Tailwind, shadcn/ui with Base UI |
-| Windows/Linux desktop  | Community UI, saved servers, voice controls, and platform integration          | Rust and GPUI                                       |
-| Landing                | Public project information and downloads in EN/PL                              | Astro                                               |
-| Application server     | Guests, membership, permissions, channels, messages, presence, voice admission | Go                                                  |
-| Authentication service | Owner/moderator credentials and sessions, JWT signing and JWKS                 | Bun, TypeScript, Elysia 2 RC, Better Auth           |
-| Media server           | WebRTC media transport and TURN connectivity                                   | Self-hosted LiveKit                                 |
-| Database               | Durable application and authentication data                                    | PostgreSQL; separate databases and database roles   |
-| Public ingress         | Trusted HTTPS and routing to local services                                    | Reverse proxy; implementation default: Caddy        |
+| Component                 | Responsibility                                                                 | Implementation                                      |
+| ------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Web client                | Community UI, voice controls, moderation, administration                       | React, TypeScript, Tailwind, shadcn/ui with Base UI |
+| Windows/Linux desktop     | Community UI, saved servers, voice controls, and platform integration          | Rust and GPUI                                       |
+| Android, iPhone, and iPad | Community UI, per-origin sessions, and platform audio integration              | Kotlin Multiplatform, Compose, and SwiftUI          |
+| macOS                     | Community UI, per-origin sessions, and platform audio integration              | Swift and SwiftUI                                   |
+| Landing                   | Public project information and downloads in EN/PL                              | Astro                                               |
+| Application server        | Guests, membership, permissions, channels, messages, presence, voice admission | Go                                                  |
+| Authentication service    | Owner/moderator credentials and sessions, JWT signing and JWKS                 | Bun, TypeScript, Elysia 2 RC, Better Auth           |
+| Media server              | WebRTC media transport and TURN connectivity                                   | Self-hosted LiveKit                                 |
+| Database                  | Durable application and authentication data                                    | PostgreSQL; separate databases and database roles   |
+| Public ingress            | Trusted HTTPS and routing to local services                                    | Reverse proxy; implementation default: Caddy        |
 
 All runtime services for one community belong to one Docker Compose project. The landing is deployed independently. Start with one host and one application-server instance. Multi-host clustering, Kubernetes, and federation are deferred.
 
@@ -38,11 +40,15 @@ The diagram shows the architecture for the first private release. HTTP ingress a
 
 Rust and [GPUI](https://gpui.rs/) target Windows and Linux. GPUI renders the desktop interface. Native Rust code handles HTTP, WebSocket, session storage, and media integration. Web and all desktop clients share the versioned server contract and product behavior, including EN/PL copy. Go remains authoritative for application permissions and LiveKit continues to carry voice.
 
-Stage 2 validates Windows and Linux GPUI integration with a prototype. Stage 4 packages the native client for those platforms. macOS uses Web for the first private release and gains a dedicated Swift client in [Stage 7](implementation-plan.md#stage-7--native-macos-client). The Stage 1 Electron shell is a frozen development reference. See the [Stage 4 release plan](implementation-plan.md#stage-4--desktop-and-first-private-release).
+Stage 2 validated a GPUI prototype and Stage 4 built the native client for Windows and Linux. The first private release baseline uses Web on macOS. The native Swift macOS client is implemented in Stage 7 and has its own acceptance checks. The Stage 1 Electron shell is a development reference. See the [desktop verification record](evidence/stage-4-desktop.md) and [macOS verification record](evidence/stage-7-macos.md).
 
 ## Native mobile direction
 
 [Stage 6](stage-6-mobile-plan.md) uses Kotlin Multiplatform for shared HTTP, event handling, and community state. The Android interface uses Kotlin and Jetpack Compose. The iOS and iPadOS interface uses Swift and SwiftUI. Both use the same versioned server contract as Web and desktop. Platform code owns secure storage, the LiveKit SDK, microphone permission, audio routing, and background call lifecycle. Go remains authoritative for admission and permissions. The macOS target implements the same protocol in Swift. Foundation handles HTTP and event sockets, Keychain stores credentials by origin, and the LiveKit Swift SDK handles media. Apple clients share SwiftUI components and the Swift room adapter. Only the mobile Apple target links the Kotlin framework.
+
+## Terminal client direction
+
+The Rust/Ratatui client uses the v1 API, ticketed application events, and Go-gated LiveKit bearer signaling. It keeps guest credentials in an OS-backed store scoped by server origin. The platform and audio acceptance results are tracked in the [Stage 8 verification record](evidence/stage-8-terminal.md).
 
 ## Identity and authorization
 
@@ -51,13 +57,12 @@ Go owns the community's participant identifiers and permissions. Better Auth own
 Guests use a server-issued opaque credential and a persistent participant ID. Technical defaults:
 
 - Browser guest credentials use same-origin secure HttpOnly cookies. Browser storage holds preferences and non-secret UI state, not privileged bearer tokens.
-- GPUI desktop will isolate guest and account sessions by full server origin and protect persistent credentials with OS credential storage. Verify trusted TLS, restart and logout behavior, server switching, and session revocation on Windows and the supported Linux environments.
-- Define and test the Rust client's HTTP and WebSocket session handling against the existing trusted-origin, cookie and ticket checks. Preserve browser protections and Go's authorization and signaling boundaries when adding native compatibility.
+- GPUI, mobile, and native macOS scope sessions by full server origin and use OS-backed credential storage. They issue application event tickets through the same API as Web. Consult the platform evidence for restart, logout, server switching, and revocation coverage.
 - The Stage 1 Electron shell kept credentials in its main process behind scoped IPC and used a sandboxed and context-isolated renderer. See the [Stage 1 evidence](evidence/stage-1.md) for the tested behavior.
 
 Registered users authenticate with Better Auth. Its JWT plugin issues a short-lived token for Go to verify using JWKS. Validate the configured issuer, intended audience, signature algorithm, expiry, and subject. Fetch keys only from the installation's configured trusted issuer. A token-provided URL must never choose the trust source.
 
-Cache JWKS with bounded refresh and planned key overlap during rotation. Unknown keys or invalid tokens fail closed. AUTH downtime must not stop established guest chat or voice. Valid registered-user tokens may continue within their expiry and cached-key policy; new login and refresh depend on AUTH availability. Test and document these boundaries.
+Cache JWKS with bounded refresh and planned key overlap during rotation. Unknown keys or invalid tokens fail closed. Established guest chat and voice must continue during AUTH downtime. Valid registered-user tokens may continue within their expiry and cached-key policy; new login and refresh depend on AUTH availability. Test and document these boundaries.
 
 JWT verification establishes identity; Go checks current roles, bans, and channel access at each privileged operation. Token expiry is not a substitute for immediate moderation or account revocation. Stage 1 defines and tests account/session revocation propagation from AUTH to Go, including active WebSocket connections. Keep this integration behind a small interface.
 
@@ -85,23 +90,23 @@ Go stores the latest verified guest address for optional IP blocking. The ingres
 
 Chat history is stored in PostgreSQL and transported by the application protocol, not treated as durable LiveKit room data. Audio is not recorded. The Web client serializes active room replacement, and every leave identifies its own grant. A network recovery request can replace its previous grant only while it is still current and unrevoked. PostgreSQL tracks pending LiveKit removals so a replacement grant does not start voice alongside a stale session.
 
-GPUI uses the LiveKit Rust SDK with signaling through Go. The [desktop verification record](evidence/stage-4-desktop.md) records verified behavior and remaining platform checks. The [mobile plan](stage-6-mobile-plan.md) verifies the same signaling contract against the Android and Swift SDKs.
+GPUI uses the LiveKit Rust SDK with signaling through Go. The [desktop verification record](evidence/stage-4-desktop.md) records verified behavior and remaining platform checks. Android and Swift use bearer media grants through the same Go gate. See the [signaling contract](contracts.md#voice-switching-and-recovery).
 
 ## Compatibility investigations
 
-The following are implementation gates, not requests to reopen approved product decisions:
+These checks are tracked in the stage evidence. Refer to [Validation](validation.md) for outstanding release gates.
 
 1. Pin the Elysia 2 release line, Bun, Better Auth, and JWT/JWKS integration. Run login, expiry, rotation, and revocation tests.
 2. Stage 1 covered guest credential persistence and registered login in Web, and guest credential persistence in the Electron development shell. Verify both flows in Web and on the Windows and Linux GPUI packages before the first private release.
 3. Demonstrate enforceable media moderation with self-hosted LiveKit.
 4. Validate mobile browser devices, reconnect, and foreground audio on real devices.
-5. Validate Oxlint's JS plugin integration with `@shadcn/lint` and determine an Oxfmt-compatible formatter strategy for Astro files.
+5. The repository uses the Oxlint JS plugin for `@shadcn/lint`, Bun fmt for supported files, and Prettier with the Astro plugin for `.astro` source. See the [development checks](development.md#javascript-and-typescript-quality).
 
 Record the failing behavior, evidence, and proposed alternative when an implementation blocker requires changing an approved technology.
 
 ## Upstream references
 
-References inspected during planning; recheck exact versions during Stage 0:
+References from the initial architecture review. Use the checked-in manifests and lockfiles to identify deployed versions.
 
 - [Elysia and Better Auth](https://elysiajs.com/integrations/better-auth)
 - [Elysia 2 Beta](https://elysiajs.com/blog/elysia-20)
