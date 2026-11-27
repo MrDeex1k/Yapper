@@ -10,6 +10,8 @@ Stage 7.5 recorded Go and Rust analysis and repeatable Web smoke results. Linux 
 
 The [Go server concurrency follow-up](evidence/go-server-concurrency.md) records voice recovery and moderation regressions, PostgreSQL query counts, and a local before-and-after capacity run.
 
+The [PostgreSQL 19 chat follow-up](evidence/postgresql-19-chat.md) records retry regression tests, history query plans, and a disposable retention and space-recovery measurement.
+
 ## Evidence format
 
 For each implementation gate, record the source revision, image/package versions, date, environment, steps, observed outcome, and remaining limitations. Use logs or screenshots only when they substantiate the result, and exclude secrets and private message content.

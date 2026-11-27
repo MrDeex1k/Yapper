@@ -73,3 +73,24 @@ A separate store test timed the full `Store.Send` call with three concurrent wri
 The revised store used one statement and had a slightly higher isolated p95 than main in both series. Under the full capacity workload, `pg_stat_statements` counted exactly 40 executions of the revised statement per run for 36 new messages and four replays.
 
 The revised Go source passed `gofmt`, `go vet ./...`, Staticcheck, go-critic and `go test -race -count=1 ./...` with the branch's dependency pins, disposable PostgreSQL 19 and LiveKit 1.13.11. The external AUTH test passed separately against a fresh AUTH instance. The TURN deployment test requires a public deployment and was skipped. The follow-up covered loopback traffic and synthetic audio.
+
+### Verification against updated main
+
+During the follow-up, main advanced to `be8959f`. It adopted `ON CONFLICT DO SELECT` inside the existing multi-statement send transaction and optimized history pagination. The integrated branch keeps the pagination change and main's concurrent cross-channel replay regression. The send still locks the author and channel and commits in one statement.
+
+We repeated the same capacity workload against both integrated builds, in the order updated main, branch, branch, updated main. The same counters were added to the main test binary and the same p95 tolerances applied.
+
+| Measurement                  |     Updated main | Integrated branch |
+| ---------------------------- | ---------------: | ----------------: |
+| Ack p95, runs 1 / 2          | 26.42 / 27.15 ms |  21.93 / 22.26 ms |
+| Pooled ack p95               |         26.42 ms |          22.20 ms |
+| Pooled delivery p95 / p99    | 27.13 / 29.96 ms |  24.38 / 27.48 ms |
+| Pool acquisitions, both runs |           18,344 |            11,308 |
+| Aggregate pool wait          |         1,750 ms |            886 ms |
+| Voice reconnects, runs 1 / 2 |    0.19 / 1.24 s |     0.19 / 1.22 s |
+
+Each build delivered all 2,160 expected events for 72 distinct acknowledged messages. Each run ended with zero active media sessions and pending removals. Relative to updated main, the branch used 38.4% fewer pool acquisitions. Both pooled latency percentiles improved, and all four runs met the Stage 3 driver thresholds.
+
+The isolated three-writer store test counted five statements per fresh send on updated main and one on the integrated branch. In two 240-send series, store call p95 was 5.04 / 7.71 ms on updated main and 7.97 / 7.62 ms on the branch. The end-to-end gain therefore does not imply that a write in isolation always finishes sooner.
+
+After integration, the Go race suite with PostgreSQL and LiveKit, external AUTH test, vet, Staticcheck and go-critic passed again. The concurrent cross-channel replay test passed 20 additional race-enabled repetitions.

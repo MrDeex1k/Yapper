@@ -285,35 +285,55 @@ func TestMessageRetryAndHistory(t *testing.T) {
 	if err != nil || len(tail) != 1 || tail[0].ID != next.ID {
 		t.Fatal("cursor did not reconcile", tail, err)
 	}
+}
 
-	if err := s.SaveChannel(t.Context(), owner.ID, "", "Another text channel", "text", ""); err != nil {
+func TestConcurrentMessageRetryAcrossChannels(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	first, second := uuid.New().String(), uuid.New().String()
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO channels(id,name,kind)
+		VALUES($1,'first','text'),($2,'second','text')`, first, second); err != nil {
 		t.Fatal(err)
 	}
-	channels, err = s.Channels(t.Context())
-	if err != nil {
-		t.Fatal(err)
+
+	request := uuid.New().String()
+	type result struct {
+		message Message
+		fresh   bool
+		err     error
 	}
-	var other string
-	for _, c := range channels {
-		if c.Name == "Another text channel" {
-			other = c.ID
-		}
-	}
-	request = uuid.New().String()
-	conflicts := make(chan error, 2)
-	for _, target := range []string{channel, other} {
+	results := make(chan result, 2)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, channel := range []string{first, second} {
 		wg.Go(func() {
-			_, fresh, err := s.Send(t.Context(), owner.ID, target, request, "same request")
-			if err == nil && !fresh {
-				t.Error("successful cross-channel send did not create a message")
-			}
-			conflicts <- err
+			<-start
+			message, fresh, err := s.Send(ctx, owner.ID, channel, request, "hello")
+			results <- result{message, fresh, err}
 		})
 	}
+	close(start)
 	wg.Wait()
-	err1, err2 := <-conflicts, <-conflicts
-	if !((err1 == nil && errors.Is(err2, ErrConflict)) || (errors.Is(err1, ErrConflict) && err2 == nil)) {
-		t.Fatalf("cross-channel request ID: expected one commit and one conflict, got %v and %v", err1, err2)
+	close(results)
+
+	var winner Message
+	conflicts := 0
+	for result := range results {
+		switch {
+		case result.err == nil && result.fresh:
+			winner = result.message
+		case errors.Is(result.err, ErrConflict) && !result.fresh:
+			conflicts++
+		default:
+			t.Fatalf("unexpected send: %+v", result)
+		}
+	}
+	if winner.ID == "" || winner.Nickname != owner.Nickname || conflicts != 1 {
+		t.Fatalf("winner=%+v conflicts=%d", winner, conflicts)
+	}
+	retry, fresh, err := s.Send(ctx, owner.ID, winner.ChannelID, request, "hello")
+	if err != nil || fresh || retry != winner {
+		t.Fatalf("retry=%+v fresh=%v err=%v", retry, fresh, err)
 	}
 }
 

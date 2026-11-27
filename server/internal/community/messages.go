@@ -37,8 +37,10 @@ type MessageChange struct {
 func readMessage(row pgx.Row, extra ...any) (messageRecord, error) {
 	var r messageRecord
 	var body *string
-	fields := []any{&r.ID, &r.Sequence, &r.ChannelID, &r.AuthorID, &r.Nickname, &r.RequestID, &body,
-		&r.CreatedAt, &r.EditedAt, &r.Revision, &r.originalHash}
+	fields := []any{
+		&r.ID, &r.Sequence, &r.ChannelID, &r.AuthorID, &r.Nickname, &r.RequestID, &body,
+		&r.CreatedAt, &r.EditedAt, &r.Revision, &r.originalHash,
+	}
 	err := row.Scan(append(fields, extra...)...)
 	r.deleted = body == nil
 	if body != nil {
@@ -132,9 +134,14 @@ func (s *Store) HistoryPage(ctx context.Context, channel string, before int64) (
 		if err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, "SELECT "+messageFields+messageRows+`
-			WHERE m.channel_id=$1 AND m.body IS NOT NULL AND ($2::bigint=0 OR m.sequence<$2)
-			ORDER BY m.sequence DESC LIMIT $3`, channel, before, pageSize+1)
+		query := "SELECT " + messageFields + messageRows + " WHERE m.channel_id=$1 AND m.body IS NOT NULL"
+		args := []any{channel, pageSize + 1}
+		if before != 0 {
+			// Keep the cursor as an index bound even in a generic prepared plan.
+			query += " AND m.sequence<$3"
+			args = append(args, before)
+		}
+		rows, err := tx.Query(ctx, query+" ORDER BY m.sequence DESC LIMIT $2", args...)
 		if err != nil {
 			return err
 		}
