@@ -68,6 +68,11 @@ func TestEventDeliveryMatchesAcknowledgedIDsOnAllStreams(t *testing.T) {
 	if err := awaitEvents(t.Context(), streams, acknowledged); err != nil {
 		t.Fatalf("events received before HTTP acknowledgement did not pass: %v", err)
 	}
+	first := incomplete.deliveryTimes()
+	incomplete.recordMessage(acknowledged[0])
+	if first[0].IsZero() || first[1].IsZero() || first[2].IsZero() || incomplete.deliveryTimes() != first {
+		t.Fatal("delivery measurements should use the first receipt of each expected message")
+	}
 	close(incomplete.stopped)
 	if err := awaitEvents(t.Context(), streams, acknowledged); err == nil || !strings.Contains(err.Error(), "lost its event stream") {
 		t.Fatalf("a closed stream passed: %v", err)

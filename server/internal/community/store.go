@@ -21,6 +21,7 @@ var (
 	ErrDenied        = errors.New("access denied")
 	ErrConflict      = errors.New("conflict")
 	ErrNotConfigured = errors.New("not configured")
+	ErrKicked        = errors.New("participant kicked")
 )
 
 //go:embed schema.sql
@@ -177,34 +178,65 @@ func (s *Store) RecordGuestAddress(ctx context.Context, guest Participant, addre
 		if err := lockGuestAddresses(ctx, tx, false); err != nil {
 			return err
 		}
-		if err := checkGuestAddress(ctx, tx, address); err != nil {
-			return err
-		}
-		var banned bool
-		var kickGeneration int64
-		err := tx.QueryRow(ctx, "SELECT banned,kick_generation FROM participants WHERE id=$1 AND auth_subject IS NULL FOR UPDATE", guest.ID).Scan(&banned, &kickGeneration)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrDenied
-		}
+		// Check the block list after acquiring the advisory lock. The row lock
+		// keeps the membership decision and observation ordered with moderation.
+		var blocked bool
+		var banned *bool
+		var kickGeneration *int64
+		err := tx.QueryRow(ctx, `WITH address AS (
+			SELECT EXISTS(SELECT FROM ip_blocks WHERE address=$2) AS blocked
+		), guest AS (
+			SELECT id,banned,kick_generation,last_ip_observed_at
+			FROM participants,address WHERE id=$1 AND auth_subject IS NULL AND NOT address.blocked
+			FOR UPDATE OF participants
+		), recorded AS (
+			UPDATE participants p SET last_ip=$2,last_ip_observed_at=$3
+			FROM guest g WHERE p.id=g.id AND NOT g.banned AND g.kick_generation=$4
+				AND (g.last_ip_observed_at IS NULL OR g.last_ip_observed_at<$3)
+		)
+		SELECT address.blocked,guest.banned,guest.kick_generation FROM address LEFT JOIN guest ON true`,
+			guest.ID, address, observedAt, guest.KickGeneration).Scan(&blocked, &banned, &kickGeneration)
 		if err != nil {
 			return err
 		}
-		if banned {
+		switch {
+		case blocked:
+			return ErrIPBlocked
+		case banned == nil:
+			return ErrDenied
+		case *banned:
 			return ErrBanned
-		}
-		if kickGeneration != guest.KickGeneration {
+		case *kickGeneration != guest.KickGeneration:
 			return ErrConflict
 		}
-		_, err = tx.Exec(ctx, `UPDATE participants SET last_ip=$2,last_ip_observed_at=$3
-			WHERE id=$1 AND (last_ip_observed_at IS NULL OR last_ip_observed_at<$3)`, guest.ID, address, observedAt)
-		return err
+		return nil
 	})
 }
 func (s *Store) AccountIdentity(ctx context.Context, subject string) (Participant, error) {
 	return scanParticipant(s.Pool.QueryRow(ctx, "SELECT id::text,nickname,role,mic_muted,kick_generation,banned FROM participants WHERE auth_subject=$1", subject))
 }
-func (s *Store) Participant(ctx context.Context, id string) (Participant, error) {
-	return scanParticipant(s.Pool.QueryRow(ctx, "SELECT id::text,nickname,role,mic_muted,kick_generation,banned FROM participants WHERE id=$1", id))
+
+// CheckEventAccess checks the stream's current membership and observed guest IP.
+func (s *Store) CheckEventAccess(ctx context.Context, guest Participant, address netip.Addr) error {
+	var generation int64
+	var banned, blocked bool
+	err := s.Pool.QueryRow(ctx, `SELECT kick_generation,banned,
+		EXISTS(SELECT FROM ip_blocks WHERE address=$2)
+		FROM participants WHERE id=$1`, guest.ID, address).Scan(&generation, &banned, &blocked)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrDenied
+	case err != nil:
+		return err
+	case banned:
+		return ErrBanned
+	case generation != guest.KickGeneration:
+		return ErrKicked
+	case blocked:
+		return ErrIPBlocked
+	default:
+		return nil
+	}
 }
 func scanParticipant(row pgx.Row) (Participant, error) {
 	var p Participant

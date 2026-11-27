@@ -96,6 +96,15 @@ func TestModerationRolesAndSharedIP(t *testing.T) {
 	if _, err := s.GuestIdentity(ctx, neighborKey, ip); !errors.Is(err, ErrIPBlocked) {
 		t.Fatalf("shared IP accepted credential: %v", err)
 	}
+	if err := s.RecordGuestAddress(ctx, neighbor, ip, observed.Add(time.Second)); !errors.Is(err, ErrIPBlocked) {
+		t.Fatalf("existing guest recorded a blocked address: %v", err)
+	}
+	if err := s.CheckEventAccess(ctx, neighbor, ip); !errors.Is(err, ErrIPBlocked) {
+		t.Fatalf("existing event stream at a blocked address stayed authorized: %v", err)
+	}
+	if err := s.CheckEventAccess(ctx, target, ip); !errors.Is(err, ErrBanned) {
+		t.Fatalf("event stream lost participant ban precedence: %v", err)
+	}
 	if _, _, err := s.Guest(ctx, "new", "", ip); !errors.Is(err, ErrIPBlocked) {
 		t.Fatalf("shared IP admitted fresh guest: %v", err)
 	}

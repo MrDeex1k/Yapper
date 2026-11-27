@@ -80,6 +80,7 @@ func (a *CommunityAPI) diagnostics(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var grants int
 	ready := a.store.Pool.QueryRow(ctx, "SELECT count(*) FROM media_sessions WHERE NOT revoked").Scan(&grants) == nil
+	pool := a.store.Pool.Stat()
 	a.mu.Lock()
 	streams := len(a.streams)
 	a.mu.Unlock()
@@ -88,9 +89,14 @@ func (a *CommunityAPI) diagnostics(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusServiceUnavailable
 	}
 	writeJSON(w, status, struct {
-		Ready        bool `json:"ready"`
-		Database     bool `json:"database"`
-		EventStreams int  `json:"eventStreams"`
-		ActiveGrants int  `json:"activeGrants"`
-	}{ready, ready, streams, grants})
+		Ready                bool  `json:"ready"`
+		Database             bool  `json:"database"`
+		EventStreams         int   `json:"eventStreams"`
+		ActiveGrants         int   `json:"activeGrants"`
+		PoolAcquires         int64 `json:"poolAcquires"`
+		PoolWaitedAcquires   int64 `json:"poolWaitedAcquires"`
+		PoolCanceledAcquires int64 `json:"poolCanceledAcquires"`
+		PoolAcquireWaitMs    int64 `json:"poolAcquireWaitMs"`
+	}{ready, ready, streams, grants, pool.AcquireCount(), pool.EmptyAcquireCount(),
+		pool.CanceledAcquireCount(), pool.EmptyAcquireWaitTime().Milliseconds()})
 }

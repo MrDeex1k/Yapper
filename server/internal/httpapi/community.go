@@ -130,7 +130,7 @@ func resultError(w http.ResponseWriter, err error) {
 		fail(w, 403, "ip_blocked")
 	case errors.Is(err, community.ErrNoGuestIP):
 		fail(w, 409, "ip_unavailable")
-	case errors.Is(err, community.ErrDenied), errors.Is(err, identity.ErrUnauthorized), errors.Is(err, errKicked):
+	case errors.Is(err, community.ErrDenied), errors.Is(err, identity.ErrUnauthorized), errors.Is(err, community.ErrKicked):
 		fail(w, 403, "access_denied")
 	case errors.Is(err, community.ErrConflict), errors.Is(err, identity.ErrAccountConflict):
 		fail(w, 409, "conflict")
@@ -369,17 +369,11 @@ func (a *CommunityAPI) issueTicket(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, map[string]string{"ticket": token})
 }
 
-var errKicked = errors.New("participant kicked")
-
 const kickedCloseCode websocket.StatusCode = 4001
 
 func (a *CommunityAPI) current(ctx context.Context, p principal) error {
-	current, err := a.store.Participant(ctx, p.participant.ID)
-	if err != nil {
+	if err := a.store.CheckEventAccess(ctx, p.participant, p.address); err != nil {
 		return err
-	}
-	if current.KickGeneration != p.participant.KickGeneration {
-		return errKicked
 	}
 	if p.account != nil {
 		if p.account.ExpiresAt == nil || time.Now().After(p.account.ExpiresAt.Time) {
@@ -387,7 +381,7 @@ func (a *CommunityAPI) current(ctx context.Context, p principal) error {
 		}
 		return a.auth.CheckSessionActive(ctx, *p.account)
 	}
-	return a.store.CheckGuestAddress(ctx, p.address)
+	return nil
 }
 func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	observedAt := time.Now()
@@ -444,7 +438,7 @@ func (a *CommunityAPI) events(w http.ResponseWriter, r *http.Request) {
 	// Recheck after registration so a ban racing the handshake cannot escape disconnect.
 	checkCurrent := func(ctx context.Context) bool {
 		err := a.current(ctx, t.who)
-		if errors.Is(err, errKicked) {
+		if errors.Is(err, community.ErrKicked) {
 			_ = conn.Close(kickedCloseCode, "kicked")
 		}
 		return err == nil

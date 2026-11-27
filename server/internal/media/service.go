@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -30,25 +31,38 @@ type Service struct {
 	room                *lksdk.RoomServiceClient
 	mu                  sync.Mutex
 	connections         map[string]map[*trackedBody]struct{}
-}
-type trackedBody struct {
-	io.ReadWriteCloser
-	service  *Service
-	identity string
-	once     sync.Once
+	closed              bool
 }
 
-func (b *trackedBody) Close() error {
-	err := b.ReadWriteCloser.Close()
-	b.once.Do(func() {
-		b.service.mu.Lock()
-		defer b.service.mu.Unlock()
-		delete(b.service.connections[b.identity], b)
-		if len(b.service.connections[b.identity]) == 0 {
-			delete(b.service.connections, b.identity)
+type trackedBody struct {
+	io.ReadWriteCloser
+	closeOnce func() error
+}
+
+func (b *trackedBody) Close() error { return b.closeOnce() }
+
+func (s *Service) trackConnection(identity string, body io.ReadWriteCloser) (*trackedBody, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, net.ErrClosed
+	}
+	tracked := &trackedBody{ReadWriteCloser: body}
+	tracked.closeOnce = sync.OnceValue(func() error {
+		err := body.Close()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		delete(s.connections[identity], tracked)
+		if len(s.connections[identity]) == 0 {
+			delete(s.connections, identity)
 		}
+		return err
 	})
-	return err
+	if s.connections[identity] == nil {
+		s.connections[identity] = map[*trackedBody]struct{}{}
+	}
+	s.connections[identity][tracked] = struct{}{}
+	return tracked, nil
 }
 
 type Grant struct {
@@ -127,11 +141,13 @@ func (s *Service) remove(ctx context.Context, m community.MediaSession) error {
 }
 func (s *Service) current(ctx context.Context, mediaIdentity string) (community.MediaSession, error) {
 	m, err := s.store.VoiceSession(ctx, mediaIdentity)
-	if err != nil {
+	if err != nil && !errors.Is(err, community.ErrVoiceResumePending) {
 		return m, err
 	}
 	if m.AuthSessionID != "" {
-		err = s.auth.CheckSessionActive(ctx, identity.Account{RegisteredClaims: jwt.RegisteredClaims{Subject: m.AuthSubject}, SessionID: m.AuthSessionID})
+		if authErr := s.auth.CheckSessionActive(ctx, identity.Account{RegisteredClaims: jwt.RegisteredClaims{Subject: m.AuthSubject}, SessionID: m.AuthSessionID}); authErr != nil {
+			return m, authErr
+		}
 	}
 	return m, err
 }
@@ -212,26 +228,27 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return errors.New("invalid media upgrade")
 			}
-			// Serialize tracking with connection removal. The store separately orders
-			// guest addresses and IP blocks inside PostgreSQL transactions.
-			s.mu.Lock()
-			defer s.mu.Unlock()
+			// Register before rechecking: a concurrent revocation either closes
+			// this tracked connection or is observed by the recheck.
+			tracked, err := s.trackConnection(m.Identity, body)
+			if err != nil {
+				return err
+			}
+			response.Body = tracked
 			if _, err := s.current(r.Context(), m.Identity); err != nil {
-				_ = body.Close()
 				return errors.New("media membership revoked")
 			}
 			if m.AuthSubject == "" {
 				if err := s.store.RecordVoiceAddress(r.Context(), m.Identity, identity.ClientAddress(r.Context())); err != nil {
-					_ = body.Close()
 					return err
 				}
 			}
-			tracked := &trackedBody{ReadWriteCloser: body, service: s, identity: m.Identity}
-			if s.connections[m.Identity] == nil {
-				s.connections[m.Identity] = map[*trackedBody]struct{}{}
+			s.mu.Lock()
+			_, trackedDuringCheck := s.connections[m.Identity][tracked]
+			s.mu.Unlock()
+			if !trackedDuringCheck {
+				return net.ErrClosed
 			}
-			s.connections[m.Identity][tracked] = struct{}{}
-			response.Body = tracked
 			return nil
 		},
 	}
@@ -277,7 +294,8 @@ func (s *Service) reconcileOnce(ctx context.Context) {
 		item, done := context.WithTimeout(ctx, 3*time.Second)
 		_, err := s.current(item, m.Identity)
 		done()
-		if !errors.Is(err, community.ErrDenied) && !errors.Is(err, identity.ErrUnauthorized) {
+		if errors.Is(err, community.ErrVoiceResumePending) ||
+			(!errors.Is(err, community.ErrDenied) && !errors.Is(err, identity.ErrUnauthorized)) {
 			continue
 		}
 		cleanup, cancel := context.WithTimeout(ctx, 6*time.Second)
@@ -292,7 +310,8 @@ func (s *Service) reconcileOnce(ctx context.Context) {
 func (s *Service) Close() {
 	s.mu.Lock()
 	connections := s.connections
-	s.connections = map[string]map[*trackedBody]struct{}{}
+	s.connections = nil
+	s.closed = true
 	s.mu.Unlock()
 	for _, set := range connections {
 		for c := range set {
