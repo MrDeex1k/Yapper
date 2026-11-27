@@ -34,11 +34,14 @@ type MessageChange struct {
 	Message  *Message `json:"message"`
 }
 
-func readMessage(row pgx.Row) (messageRecord, error) {
+func readMessage(row pgx.Row, extra ...any) (messageRecord, error) {
 	var r messageRecord
 	var body *string
-	err := row.Scan(&r.ID, &r.Sequence, &r.ChannelID, &r.AuthorID, &r.Nickname, &r.RequestID, &body,
-		&r.CreatedAt, &r.EditedAt, &r.Revision, &r.originalHash)
+	fields := []any{
+		&r.ID, &r.Sequence, &r.ChannelID, &r.AuthorID, &r.Nickname, &r.RequestID, &body,
+		&r.CreatedAt, &r.EditedAt, &r.Revision, &r.originalHash,
+	}
+	err := row.Scan(append(fields, extra...)...)
 	r.deleted = body == nil
 	if body != nil {
 		r.Body = *body
@@ -87,14 +90,16 @@ func (s *Store) Send(ctx context.Context, actor, channel, requestID, body string
 		if archived {
 			return ErrDenied
 		}
-		tag, err := tx.Exec(ctx, `INSERT INTO messages(id,channel_id,author_id,request_id,body,revision)
-			VALUES($1,$2,$3,$4,$5,nextval('message_revisions')) ON CONFLICT(author_id,request_id) DO NOTHING`,
-			uuid.New().String(), channel, actor, requestID, body)
-		if err != nil {
-			return err
-		}
-		fresh = tag.RowsAffected() == 1
-		r, err := readMessage(tx.QueryRow(ctx, "SELECT "+messageFields+messageRows+" WHERE m.author_id=$1 AND m.request_id=$2", actor, requestID))
+		r, err := readMessage(tx.QueryRow(ctx, `
+			WITH sent AS (
+				INSERT INTO messages(id,channel_id,author_id,request_id,body,revision)
+				VALUES($1,$2,$3,$4,$5,nextval('message_revisions'))
+				ON CONFLICT(author_id,request_id) DO SELECT
+				RETURNING messages.*, OLD.id IS NULL AS inserted
+			)
+			SELECT `+messageFields+`,m.inserted
+			FROM sent m JOIN participants p ON p.id=m.author_id`,
+			uuid.New().String(), channel, actor, requestID, body), &fresh)
 		if err != nil {
 			return err
 		}
@@ -135,9 +140,14 @@ func (s *Store) HistoryPage(ctx context.Context, channel string, before int64) (
 		if err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, "SELECT "+messageFields+messageRows+`
-			WHERE m.channel_id=$1 AND m.body IS NOT NULL AND ($2::bigint=0 OR m.sequence<$2)
-			ORDER BY m.sequence DESC LIMIT $3`, channel, before, pageSize+1)
+		query := "SELECT " + messageFields + messageRows + " WHERE m.channel_id=$1 AND m.body IS NOT NULL"
+		args := []any{channel, pageSize + 1}
+		if before != 0 {
+			// Keep the cursor as an index bound even in a generic prepared plan.
+			query += " AND m.sequence<$3"
+			args = append(args, before)
+		}
+		rows, err := tx.Query(ctx, query+" ORDER BY m.sequence DESC LIMIT $2", args...)
 		if err != nil {
 			return err
 		}

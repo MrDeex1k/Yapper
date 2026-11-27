@@ -287,6 +287,56 @@ func TestMessageRetryAndHistory(t *testing.T) {
 	}
 }
 
+func TestConcurrentMessageRetryAcrossChannels(t *testing.T) {
+	s, owner := configuredStore(t)
+	ctx := t.Context()
+	first, second := uuid.New().String(), uuid.New().String()
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO channels(id,name,kind)
+		VALUES($1,'first','text'),($2,'second','text')`, first, second); err != nil {
+		t.Fatal(err)
+	}
+
+	request := uuid.New().String()
+	type result struct {
+		message Message
+		fresh   bool
+		err     error
+	}
+	results := make(chan result, 2)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, channel := range []string{first, second} {
+		wg.Go(func() {
+			<-start
+			message, fresh, err := s.Send(ctx, owner.ID, channel, request, "hello")
+			results <- result{message, fresh, err}
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var winner Message
+	conflicts := 0
+	for result := range results {
+		switch {
+		case result.err == nil && result.fresh:
+			winner = result.message
+		case errors.Is(result.err, ErrConflict) && !result.fresh:
+			conflicts++
+		default:
+			t.Fatalf("unexpected send: %+v", result)
+		}
+	}
+	if winner.ID == "" || winner.Nickname != owner.Nickname || conflicts != 1 {
+		t.Fatalf("winner=%+v conflicts=%d", winner, conflicts)
+	}
+	retry, fresh, err := s.Send(ctx, owner.ID, winner.ChannelID, request, "hello")
+	if err != nil || fresh || retry != winner {
+		t.Fatalf("retry=%+v fresh=%v err=%v", retry, fresh, err)
+	}
+}
+
 func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {
 	s, owner := configuredStore(t)
 	channels, err := s.Channels(t.Context())
