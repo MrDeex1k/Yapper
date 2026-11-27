@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -316,6 +317,132 @@ func TestSelfHostedReplayGate(t *testing.T) {
 			t.Fatalf("replaced media identity authorized automatic recovery: %v", err)
 		}
 		if err := service.Leave(ctx, switcher.ID, recovered.Identity); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("reconciliation preserves a pending resume", func(t *testing.T) {
+		invitation, err := store.Invite(ctx, owner.ID, community.InvitationOptions{MaxUses: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		guest, _, err := store.Guest(ctx, "resuming", invitation, netip.Addr{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		previous, err := service.Grant(ctx, guest, channel, "", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupFailure := errors.New("temporary LiveKit failure")
+		var pendingIdentity string
+		_, err = store.StartVoice(ctx, guest, channel, "", "", previous.Identity, netip.Addr{}, func(ctx context.Context, _ community.MediaSession) error {
+			err := store.Pool.QueryRow(ctx, "SELECT identity FROM media_sessions WHERE participant_id=$1", guest.ID).Scan(&pendingIdentity)
+			if err != nil {
+				return err
+			}
+			service.reconcileOnce(ctx)
+			return cleanupFailure
+		})
+		if !errors.Is(err, cleanupFailure) {
+			t.Fatalf("interrupted resume: %v", err)
+		}
+		_, err = store.VoiceSession(ctx, pendingIdentity)
+		if !errors.Is(err, community.ErrVoiceResumePending) {
+			t.Fatalf("resume should still be pending after reconciliation: %v", err)
+		}
+		retried, err := service.Grant(ctx, guest, channel, "", "", previous.Identity)
+		if err != nil || retried.Identity != pendingIdentity {
+			t.Fatalf("retry did not reuse pending identity: %v", err)
+		}
+		if err := service.Leave(ctx, guest.ID, retried.Identity); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("blocked authorization does not hold other upgrades or hide a revocation", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		checking := make(chan struct{})
+		release := make(chan struct{})
+		resumeCheck := sync.OnceFunc(func() { close(release) })
+		var checks atomic.Int32
+		authHTTP := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if checks.Add(1) == 2 {
+				close(checking)
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			_, _ = w.Write([]byte(`{"active":true}`))
+		}))
+		defer authHTTP.Close()
+		auth, err := identity.NewAuthClient(authHTTP.URL, strings.Repeat("s", 32))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := New(store, auth, endpoint, os.Getenv("LIVEKIT_API_KEY"), os.Getenv("LIVEKIT_API_SECRET"), origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer service.Close()
+		proxy := httptest.NewServer(service)
+		defer proxy.Close()
+		dial := func(grant Grant) (*websocket.Conn, *http.Response, error) {
+			address := "ws" + strings.TrimPrefix(proxy.URL, "http") + "/livekit/rtc?protocol=15&access_token=" + url.QueryEscape(grant.Token)
+			return websocket.Dial(ctx, address, &websocket.DialOptions{HTTPHeader: header})
+		}
+		grant, err := service.Grant(ctx, owner, channel, "owner", "session", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		invitation, err := store.Invite(ctx, owner.ID, community.InvitationOptions{MaxUses: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		otherGuest, _, err := store.Guest(ctx, "concurrent", invitation, netip.Addr{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		other, err := service.Grant(ctx, otherGuest, channel, "", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var group sync.WaitGroup
+		defer group.Wait()
+		defer resumeCheck()
+		status := make(chan int, 1)
+		group.Go(func() {
+			conn, response, err := dial(grant)
+			if err == nil {
+				_ = conn.CloseNow()
+			}
+			if response == nil {
+				status <- 0
+				return
+			}
+			status <- response.StatusCode
+		})
+		select {
+		case <-checking:
+		case <-ctx.Done():
+			t.Fatal("registered upgrade did not reach its second session check")
+		}
+		conn, _, err := dial(other)
+		if err != nil {
+			t.Fatalf("unrelated guest upgrade blocked: %v", err)
+		}
+		defer conn.CloseNow()
+		if err := service.Leave(ctx, owner.ID, grant.Identity); err != nil {
+			t.Fatalf("leave during authorization: %v", err)
+		}
+		resumeCheck()
+		if got := <-status; got != http.StatusBadGateway {
+			t.Fatalf("revoked upgrade status=%d, want 502", got)
+		}
+		if err := service.Leave(ctx, otherGuest.ID, other.Identity); err != nil {
 			t.Fatal(err)
 		}
 	})

@@ -3,6 +3,7 @@ package community
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"uuid"
 
@@ -18,6 +19,8 @@ type MediaSession struct {
 	Nickname      string
 	MicMuted      bool
 }
+
+var ErrVoiceResumePending = fmt.Errorf("voice resume pending: %w", ErrDenied)
 
 func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subject, sessionID, resumeIdentity string, address netip.Addr, remove func(context.Context, MediaSession) error) (MediaSession, error) {
 	tx, err := s.Pool.Begin(ctx)
@@ -114,10 +117,17 @@ func (s *Store) StartVoice(ctx context.Context, actor Participant, channel, subj
 }
 func (s *Store) VoiceSession(ctx context.Context, identity string) (MediaSession, error) {
 	var m MediaSession
-	err := s.Pool.QueryRow(ctx, `SELECT m.participant_id::text,m.identity,m.channel_id::text,m.auth_subject,m.auth_session_id,p.nickname,p.mic_muted FROM media_sessions m JOIN participants p ON p.id=m.participant_id WHERE m.identity=$1 AND NOT m.revoked AND NOT p.banned
- AND m.resume_from='' AND (m.auth_subject!='' OR NOT EXISTS(SELECT FROM ip_blocks b WHERE b.address=m.client_ip))`, identity).Scan(&m.ParticipantID, &m.Identity, &m.ChannelID, &m.AuthSubject, &m.AuthSessionID, &m.Nickname, &m.MicMuted)
+	var pending bool
+	err := s.Pool.QueryRow(ctx, `SELECT m.participant_id::text,m.identity,m.channel_id::text,
+		m.auth_subject,m.auth_session_id,p.nickname,p.mic_muted,m.resume_from<>''
+		FROM media_sessions m JOIN participants p ON p.id=m.participant_id
+		WHERE m.identity=$1 AND NOT m.revoked AND NOT p.banned
+		AND (m.auth_subject!='' OR NOT EXISTS(SELECT FROM ip_blocks b WHERE b.address=m.client_ip))`, identity).
+		Scan(&m.ParticipantID, &m.Identity, &m.ChannelID, &m.AuthSubject, &m.AuthSessionID, &m.Nickname, &m.MicMuted, &pending)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrDenied
+	} else if err == nil && pending {
+		err = ErrVoiceResumePending
 	}
 	return m, err
 }

@@ -210,6 +210,7 @@ func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voi
 	mediaStart := voice.snapshot()
 	textPath := "/api/v1/channels/" + text + "/messages"
 	var acks []time.Duration
+	var deliveries []time.Duration
 	var socketRecoveries []time.Duration
 	var acknowledged []message
 	var recoveries []time.Duration
@@ -253,6 +254,11 @@ func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voi
 			acknowledged = append(acknowledged, reply.message)
 			acks = append(acks, reply.elapsed)
 		}
+		for _, stream := range sockets {
+			for i, received := range stream.deliveryTimes() {
+				deliveries = append(deliveries, received.Sub(batch[i].started))
+			}
+		}
 		if i%10 == 0 {
 			packets := voice.snapshot().since(mediaStart).packets
 			fmt.Printf("Progress after %s: %d acknowledged messages, %d received RTP packets\n", time.Since(started).Round(time.Second), len(acks), packets)
@@ -266,9 +272,10 @@ func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voi
 	if err := voice.verify(media); err != nil {
 		return err
 	}
-	textP95, eventP95, voiceP95 := percentile95(acks), percentile95(socketRecoveries), percentile95(recoveries)
+	textP95, eventP95, voiceP95 := percentile(acks, 95), percentile(socketRecoveries, 95), percentile(recoveries, 95)
 	fmt.Printf("Sustained %s; messages=%d; text acknowledgement p95=%s; event reconnects=%d p95=%s; voice reconnects=%d p95=%s\n",
 		elapsed.Round(time.Second), len(acks), textP95, len(socketRecoveries), eventP95, len(recoveries), voiceP95)
+	fmt.Printf("Event deliveries=%d p95=%s p99=%s\n", len(deliveries), percentile(deliveries, 95), percentile(deliveries, 99))
 	if textP95 > textDeadline || eventP95 > eventDeadline || voiceP95 > voiceDeadline {
 		return errors.New("capacity run exceeded a latency threshold")
 	}
@@ -277,6 +284,7 @@ func sustain(ctx context.Context, clients []*client, sockets []*eventStream, voi
 
 type acknowledgement struct {
 	message message
+	started time.Time
 	elapsed time.Duration
 	err     error
 }
@@ -297,9 +305,9 @@ func sendBatch(ctx context.Context, clients []*client, sockets []*eventStream, p
 			reply := &replies[slot]
 			guest := clients[index%onlineClients]
 			body := map[string]string{"requestId": requested[slot], "body": fmt.Sprintf("Stage 3 load message %d", index)}
-			begin := time.Now()
+			reply.started = time.Now()
 			reply.err = guest.request(ctx, path, body, 200, &reply.message)
-			reply.elapsed = time.Since(begin)
+			reply.elapsed = time.Since(reply.started)
 			if reply.err != nil {
 				return
 			}
@@ -442,6 +450,7 @@ type eventStream struct {
 	stopped    chan struct{}
 	mu         sync.Mutex
 	received   [batchSize]message
+	receivedAt [batchSize]time.Time
 }
 
 func (s *eventStream) close() { _ = s.connection.CloseNow() }
@@ -451,6 +460,7 @@ func (s *eventStream) expectBatch(requestIDs [batchSize]string) {
 	defer s.mu.Unlock()
 	for i, id := range requestIDs {
 		s.received[i] = message{RequestID: id}
+		s.receivedAt[i] = time.Time{}
 	}
 }
 
@@ -463,6 +473,7 @@ func (s *eventStream) recordMessage(created message) {
 	for i, pending := range s.received {
 		if pending.RequestID == created.RequestID && pending.ID == "" {
 			s.received[i] = created
+			s.receivedAt[i] = time.Now()
 			return
 		}
 	}
@@ -472,6 +483,12 @@ func (s *eventStream) receivedBatch(acknowledged [batchSize]message) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.received == acknowledged
+}
+
+func (s *eventStream) deliveryTimes() [batchSize]time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.receivedAt
 }
 
 func (c *client) openEvents(ctx context.Context) (*eventStream, error) {
@@ -518,10 +535,10 @@ func (c *client) openEvents(ctx context.Context) (*eventStream, error) {
 	return stream, nil
 }
 
-func percentile95(values []time.Duration) time.Duration {
+func percentile(values []time.Duration, rank int) time.Duration {
 	if len(values) == 0 {
 		return 0
 	}
 	slices.Sort(values)
-	return values[(95*len(values)+99)/100-1]
+	return values[(rank*len(values)+99)/100-1]
 }

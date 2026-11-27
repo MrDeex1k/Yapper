@@ -285,6 +285,36 @@ func TestMessageRetryAndHistory(t *testing.T) {
 	if err != nil || len(tail) != 1 || tail[0].ID != next.ID {
 		t.Fatal("cursor did not reconcile", tail, err)
 	}
+
+	if err := s.SaveChannel(t.Context(), owner.ID, "", "Another text channel", "text", ""); err != nil {
+		t.Fatal(err)
+	}
+	channels, err = s.Channels(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var other string
+	for _, c := range channels {
+		if c.Name == "Another text channel" {
+			other = c.ID
+		}
+	}
+	request = uuid.New().String()
+	conflicts := make(chan error, 2)
+	for _, target := range []string{channel, other} {
+		wg.Go(func() {
+			_, fresh, err := s.Send(t.Context(), owner.ID, target, request, "same request")
+			if err == nil && !fresh {
+				t.Error("successful cross-channel send did not create a message")
+			}
+			conflicts <- err
+		})
+	}
+	wg.Wait()
+	err1, err2 := <-conflicts, <-conflicts
+	if !((err1 == nil && errors.Is(err2, ErrConflict)) || (errors.Is(err1, ErrConflict) && err2 == nil)) {
+		t.Fatalf("cross-channel request ID: expected one commit and one conflict, got %v and %v", err1, err2)
+	}
 }
 
 func TestVoiceReplacementCommitsBeforeRemovalAndPreservesRetry(t *testing.T) {

@@ -87,14 +87,22 @@ func (s *Store) Send(ctx context.Context, actor, channel, requestID, body string
 		if archived {
 			return ErrDenied
 		}
-		tag, err := tx.Exec(ctx, `INSERT INTO messages(id,channel_id,author_id,request_id,body,revision)
-			VALUES($1,$2,$3,$4,$5,nextval('message_revisions')) ON CONFLICT(author_id,request_id) DO NOTHING`,
-			uuid.New().String(), channel, actor, requestID, body)
-		if err != nil {
+		r, err := readMessage(tx.QueryRow(ctx, `WITH inserted AS (
+			INSERT INTO messages(id,channel_id,author_id,request_id,body,revision)
+			VALUES($1,$2,$3,$4,$5,nextval('message_revisions'))
+			ON CONFLICT(author_id,request_id) DO NOTHING RETURNING *
+		) SELECT `+messageFields+` FROM inserted m JOIN participants p ON p.id=m.author_id`,
+			uuid.New().String(), channel, actor, requestID, body))
+		if err == nil {
+			message, fresh = r.Message, true
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		fresh = tag.RowsAffected() == 1
-		r, err := readMessage(tx.QueryRow(ctx, "SELECT "+messageFields+messageRows+" WHERE m.author_id=$1 AND m.request_id=$2", actor, requestID))
+		// A conflicting insert in another channel can commit after the insert
+		// snapshot was taken. Read the existing message with a fresh snapshot.
+		r, err = readMessage(tx.QueryRow(ctx, "SELECT "+messageFields+messageRows+" WHERE m.author_id=$1 AND m.request_id=$2", actor, requestID))
 		if err != nil {
 			return err
 		}
@@ -104,14 +112,12 @@ func (s *Store) Send(ctx context.Context, actor, channel, requestID, body string
 		if r.deleted {
 			return ErrMessageGone
 		}
-		if !fresh {
-			hash := r.originalHash
-			if hash == nil {
-				hash = digest(r.Body)
-			}
-			if !bytes.Equal(hash, digest(body)) {
-				return ErrConflict
-			}
+		hash := r.originalHash
+		if hash == nil {
+			hash = digest(r.Body)
+		}
+		if !bytes.Equal(hash, digest(body)) {
+			return ErrConflict
 		}
 		message = r.Message
 		return nil
