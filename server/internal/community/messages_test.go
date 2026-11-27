@@ -123,8 +123,20 @@ func TestMessageLifecycle(t *testing.T) {
 	if _, err := s.Pool.Exec(ctx, "UPDATE messages SET created_at=now()-interval '2 days' WHERE id=$1", older.Messages[0].ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.Moderate(ctx, owner.ID, author.ID, Ban, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Send(ctx, author.ID, channel, older.Messages[0].RequestID, older.Messages[0].Body); !errors.Is(err, ErrDenied) {
+		t.Fatalf("banned author replay: %v", err)
+	}
+	if _, err := s.Moderate(ctx, owner.ID, author.ID, Unban, false); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.ArchiveChannel(ctx, owner.ID, channel); err != nil {
 		t.Fatal(err)
+	}
+	if _, _, err := s.Send(ctx, author.ID, channel, older.Messages[0].RequestID, older.Messages[0].Body); !errors.Is(err, ErrDenied) {
+		t.Fatalf("archived message replay: %v", err)
 	}
 	if _, err := s.EditMessage(ctx, author.ID, channel, older.Messages[0].ID, "archive edit", older.Messages[0].Revision); !errors.Is(err, ErrDenied) {
 		t.Fatalf("archive edit: %v", err)

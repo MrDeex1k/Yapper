@@ -34,11 +34,12 @@ type MessageChange struct {
 	Message  *Message `json:"message"`
 }
 
-func readMessage(row pgx.Row) (messageRecord, error) {
+func readMessage(row pgx.Row, extra ...any) (messageRecord, error) {
 	var r messageRecord
 	var body *string
-	err := row.Scan(&r.ID, &r.Sequence, &r.ChannelID, &r.AuthorID, &r.Nickname, &r.RequestID, &body,
-		&r.CreatedAt, &r.EditedAt, &r.Revision, &r.originalHash)
+	fields := []any{&r.ID, &r.Sequence, &r.ChannelID, &r.AuthorID, &r.Nickname, &r.RequestID, &body,
+		&r.CreatedAt, &r.EditedAt, &r.Revision, &r.originalHash}
+	err := row.Scan(append(fields, extra...)...)
 	r.deleted = body == nil
 	if body != nil {
 		r.Body = *body
@@ -74,55 +75,45 @@ func lockMessageChannel(ctx context.Context, tx pgx.Tx, channel string) (bool, e
 }
 
 func (s *Store) Send(ctx context.Context, actor, channel, requestID, body string) (Message, bool, error) {
-	var message Message
+	// Feed the locked channel into the insert so both cursors are allocated
+	// after admission, and the channel stays locked through the implicit commit.
+	// DO SELECT returns a competing insert even if it committed after this
+	// statement took its snapshot. Only the inserting caller may broadcast.
 	var fresh bool
-	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
-		if _, err := chatActor(ctx, tx, actor); err != nil {
-			return err
-		}
-		archived, err := lockMessageChannel(ctx, tx, channel)
-		if err != nil {
-			return err
-		}
-		if archived {
-			return ErrDenied
-		}
-		r, err := readMessage(tx.QueryRow(ctx, `WITH inserted AS (
-			INSERT INTO messages(id,channel_id,author_id,request_id,body,revision)
-			VALUES($1,$2,$3,$4,$5,nextval('message_revisions'))
-			ON CONFLICT(author_id,request_id) DO NOTHING RETURNING *
-		) SELECT `+messageFields+` FROM inserted m JOIN participants p ON p.id=m.author_id`,
-			uuid.New().String(), channel, actor, requestID, body))
-		if err == nil {
-			message, fresh = r.Message, true
-			return nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		// A conflicting insert in another channel can commit after the insert
-		// snapshot was taken. Read the existing message with a fresh snapshot.
-		r, err = readMessage(tx.QueryRow(ctx, "SELECT "+messageFields+messageRows+" WHERE m.author_id=$1 AND m.request_id=$2", actor, requestID))
-		if err != nil {
-			return err
-		}
-		if r.ChannelID != channel {
-			return ErrConflict
-		}
-		if r.deleted {
-			return ErrMessageGone
-		}
-		hash := r.originalHash
-		if hash == nil {
-			hash = digest(r.Body)
-		}
-		if !bytes.Equal(hash, digest(body)) {
-			return ErrConflict
-		}
-		message = r.Message
-		return nil
-	})
-	return message, fresh, err
+	r, err := readMessage(s.Pool.QueryRow(ctx, `WITH actor AS (
+		SELECT id,nickname FROM participants WHERE id=$3 AND NOT banned FOR SHARE
+	), writable AS (
+		SELECT c.id,actor.id AS author_id FROM actor CROSS JOIN channels c
+		WHERE c.id=$2 AND c.kind='text' AND NOT c.archived FOR UPDATE OF c
+	), delivery AS (
+		INSERT INTO messages(id,channel_id,author_id,request_id,body,revision)
+		SELECT $1,id,author_id,$4,$5,nextval('message_revisions') FROM writable
+		ON CONFLICT(author_id,request_id) DO SELECT RETURNING *,OLD.id IS NULL AS fresh
+	) SELECT `+messageFields+`,m.fresh FROM delivery m JOIN actor p ON p.id=m.author_id`,
+		uuid.New().String(), channel, actor, requestID, body), &fresh)
+	if err == nil && fresh {
+		return r.Message, true, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Message{}, false, ErrDenied
+	}
+	if err != nil {
+		return Message{}, false, err
+	}
+	if r.ChannelID != channel {
+		return Message{}, false, ErrConflict
+	}
+	if r.deleted {
+		return Message{}, false, ErrMessageGone
+	}
+	hash := r.originalHash
+	if hash == nil {
+		hash = digest(r.Body)
+	}
+	if !bytes.Equal(hash, digest(body)) {
+		return Message{}, false, ErrConflict
+	}
+	return r.Message, false, nil
 }
 
 func (s *Store) History(ctx context.Context, channel string, after int64) ([]Message, error) {
