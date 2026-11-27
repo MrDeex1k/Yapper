@@ -8,6 +8,8 @@ The [2026-11-21 dependency refresh](evidence/dependency-refresh-2026-11-21.md) r
 
 Stage 7.5 recorded Go and Rust analysis and repeatable Web smoke results. Linux arm64 ran all three browser projects. See the [verification record](evidence/stage-7-5-verification.md) for platform and coverage limits.
 
+The [PostgreSQL 19 chat follow-up](evidence/postgresql-19-chat.md) records retry regression tests, history query plans, and a disposable retention and space-recovery measurement.
+
 ## Evidence format
 
 For each implementation gate, record the source revision, image/package versions, date, environment, steps, observed outcome, and remaining limitations. Use logs or screenshots only when they substantiate the result, and exclude secrets and private message content.
